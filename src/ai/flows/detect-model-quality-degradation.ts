@@ -1,10 +1,6 @@
 'use server';
 /**
  * @fileOverview A Genkit flow for detecting quality degradation in AI model outputs over time.
- *
- * - detectModelQualityDegradation - A function that handles the detection of model output degradation.
- * - DetectModelQualityDegradationInput - The input type for the detectModelQualityDegradation function.
- * - DetectModelQualityDegradationOutput - The return type for the detectModelQualityDegradation function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -17,7 +13,7 @@ const DetectModelQualityDegradationInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Optional criteria to use for evaluating quality (e.g., "coherence, relevance, factual accuracy"). If not provided, general quality aspects will be considered.'
+      'Optional criteria to use for evaluating quality (e.g., "coherence, relevance, factual accuracy").'
     ),
   degradationThresholdPercent: z
     .number()
@@ -62,7 +58,7 @@ const detectModelQualityDegradationPrompt = ai.definePrompt({
   output: {schema: DetectModelQualityDegradationOutputSchema},
   prompt: `You are an AI quality monitoring agent. Your task is to analyze the quality of AI model outputs over time and detect any significant degradation.
 
-Here are examples of past AI model outputs that represent the baseline quality:
+Historical Outputs:
 {{#each historicalOutputs}}
 - Output {{@index}}:
   \`\`\`
@@ -70,20 +66,19 @@ Here are examples of past AI model outputs that represent the baseline quality:
   \`\`\`
 {{/each}}
 
-Here is the latest AI model output to evaluate:
+Latest Output:
 \`\`\`
 {{currentOutput}}
 \`\`\`
 
-Consider the following criteria for evaluating quality: {{qualityCriteria}}.
-(If no specific criteria are provided, focus on general aspects like coherence, relevance, completeness, and factual accuracy.)
+Criteria: {{qualityCriteria}}.
 
-1.  Assess the overall quality of the historical outputs and provide an estimated average quality score out of 10.
-2.  Assess the quality of the current output and provide a quality score out of 10.
-3.  Calculate the percentage drop in quality from the historical average to the current output.
-4.  Determine if the current output's quality score has dropped by more than {{degradationThresholdPercent}}% compared to the historical average.
+1. Assess historical quality average (0-10).
+2. Assess current quality (0-10).
+3. Calculate % drop.
+4. Compare drop against {{degradationThresholdPercent}}% threshold.
 
-Provide a detailed reasoning for your assessment, including the calculated quality scores and the percentage drop. Set 'degradationDetected' to true if the drop exceeds the threshold, otherwise false.`,
+Reasoning should be thorough. Set degradationDetected if threshold is met.`,
 });
 
 const detectModelQualityDegradationFlow = ai.defineFlow(

@@ -3,33 +3,67 @@
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MOCK_SUBSCRIPTIONS } from "@/lib/mock-data"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Plus } from "lucide-react"
+import { MoreHorizontal, Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useState, useEffect } from "react"
+import { useState, useMemo } from "react"
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function Subscriptions() {
-  const [mounted, setMounted] = useState(false)
+  const { user } = useUser()
+  const firestore = useFirestore()
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [newSub, setNewSub] = useState({ name: '', provider: '', cost: '', type: 'API Key' })
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const subscriptionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users', user.uid, 'aiSubscriptions'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
 
-  // Avoid in-place mutation of the imported array
-  const sortedSubscriptions = [...MOCK_SUBSCRIPTIONS].sort((a, b) => a.renewalDate.localeCompare(b.renewalDate))
+  const { data: subscriptions, isLoading } = useCollection(subscriptionsQuery);
 
-  // Stable date helper to avoid locale-based hydration errors
-  const getShortMonth = (dateStr: string) => {
-    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-    const date = new Date(dateStr)
-    return months[date.getUTCMonth()] || "JAN"
+  const handleAddSub = () => {
+    if (!user || !firestore || !newSub.name) return;
+
+    const colRef = collection(firestore, 'users', user.uid, 'aiSubscriptions');
+    addDocumentNonBlocking(colRef, {
+      userProfileId: user.uid,
+      aiProductOfferingId: 'manual-entry',
+      name: newSub.name, // Mapping for list view
+      customName: newSub.name,
+      providerName: newSub.provider,
+      subscriptionType: newSub.type,
+      monthlyFixedCost: parseFloat(newSub.cost) || 0,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    setNewSub({ name: '', provider: '', cost: '', type: 'API Key' });
+    setIsAddOpen(false);
   }
 
-  const getDay = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.getUTCDate()
+  const handleDeleteSub = (subId: string) => {
+    if (!user || !firestore) return;
+    const docRef = doc(firestore, 'users', user.uid, 'aiSubscriptions', subId);
+    deleteDocumentNonBlocking(docRef);
+  }
+
+  const getShortDate = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
   }
 
   return (
@@ -41,9 +75,49 @@ export default function Subscriptions() {
             <SidebarTrigger className="-ml-1" />
             <h1 className="font-headline text-xl font-bold">Subscription Hub</h1>
           </div>
-          <Button size="sm" className="gap-2">
-            <Plus size={16} /> Add Subscription
-          </Button>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2">
+                <Plus size={16} /> Add Subscription
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add AI Subscription</DialogTitle>
+                <DialogDescription>Enter the details of your AI tool subscription.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Tool Name</Label>
+                  <Input id="name" value={newSub.name} onChange={(e) => setNewSub({ ...newSub, name: e.target.value })} placeholder="e.g. GPT-4 Pro" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="provider">Provider</Label>
+                  <Input id="provider" value={newSub.provider} onChange={(e) => setNewSub({ ...newSub, provider: e.target.value })} placeholder="e.g. OpenAI" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="cost">Monthly Cost ($)</Label>
+                  <Input id="cost" type="number" value={newSub.cost} onChange={(e) => setNewSub({ ...newSub, cost: e.target.value })} placeholder="20.00" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Type</Label>
+                  <Select value={newSub.type} onValueChange={(v) => setNewSub({ ...newSub, type: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="API Key">API Key</SelectItem>
+                      <SelectItem value="Web UI Plan">Web UI Plan</SelectItem>
+                      <SelectItem value="Enterprise">Enterprise</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleAddSub}>Save Subscription</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
@@ -53,104 +127,49 @@ export default function Subscriptions() {
               <CardDescription>Consolidated view of all your recurring AI costs.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[200px]">Tool Name</TableHead>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Monthly Cost</TableHead>
-                    <TableHead>Next Renewal</TableHead>
-                    <TableHead>API Usage</TableHead>
-                    <TableHead>Change (MoM)</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {MOCK_SUBSCRIPTIONS.map((sub) => (
-                    <TableRow key={sub.id} className="group transition-colors">
-                      <TableCell className="font-bold text-primary">{sub.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{sub.provider}</TableCell>
-                      <TableCell className="font-headline font-semibold text-foreground">${sub.monthlyCost}</TableCell>
-                      <TableCell>{sub.renewalDate}</TableCell>
-                      <TableCell>
-                        {sub.apiUsage ? (
-                          <div className="space-y-1">
-                            <span className="text-xs font-mono">{sub.apiUsage.toLocaleString()} tokens</span>
-                            <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
-                              <div className="bg-accent h-full" style={{ width: '45%' }} />
-                            </div>
-                          </div>
-                        ) : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={sub.lastMonthUsageChange > 0 ? 'destructive' : sub.lastMonthUsageChange < 0 ? 'secondary' : 'outline'}
-                          className="font-medium"
-                        >
-                          {sub.lastMonthUsageChange > 0 ? '+' : ''}{sub.lastMonthUsageChange}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal size={16} />
-                        </Button>
-                      </TableCell>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[200px]">Tool Name</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Monthly Cost</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Added Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {subscriptions?.map((sub) => (
+                      <TableRow key={sub.id} className="group transition-colors">
+                        <TableCell className="font-bold text-primary">{sub.customName || sub.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{sub.providerName || sub.provider}</TableCell>
+                        <TableCell className="font-headline font-semibold text-foreground">${sub.monthlyFixedCost}</TableCell>
+                        <TableCell><Badge variant="outline">{sub.subscriptionType}</Badge></TableCell>
+                        <TableCell>{getShortDate(sub.createdAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteSub(sub.id)}>
+                            <MoreHorizontal size={16} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!subscriptions?.length && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
+                          No subscriptions found. Click "Add Subscription" to get started.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm bg-accent/5">
-              <CardHeader>
-                <CardTitle className="text-lg font-headline">Savings Opportunities</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-white rounded-lg flex items-center justify-between border border-accent/20">
-                  <div>
-                    <p className="font-bold text-sm">Switch Midjourney to Yearly</p>
-                    <p className="text-xs text-muted-foreground">Save up to 20% on your annual cost.</p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">Save $24/yr</Badge>
-                </div>
-                <div className="p-4 bg-white rounded-lg flex items-center justify-between border border-accent/20">
-                  <div>
-                    <p className="font-bold text-sm">Consolidate Chat Tools</p>
-                    <p className="text-xs text-muted-foreground">Low usage detected on Claude Pro.</p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">Save $20/mo</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-headline">Renewal Calendar</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mounted && sortedSubscriptions.map(sub => (
-                    <div key={sub.id} className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/5 flex flex-col items-center justify-center text-primary border border-primary/10">
-                        <span className="text-[10px] uppercase font-bold">{getShortMonth(sub.renewalDate)}</span>
-                        <span className="text-lg font-bold font-headline leading-none">{getDay(sub.renewalDate)}</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-sm">{sub.name}</p>
-                        <p className="text-xs text-muted-foreground">{sub.provider}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm">${sub.monthlyCost}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Auto-renew</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>
