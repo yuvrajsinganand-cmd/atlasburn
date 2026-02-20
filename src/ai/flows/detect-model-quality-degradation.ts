@@ -65,17 +65,17 @@ const detectModelQualityDegradationPrompt = ai.definePrompt({
 Here are examples of past AI model outputs that represent the baseline quality:
 {{#each historicalOutputs}}
 - Output {{@index}}:
-  ```
-  {{{this}}}
-  ```
+  \`\`\`
+  {{this}}
+  \`\`\`
 {{/each}}
 
 Here is the latest AI model output to evaluate:
-```
-{{{currentOutput}}}
-```
+\`\`\`
+{{currentOutput}}
+\`\`\`
 
-Consider the following criteria for evaluating quality: {{{qualityCriteria}}}.
+Consider the following criteria for evaluating quality: {{qualityCriteria}}.
 (If no specific criteria are provided, focus on general aspects like coherence, relevance, completeness, and factual accuracy.)
 
 1.  Assess the overall quality of the historical outputs and provide an estimated average quality score out of 10.
