@@ -58,13 +58,13 @@ export type DetectModelQualityDegradationOutput = z.infer<typeof DetectModelQual
 
 const detectModelQualityDegradationPrompt = ai.definePrompt({
   name: 'detectModelQualityDegradationPrompt',
-  input: {schema: DetectModelQualityDegectModelQualityDegradationInputSchema},
+  input: {schema: DetectModelQualityDegradationInputSchema},
   output: {schema: DetectModelQualityDegradationOutputSchema},
   prompt: `You are an AI quality monitoring agent. Your task is to analyze the quality of AI model outputs over time and detect any significant degradation.
 
 Here are examples of past AI model outputs that represent the baseline quality:
 {{#each historicalOutputs}}
-- Output {{math @index "+" 1}}:
+- Output {{@index}}:
   ```
   {{{this}}}
   ```
