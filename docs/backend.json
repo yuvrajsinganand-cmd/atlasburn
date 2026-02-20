@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -516,7 +517,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
@@ -713,7 +715,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure for AISleek: AI Tool Navigator prioritizes authorization independence, clarity, and scalability by adhering to hierarchical user-owned data and strategic denormalization. \n\n**Authorization Independence (Strategy A):**\nAll user-specific data (UserProfile, AISubscription, OptimizationSuggestion, ModelComparison, ModelSwitchSimulation, UserBudget, Alert, APIUsageRecord) is strictly nested under `/users/{userId}/`. This path structure inherently associates data with the authenticated user (`request.auth.uid`).\n\nCrucially, for all documents within these user-owned subcollections, the `userProfileId` field is denormalized directly into the document. This means that security rules can always evaluate `request.auth.uid == resource.data.userProfileId` without needing to perform `get()` operations on parent documents. For instance, an `APIUsageRecord` document, while deeply nested under a specific `AISubscription`, will explicitly contain its `userProfileId`. This completely eliminates hierarchical authorization dependencies.\n\n`AIProductOffering` data, being static and generally public, resides in a top-level collection (`/aiProductOfferings`), allowing global read access without impacting user-specific authorization.\n\n**QAPs (Rules are not Filters):**\nThe structural segregation (Strategy B) and denormalization ensure that Queryable Access Patterns (QAPs) are robust.\n\n1.  **User-Owned Data:** For any collection or subcollection under `/users/{userId}/`, a `list` operation can be secured by a simple rule `allow read: if request.auth.uid == resource.data.userProfileId;`. The client-side query must include `where('userProfileId', '==', request.auth.uid)`, which is highly efficient. This allows users to query their own subscriptions, usage records, suggestions, etc., directly without exposing data belonging to other users.\n2.  **Public Data:** The `/aiProductOfferings` collection is designed for global read access, making it straightforward to implement `allow read: if true;` rules. This allows the UI to display available AI models to all users without authorization complexity.\n3.  **Admin Roles:** A separate `/roles_admin/{adminId}` collection allows for easy checking of administrative privileges using `get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)).exists()` for specific write operations on shared data like `AIProductOffering`s, if needed. This adheres to DBAC (Database Access Control) principles.\n\n**Summary:**\nThe design uses clear, hierarchical paths for user-owned, private data and top-level collections for global, public data. Denormalization of `userProfileId` into all user-related documents is the cornerstone of achieving authorization independence and enabling efficient, secure `list` queries without complex rule logic or `get()` calls. This structure is highly scalable and debuggable, aligning with all core design principles and mandates."
+    ]
   }
 }

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for detecting quality degradation in AI model outputs over time.
@@ -65,15 +66,15 @@ const detectModelQualityDegradationPrompt = ai.definePrompt({
 Here are examples of past AI model outputs that represent the baseline quality:
 {{#each historicalOutputs}}
 - Output {{@index}}:
-  \x60\x60\x60
+  \`\`\`
   {{{this}}}
-  \x60\x60\x60
+  \`\`\`
 {{/each}}
 
 Here is the latest AI model output to evaluate:
-\x60\x60\x60
+\`\`\`
 {{currentOutput}}
-\x60\x60\x60
+\`\`\`
 
 Consider the following criteria for evaluating quality: {{qualityCriteria}}.
 (If no specific criteria are provided, focus on general aspects like coherence, relevance, completeness, and factual accuracy.)
