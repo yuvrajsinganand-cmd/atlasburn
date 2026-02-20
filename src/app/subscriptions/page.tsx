@@ -8,8 +8,30 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { MoreHorizontal, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
 
 export default function Subscriptions() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Avoid in-place mutation of the imported array
+  const sortedSubscriptions = [...MOCK_SUBSCRIPTIONS].sort((a, b) => a.renewalDate.localeCompare(b.renewalDate))
+
+  // Stable date helper to avoid locale-based hydration errors
+  const getShortMonth = (dateStr: string) => {
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+    const date = new Date(dateStr)
+    return months[date.getUTCMonth()] || "JAN"
+  }
+
+  const getDay = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.getUTCDate()
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -109,11 +131,11 @@ export default function Subscriptions() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {MOCK_SUBSCRIPTIONS.sort((a,b) => a.renewalDate.localeCompare(b.renewalDate)).map(sub => (
+                  {mounted && sortedSubscriptions.map(sub => (
                     <div key={sub.id} className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-primary/5 flex flex-col items-center justify-center text-primary border border-primary/10">
-                        <span className="text-[10px] uppercase font-bold">{new Date(sub.renewalDate).toLocaleString('default', { month: 'short' })}</span>
-                        <span className="text-lg font-bold font-headline leading-none">{new Date(sub.renewalDate).getDate()}</span>
+                        <span className="text-[10px] uppercase font-bold">{getShortMonth(sub.renewalDate)}</span>
+                        <span className="text-lg font-bold font-headline leading-none">{getDay(sub.renewalDate)}</span>
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm">{sub.name}</p>
