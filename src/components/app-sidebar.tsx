@@ -1,13 +1,13 @@
-
 "use client"
 
-import { LayoutDashboard, Wallet, BrainCircuit, Lightbulb, TrendingUp, LogOut, LogIn } from "lucide-react"
+import { LayoutDashboard, Wallet, BrainCircuit, Lightbulb, TrendingUp, LogOut, LogIn, UserCircle } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useUser, useAuth } from "@/firebase"
-import { initiateGoogleSignIn, initiateSignOut } from "@/firebase/non-blocking-login"
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { initiateSignOut } from "@/firebase/non-blocking-login"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { collection, query } from "firebase/firestore"
 
 import {
   Sidebar,
@@ -32,6 +32,19 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { user } = useUser()
   const auth = useAuth()
+  const firestore = useFirestore()
+
+  const budgetQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users', user.uid, 'userBudgets'));
+  }, [firestore, user]);
+
+  const { data: budgets } = useCollection(budgetQuery);
+  const currentBudget = budgets?.[0] || { monthlyBudgetCap: 100, currentSpend: 0 };
+  
+  const budgetPercentage = currentBudget.monthlyBudgetCap > 0 
+    ? Math.min(100, Math.round((currentBudget.currentSpend / currentBudget.monthlyBudgetCap) * 100)) 
+    : 0;
 
   return (
     <Sidebar collapsible="icon" className="border-r">
@@ -57,6 +70,14 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/profile'} tooltip="Profile Settings">
+              <Link href="/profile">
+                <UserCircle />
+                <span className="font-medium">Profile</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4 gap-4">
@@ -78,7 +99,7 @@ export function AppSidebar() {
               variant="ghost" 
               size="sm" 
               className="w-full justify-start text-muted-foreground hover:text-destructive group-data-[collapsible=icon]:px-2"
-              onClick={() => initiateSignOut(auth)}
+              onClick={() => auth && initiateSignOut(auth)}
             >
               <LogOut className="h-4 w-4 mr-2" />
               <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
@@ -89,21 +110,23 @@ export function AppSidebar() {
             variant="outline" 
             size="sm" 
             className="w-full border-primary/20 hover:bg-primary/5 group-data-[collapsible=icon]:px-2"
-            onClick={() => initiateGoogleSignIn(auth)}
+            asChild
           >
-            <LogIn className="h-4 w-4 mr-2 text-primary" />
-            <span className="group-data-[collapsible=icon]:hidden">Sign in with Google</span>
+            <Link href="/login">
+              <LogIn className="h-4 w-4 mr-2 text-primary" />
+              <span className="group-data-[collapsible=icon]:hidden">Sign In</span>
+            </Link>
           </Button>
         )}
         
         <div className="bg-secondary p-4 rounded-xl group-data-[collapsible=icon]:hidden">
           <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Current Budget</p>
           <div className="flex justify-between items-end">
-            <span className="font-headline text-lg font-bold text-primary">$70</span>
-            <span className="text-xs text-muted-foreground">/ $100</span>
+            <span className="font-headline text-lg font-bold text-primary">${currentBudget.currentSpend.toFixed(0)}</span>
+            <span className="text-xs text-muted-foreground">/ ${currentBudget.monthlyBudgetCap}</span>
           </div>
           <div className="w-full bg-primary/10 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div className="bg-primary h-full" style={{ width: '70%' }} />
+            <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${budgetPercentage}%` }} />
           </div>
         </div>
       </SidebarFooter>
