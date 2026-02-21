@@ -122,7 +122,20 @@ export default function Home() {
 
   // Persistence Logic
   const saveDataToFirestore = (uid: string) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
+
+    const isGoogle = user.providerData[0]?.providerId === 'google.com';
+
+    // Create User Profile
+    const profileRef = doc(firestore, 'users', uid);
+    setDocumentNonBlocking(profileRef, {
+      id: uid,
+      email: user.email,
+      name: companyName || user.displayName || 'Founding User',
+      isEmailVerified: isGoogle,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
 
     // Create a budget record
     const budgetRef = doc(firestore, 'users', uid, 'userBudgets', 'onboarding');

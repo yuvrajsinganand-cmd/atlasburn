@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,8 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { User, Wallet, Save, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { User, Wallet, Save, Loader2, Mail, ShieldCheck, ShieldAlert, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -21,12 +24,32 @@ export default function ProfilePage() {
   const [threshold, setThreshold] = useState('80');
   const [saving, setSaving] = useState(false);
 
+  // Verification Logic
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+
   const budgetQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users', user.uid, 'userBudgets'));
   }, [firestore, user]);
 
+  const userProfileQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
   const { data: budgets } = useCollection(budgetQuery);
+  const { data: profile } = useCollection(userProfileQuery as any); // useCollection for a single doc query can work if typed correctly, but useDoc is better
+  
+  // Real Doc Fetch
+  const [realProfile, setRealProfile] = useState<any>(null);
+  useEffect(() => {
+    if (profile && profile.length > 0) {
+      setRealProfile(profile[0]);
+    }
+  }, [profile]);
+
   const currentBudget = budgets?.[0];
 
   useEffect(() => {
@@ -58,6 +81,38 @@ export default function ProfilePage() {
     }, 500);
   };
 
+  const initiateVerification = () => {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otp);
+    setIsVerifying(true);
+    toast({
+      title: "OTP Sent",
+      description: `In this prototype, your OTP is: ${otp}. Please enter it below.`,
+    });
+  };
+
+  const handleVerify = () => {
+    if (otpValue === generatedOtp && user && firestore) {
+      const profileRef = doc(firestore, 'users', user.uid);
+      setDocumentNonBlocking(profileRef, {
+        isEmailVerified: true,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      
+      setIsVerifying(false);
+      toast({
+        title: "Account Verified",
+        description: "Your email has been successfully verified.",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Invalid OTP",
+        description: "The code you entered is incorrect.",
+      });
+    }
+  };
+
   if (isUserLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -79,6 +134,8 @@ export default function ProfilePage() {
     );
   }
 
+  const isVerified = user.providerData[0]?.providerId === 'google.com' || realProfile?.isEmailVerified;
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -97,17 +154,36 @@ export default function ProfilePage() {
                 <div className="mx-auto w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-4 border-4 border-white shadow-xl">
                   <User size={48} className="text-primary" />
                 </div>
-                <CardTitle className="font-headline">{user.displayName || 'User'}</CardTitle>
+                <CardTitle className="font-headline">{user.displayName || realProfile?.name || 'User'}</CardTitle>
                 <CardDescription className="flex items-center justify-center gap-1">
                   <Mail size={12} /> {user.email}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
-                    <ShieldCheck size={12} className="mr-1" /> Verified
-                  </Badge>
+                  <span className="text-muted-foreground font-medium">Verification Status</span>
+                  {isVerified ? (
+                    <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
+                      <ShieldCheck size={12} className="mr-1" /> Verified
+                    </Badge>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge 
+                            variant="destructive" 
+                            className="bg-destructive/10 text-destructive border-destructive/20 cursor-pointer hover:bg-destructive/20 transition-colors"
+                            onClick={initiateVerification}
+                          >
+                            <ShieldAlert size={12} className="mr-1" /> Unverified
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Verify yourself</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -159,14 +235,44 @@ export default function ProfilePage() {
                     <Input value={user.uid} disabled className="bg-muted/50 font-mono text-[10px]" />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Last Sign In</Label>
-                    <p className="text-sm text-muted-foreground">{user.metadata.lastSignInTime}</p>
+                    <Label>Sign-in Provider</Label>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Key size={14} /> {user.providerData[0]?.providerId || 'password'}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </div>
         </main>
+
+        <Dialog open={isVerifying} onOpenChange={setIsVerifying}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl">Verify Your Email</DialogTitle>
+              <DialogDescription>
+                Enter the 6-digit code sent to your email address to verify your account.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-6">
+              <div className="grid gap-2">
+                <Label htmlFor="otp">Verification Code</Label>
+                <Input 
+                  id="otp" 
+                  placeholder="000000" 
+                  maxLength={6} 
+                  className="text-center text-3xl font-bold tracking-widest h-16"
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsVerifying(false)}>Cancel</Button>
+              <Button onClick={handleVerify} className="font-bold">Verify OTP</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SidebarInset>
     </SidebarProvider>
   );
