@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -51,7 +52,7 @@ export default function Home() {
   const firestore = useFirestore();
   
   // Steps: 0: Welcome, 1: Snapshot, 2: Risk, 3: Optimization, 4: Lock/Signup, 5: Dashboard
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number | null>(null);
 
   // Form State for Onboarding
   const [spend, setSpend] = useState("");
@@ -67,14 +68,25 @@ export default function Home() {
   const [companyName, setCompanyName] = useState("");
   const [revenueStage, setRevenueStage] = useState("seed");
 
-  // Dashboard Data (Only active in step 5)
+  // Determine initial step based on auth state
+  useEffect(() => {
+    if (!isUserLoading) {
+      if (user && !user.isAnonymous) {
+        setStep(5);
+      } else if (step === null) {
+        setStep(0);
+      }
+    }
+  }, [isUserLoading, user, step]);
+
+  // Dashboard Data
   const subscriptionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || step < 5) return null;
+    if (!firestore || !user || step !== 5) return null;
     return query(collection(firestore, 'users', user.uid, 'aiSubscriptions'));
   }, [firestore, user, step]);
 
   const budgetQuery = useMemoFirebase(() => {
-    if (!firestore || !user || step < 5) return null;
+    if (!firestore || !user || step !== 5) return null;
     return query(collection(firestore, 'users', user.uid, 'userBudgets'));
   }, [firestore, user, step]);
 
@@ -88,7 +100,6 @@ export default function Home() {
   const metrics = useMemo(() => {
     const s = parseFloat(spend) || 0;
     const u = parseFloat(usersCount) || 1;
-    const r = parseFloat(reqPerUser) || 1;
     
     const costPerUser = s / u;
     const growth2x = s * 2.4; 
@@ -96,7 +107,7 @@ export default function Home() {
     const savings = s - optimizedSpend;
 
     return { costPerUser, growth2x, optimizedSpend, savings };
-  }, [spend, usersCount, reqPerUser]);
+  }, [spend, usersCount]);
 
   const handleStartAnalysis = () => setStep(1);
   const handleAnalyze = () => {
@@ -118,9 +129,9 @@ export default function Home() {
     setDocumentNonBlocking(budgetRef, {
       userProfileId: uid,
       monthYear: new Date().toISOString().substring(0, 7),
-      monthlyBudgetCap: parseFloat(spend) * 1.5,
+      monthlyBudgetCap: (parseFloat(spend) || 0) * 1.5,
       alertThresholdPercentage: 80,
-      currentSpend: parseFloat(spend),
+      currentSpend: parseFloat(spend) || 0,
       lastUpdatedAt: new Date().toISOString(),
     }, { merge: true });
 
@@ -128,11 +139,11 @@ export default function Home() {
     const subRef = collection(firestore, 'users', uid, 'aiSubscriptions');
     addDocumentNonBlocking(subRef, {
       userProfileId: uid,
-      name: model,
-      customName: `${companyName || 'Main'} ${model}`,
-      providerName: provider,
+      name: model || 'Main Model',
+      customName: `${companyName || 'Main'} ${model || 'Tool'}`,
+      providerName: provider || 'Generic',
       subscriptionType: 'API Key',
-      monthlyFixedCost: parseFloat(spend),
+      monthlyFixedCost: parseFloat(spend) || 0,
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -157,21 +168,13 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // If a user becomes authenticated and we are on the lock step, save data and go to dashboard
-    if (user && step === 4) {
+    if (user && !user.isAnonymous && step === 4) {
       saveDataToFirestore(user.uid);
       setStep(5);
     }
   }, [user, step]);
 
-  useEffect(() => {
-    // If user is already logged in, skip onboarding if they visit root
-    if (user && !user.isAnonymous && step < 5) {
-      setStep(5);
-    }
-  }, [user]);
-
-  if (isUserLoading) {
+  if (isUserLoading || step === null) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
