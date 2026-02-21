@@ -5,21 +5,25 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Plus, Loader2 } from "lucide-react"
+import { MoreHorizontal, Plus, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
+import { collection, query, orderBy, doc } from "firebase/firestore"
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function Subscriptions() {
   const { user } = useUser()
   const firestore = useFirestore()
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [subToDelete, setSubToDelete] = useState<string | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [newSub, setNewSub] = useState({ name: '', provider: '', cost: '', type: 'API Key' })
 
   const subscriptionsQuery = useMemoFirebase(() => {
@@ -36,7 +40,7 @@ export default function Subscriptions() {
     addDocumentNonBlocking(colRef, {
       userProfileId: user.uid,
       aiProductOfferingId: 'manual-entry',
-      name: newSub.name, // Mapping for list view
+      name: newSub.name,
       customName: newSub.name,
       providerName: newSub.provider,
       subscriptionType: newSub.type,
@@ -50,10 +54,15 @@ export default function Subscriptions() {
     setIsAddOpen(false);
   }
 
-  const handleDeleteSub = (subId: string) => {
-    if (!user || !firestore) return;
-    const docRef = doc(firestore, 'users', user.uid, 'aiSubscriptions', subId);
+  const handleDeleteSub = () => {
+    if (!user || !firestore || !subToDelete || deleteConfirmText.toLowerCase() !== 'delete') return;
+    
+    const docRef = doc(firestore, 'users', user.uid, 'aiSubscriptions', subToDelete);
     deleteDocumentNonBlocking(docRef);
+    
+    setIsDeleteOpen(false);
+    setSubToDelete(null);
+    setDeleteConfirmText("");
   }
 
   const getShortDate = (dateStr: string) => {
@@ -77,13 +86,13 @@ export default function Subscriptions() {
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
+              <Button size="sm" className="gap-2 font-headline font-bold">
                 <Plus size={16} /> Add Subscription
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add AI Subscription</DialogTitle>
+                <DialogTitle className="font-headline text-xl">Add AI Subscription</DialogTitle>
                 <DialogDescription>Enter the details of your AI tool subscription.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -114,7 +123,7 @@ export default function Subscriptions() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddSub}>Save Subscription</Button>
+                <Button onClick={handleAddSub} className="font-headline font-bold">Save Subscription</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -134,7 +143,7 @@ export default function Subscriptions() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent">
+                    <TableRow className="hover:bg-transparent uppercase text-[10px] font-bold tracking-widest text-muted-foreground">
                       <TableHead className="w-[200px]">Tool Name</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Monthly Cost</TableHead>
@@ -148,19 +157,34 @@ export default function Subscriptions() {
                       <TableRow key={sub.id} className="group transition-colors">
                         <TableCell className="font-bold text-primary">{sub.customName || sub.name}</TableCell>
                         <TableCell className="text-muted-foreground">{sub.providerName || sub.provider}</TableCell>
-                        <TableCell className="font-headline font-semibold text-foreground">${sub.monthlyFixedCost}</TableCell>
-                        <TableCell><Badge variant="outline">{sub.subscriptionType}</Badge></TableCell>
-                        <TableCell>{getShortDate(sub.createdAt)}</TableCell>
+                        <TableCell className="font-headline font-semibold text-foreground">${sub.monthlyFixedCost.toLocaleString()}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px] font-bold">{sub.subscriptionType}</Badge></TableCell>
+                        <TableCell className="text-xs">{getShortDate(sub.createdAt)}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteSub(sub.id)}>
-                            <MoreHorizontal size={16} />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="text-destructive font-bold focus:text-destructive gap-2 cursor-pointer"
+                                onClick={() => {
+                                  setSubToDelete(sub.id);
+                                  setIsDeleteOpen(true);
+                                }}
+                              >
+                                <Trash2 size={14} /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
                     {!subscriptions?.length && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
+                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">
                           No subscriptions found. Click "Add Subscription" to get started.
                         </TableCell>
                       </TableRow>
@@ -171,6 +195,49 @@ export default function Subscriptions() {
             </CardContent>
           </Card>
         </main>
+
+        <Dialog open={isDeleteOpen} onOpenChange={(open) => {
+          setIsDeleteOpen(open);
+          if (!open) {
+            setSubToDelete(null);
+            setDeleteConfirmText("");
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-headline text-xl text-destructive flex items-center gap-2">
+                <Trash2 /> Confirm Deletion
+              </DialogTitle>
+              <DialogDescription>
+                This action is permanent. To confirm, please type <span className="font-bold text-foreground">delete</span> below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input 
+                value={deleteConfirmText} 
+                onChange={(e) => setDeleteConfirmText(e.target.value)} 
+                placeholder="Type 'delete' here..."
+                className="font-medium"
+              />
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsDeleteOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                disabled={deleteConfirmText.toLowerCase() !== 'delete'}
+                onClick={handleDeleteSub}
+                className="font-headline font-bold"
+              >
+                Delete Subscription
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SidebarInset>
     </SidebarProvider>
   )
