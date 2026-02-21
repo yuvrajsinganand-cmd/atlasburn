@@ -16,7 +16,34 @@ import { collection, query } from "firebase/firestore"
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from "recharts"
 
-const COLORS = ['#673AB7', '#6F00FF', '#9C27B0', '#E1BEE7'];
+const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
+  openai: [
+    { label: "GPT-4o", value: "gpt-4o" },
+    { label: "GPT-4 Turbo", value: "gpt-4-turbo" },
+    { label: "o1-preview", value: "o1-preview" },
+    { label: "o1-mini", value: "o1-mini" },
+    { label: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
+  ],
+  anthropic: [
+    { label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet" },
+    { label: "Claude 3.5 Sonnet v2", value: "claude-3-5-sonnet-v2" },
+    { label: "Claude 3 Opus", value: "claude-3-opus" },
+    { label: "Claude 3 Haiku", value: "claude-3-haiku" },
+    { label: "Claude 4.0 (Alpha)", value: "claude-4" },
+    { label: "Claude 4.5 (Beta)", value: "claude-4-5" },
+    { label: "Claude 4.6 (Internal)", value: "claude-4-6" },
+  ],
+  azure: [
+    { label: "Azure GPT-4o", value: "azure-gpt-4o" },
+    { label: "Azure GPT-4", value: "azure-gpt-4" },
+    { label: "Azure GPT-3.5", value: "azure-gpt-35" },
+  ],
+  mixed: [
+    { label: "GPT-4o + Claude 3.5", value: "mixed-high" },
+    { label: "GPT-3.5 + Haiku", value: "mixed-low" },
+    { label: "Multi-Model Router", value: "router" },
+  ]
+};
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -57,7 +84,7 @@ export default function Home() {
     
     const costPerUser = s / u;
     const costPerRequest = s / (u * r * 30);
-    const growth2x = s * 2.4; // Weighted for inefficiency
+    const growth2x = s * 2.4; 
     const growth3x = s * 4.2;
     const optimizedSpend = s * 0.55;
     const savings = s - optimizedSpend;
@@ -81,7 +108,11 @@ export default function Home() {
     setStep(5);
   };
 
-  // If user is already logged in (not anonymous) or we've finished onboarding
+  const handleProviderChange = (val: string) => {
+    setProvider(val);
+    setModel(""); // Reset model selection when provider changes
+  };
+
   useEffect(() => {
     if (user && !user.isAnonymous) {
       setStep(5);
@@ -96,7 +127,6 @@ export default function Home() {
     );
   }
 
-  // STEP 0: Positioning
   if (step === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center space-y-8 max-w-2xl mx-auto">
@@ -116,7 +146,6 @@ export default function Home() {
     );
   }
 
-  // STEP 1: Snapshot Form
   if (step === 1) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-xl mx-auto w-full space-y-8">
@@ -134,7 +163,7 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Main Provider</Label>
-                <Select value={provider} onValueChange={setProvider}>
+                <Select value={provider} onValueChange={handleProviderChange}>
                   <SelectTrigger className="h-12"><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="openai">OpenAI</SelectItem>
@@ -146,13 +175,12 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 <Label>Most Used Model</Label>
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger className="h-12"><SelectValue placeholder="Select" /></SelectTrigger>
+                <Select value={model} onValueChange={setModel} disabled={!provider}>
+                  <SelectTrigger className="h-12"><SelectValue placeholder={provider ? "Select Model" : "Select Provider First"} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gpt4">GPT-4o</SelectItem>
-                    <SelectItem value="claude35">Claude 3.5 Sonnet</SelectItem>
-                    <SelectItem value="gpt35">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="llama3">Llama 3 (Self-hosted)</SelectItem>
+                    {provider && PROVIDER_MODELS[provider]?.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -167,7 +195,7 @@ export default function Home() {
                 <Input type="number" placeholder="20" value={reqPerUser} onChange={(e) => setReqPerUser(e.target.value)} className="h-12" />
               </div>
             </div>
-            <Button onClick={handleAnalyze} disabled={loading || !spend} className="w-full h-14 text-lg font-headline font-bold bg-primary hover:bg-primary/90">
+            <Button onClick={handleAnalyze} disabled={loading || !spend || !provider || !model} className="w-full h-14 text-lg font-headline font-bold bg-primary hover:bg-primary/90">
               {loading ? <Loader2 className="animate-spin mr-2" /> : "Analyze My Spend"}
             </Button>
           </CardContent>
@@ -176,7 +204,6 @@ export default function Home() {
     );
   }
 
-  // STEP 2: Risk Reveal
   if (step === 2) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-3xl mx-auto w-full space-y-8 animate-in fade-in duration-700">
@@ -199,7 +226,7 @@ export default function Home() {
                 <span className="text-lg font-bold text-accent">+${(metrics.growth2x * 0.2).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground uppercase">GPT-4 Tier Upgrade</span>
+                <span className="text-sm font-medium text-muted-foreground uppercase">Tier Upgrade Projected</span>
                 <span className="text-lg font-bold text-accent">+${(parseFloat(spend) * 1.5).toLocaleString()}</span>
               </div>
             </CardContent>
@@ -223,7 +250,6 @@ export default function Home() {
     );
   }
 
-  // STEP 3: Optimization Simulation
   if (step === 3) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-4xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-700">
@@ -251,7 +277,7 @@ export default function Home() {
           {[
             { title: "Batch Potential", value: "High", desc: "65% of your reqs are non-streaming." },
             { title: "Caching Opportunity", value: "Detected", desc: "12% redundancy in prompt templates." },
-            { title: "Cost Overkill", value: "Flagged", desc: "GPT-4 used for simple classification." }
+            { title: "Cost Overkill", value: "Flagged", desc: "High-tier model used for simple classification." }
           ].map((item, i) => (
             <div key={i} className="flex flex-col p-5 bg-secondary/50 rounded-xl border border-primary/10">
               <span className="text-[10px] font-bold uppercase text-primary tracking-widest mb-1">{item.title}</span>
@@ -268,7 +294,6 @@ export default function Home() {
     );
   }
 
-  // STEP 4: Lock Value (Signup Gate)
   if (step === 4) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-md mx-auto w-full space-y-8 animate-in zoom-in-95 duration-500">
@@ -310,7 +335,6 @@ export default function Home() {
     );
   }
 
-  // STEP 5: Founder Dashboard
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -327,7 +351,6 @@ export default function Home() {
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-          {/* Executive Summary Widgets */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
               <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -376,7 +399,7 @@ export default function Home() {
               <CardContent>
                 <div className="text-3xl font-headline font-bold">{activeSubscriptions.length}</div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Across 3 vendors
+                  Across {new Set(activeSubscriptions.map(s => s.providerName)).size} vendors
                 </p>
               </CardContent>
             </Card>
