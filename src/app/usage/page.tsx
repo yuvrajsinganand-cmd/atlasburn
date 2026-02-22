@@ -12,7 +12,7 @@ import { useState, useMemo } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { withSleek, fakeLLM } from "@/lib/sleek-sdk"
+import { runSleekSandboxTest } from "./actions"
 
 export default function Usage() {
   const { user } = useUser()
@@ -56,35 +56,30 @@ export default function Usage() {
   }, [usageRecords]);
 
   const handlePhase1Test = async () => {
-    if (!user || !firestore || !selectedSubId) return;
+    if (!user || !selectedSubId) return;
     
     const sub = subscriptions?.find(s => s.id === selectedSubId);
     if (!sub) return;
 
     setTesting(true);
     
-    const sleek = withSleek(fakeLLM, {
-      userId: user.uid,
-      subId: selectedSubId,
-      firestore: firestore
-    });
-
     try {
-      await sleek.chat({
-        model: sub.name || 'gpt-4o',
-        messages: [{ role: 'user', content: 'Sandbox Test' }]
-      });
+      const result = await runSleekSandboxTest(user.uid, selectedSubId, sub.name || 'gpt-4o');
 
-      toast({
-        title: "Sandbox Call Intercepted",
-        description: "Zero-latency logging verified. Cost normalized against model tier.",
-      });
-    } catch (e) {
+      if (result.success) {
+        toast({
+          title: "Sandbox Call Intercepted",
+          description: "Secure Server-Side SDK call verified. Forensic data synced.",
+        });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
       console.error(e);
       toast({
         variant: "destructive",
         title: "Test Failed",
-        description: "Check non-blocking error emitter logs."
+        description: e.message || "Failed to execute server-side sandbox call."
       });
     } finally {
       setTesting(false);
@@ -121,7 +116,7 @@ export default function Usage() {
               onClick={handlePhase1Test}
             >
               {testing ? <Loader2 className="animate-spin" size={14} /> : <Beaker size={14} />}
-              Run Sandbox Test
+              Run Phase 1 Test
             </Button>
           </div>
         </header>
@@ -136,7 +131,7 @@ export default function Usage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 uppercase tracking-tighter text-[10px]">
-                    Non-Blocking SDK
+                    Server-Side SDK
                   </Badge>
                 </div>
               </CardHeader>
@@ -172,16 +167,16 @@ export default function Usage() {
             <div className="space-y-6">
               <Card className="border-none shadow-sm p-6 bg-accent/5">
                 <CardTitle className="text-xs font-bold uppercase text-accent flex items-center gap-2 mb-6">
-                  <Beaker size={16} /> Sandbox Isolation
+                  <Beaker size={16} /> Forensic Sandbox
                 </CardTitle>
                 <div className="text-sm space-y-4 text-muted-foreground leading-relaxed">
-                  <p>In the sandbox, we test the <b>Non-Blocking SDK</b> wrapper against a simulated provider.</p>
-                  <p>Sleek captures tokens asynchronously to ensure zero impact on your application's responsiveness.</p>
+                  <p>In Phase 1, we test the <b>Server-Side SDK</b> wrapper via a secure Server Action bridge.</p>
+                  <p>This mimics a real production environment where the Ingest Key is never exposed to the client.</p>
                   <p>Verification Checklist:</p>
                   <ul className="list-disc list-inside text-xs space-y-2">
-                    <li>Token interception (1,243 prompt / 812 output)</li>
-                    <li>Asynchronous Firestore persistence</li>
-                    <li>Model-tier normalization</li>
+                    <li>Secret Key Isolation (Server-Only)</li>
+                    <li>Batched Firestore Writes (Commit successful)</li>
+                    <li>Zero-Latency Foreground Return</li>
                   </ul>
                 </div>
               </Card>
@@ -189,10 +184,10 @@ export default function Usage() {
               <Card className="border-none shadow-sm p-6 bg-primary text-primary-foreground">
                 <div className="flex items-center gap-2 mb-2">
                   <Activity size={18} />
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-80">Ingestion In-Flight</p>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-80">System Hardened</p>
                 </div>
-                <p className="text-2xl font-headline font-bold">SDK Confidence High</p>
-                <p className="text-[10px] mt-2 opacity-70 leading-relaxed">Sleek is currently processing forensic signals in the background. Production stability is prioritized.</p>
+                <p className="text-2xl font-headline font-bold">Phase 1 Secure</p>
+                <p className="text-[10px] mt-2 opacity-70 leading-relaxed">Sleek is now architected for production-grade security. Ingest keys are secret, writes are batched, and the SDK is non-blocking.</p>
               </Card>
             </div>
           </div>

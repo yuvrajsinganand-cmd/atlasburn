@@ -1,28 +1,27 @@
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { normalizeUsage } from '@/lib/normalization-engine';
 
-// Initialize Firebase for the API Route (Server Side)
+// Initialize Firebase (Server Side)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
 /**
- * @fileOverview Production Ingestion API for Sleek SDK.
- * Handles POST /api/ingest
- * Supports batched and single event payloads.
+ * @fileOverview Hardened Ingestion API.
+ * Handles POST /api/ingest with batched writes and schema validation.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { apiKey, projectId, events } = body;
+    const { apiKey, projectId, events, event } = body;
 
     if (!apiKey || !projectId) {
       return NextResponse.json({ error: 'Missing credentials.' }, { status: 400 });
     }
 
-    // 1. Validate Ingest Key (Lookup subscription by ingestKey)
+    // 1. Auth: Validate Ingest Key (Lookup subscription)
     const subQuery = query(
       collection(db, 'users', projectId, 'aiSubscriptions'),
       where('ingestKey', '==', apiKey),
@@ -31,22 +30,29 @@ export async function POST(request: Request) {
     const subSnapshot = await getDocs(subQuery);
 
     if (subSnapshot.empty) {
-      return NextResponse.json({ error: 'Unauthorized Ingest Key.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
     const subDoc = subSnapshot.docs[0];
-    const incomingEvents = Array.isArray(events) ? events : [body];
-
-    // 2. Process and Persist Events
-    const usageCol = collection(db, 'users', projectId, 'aiSubscriptions', subDoc.id, 'apiUsageRecords');
     
-    const writePromises = incomingEvents.map(async (event) => {
-      const { model, usage, metadata } = event;
-      if (!model || !usage) return;
+    // 2. Event Normalization
+    const rawEvents = Array.isArray(events) ? events : (event ? [event] : [body]);
+    const validEvents = rawEvents.filter(e => e.model && e.usage);
 
+    if (validEvents.length === 0) {
+      return NextResponse.json({ status: 'ignored', reason: 'No valid usage events found.' });
+    }
+
+    // 3. Batched Writes (Production Grade)
+    const batch = writeBatch(db);
+    const usageColPath = `users/${projectId}/aiSubscriptions/${subDoc.id}/apiUsageRecords`;
+
+    validEvents.forEach((evt) => {
+      const { model, usage, metadata } = evt;
       const normalized = normalizeUsage(model, usage.prompt_tokens, usage.completion_tokens);
-
-      return addDoc(usageCol, {
+      
+      const newDocRef = doc(collection(db, usageColPath));
+      batch.set(newDocRef, {
         timestamp: metadata?.timestamp || new Date().toISOString(),
         inputTokens: usage.prompt_tokens,
         outputTokens: usage.completion_tokens,
@@ -59,11 +65,11 @@ export async function POST(request: Request) {
       });
     });
 
-    await Promise.all(writePromises);
+    await batch.commit();
 
-    return NextResponse.json({ status: 'success', processed: incomingEvents.length }, { status: 200 });
+    return NextResponse.json({ status: 'success', processed: validEvents.length }, { status: 200 });
   } catch (error: any) {
-    console.error('Ingestion Error:', error);
-    return NextResponse.json({ error: 'Internal Failure', details: error.message }, { status: 500 });
+    console.error('Ingestion API Failure:', error);
+    return NextResponse.json({ error: 'Internal Failure' }, { status: 500 });
   }
 }
