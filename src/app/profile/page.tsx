@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -11,14 +12,14 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key, Database, Activity, Clock, Server, ShieldAlert } from "lucide-react"
+import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key, Database, Activity, Clock, Server, ShieldAlert, Target, Zap } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [budgetCap, setBudgetCap] = useState("1000");
+  const [budgetCap, setBudgetCap] = useState("5000");
   const [threshold, setThreshold] = useState("80");
   const [saving, setSaving] = useState(false);
 
@@ -32,8 +33,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (currentBudget) {
-      setBudgetCap(currentBudget.monthlyBudgetCap.toString());
-      setThreshold(currentBudget.alertThresholdPercentage.toString());
+      setBudgetCap(currentBudget.monthlyBudgetCap?.toString() || "5000");
+      setThreshold(currentBudget.alertThresholdPercentage?.toString() || "80");
     }
   }, [currentBudget]);
 
@@ -83,22 +84,22 @@ export default function ProfilePage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Database size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ingestion Mode</p>
-                <p className="text-sm font-bold">SDK + Connector</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Risk Engine</p>
+                <p className="text-sm font-bold">Synced</p>
               </div>
             </Card>
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
-              <div className="p-2 bg-primary/10 text-primary rounded-lg"><Clock size={20} /></div>
+              <div className="p-2 bg-primary/10 text-primary rounded-lg"><Zap size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Last Forensic Sync</p>
-                <p className="text-sm font-bold">4 minutes ago</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Decision Engine</p>
+                <p className="text-sm font-bold">Stable</p>
               </div>
             </Card>
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">System Health</p>
-                <p className="text-sm font-bold">Operational</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forecast Model</p>
+                <p className="text-sm font-bold">Active</p>
               </div>
             </Card>
           </div>
@@ -132,13 +133,19 @@ export default function ProfilePage() {
               <Card className="border-none shadow-sm bg-primary text-primary-foreground">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-bold uppercase tracking-widest opacity-80 flex items-center gap-2">
-                    <Activity size={14} /> Health Snapshot
+                    <Target size={14} /> Health Snapshot
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Projected Runway</p>
-                    <p className="text-2xl font-headline font-bold">14.2 Months</p>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Projected Runway</p>
+                      <p className="text-2xl font-headline font-bold">14.2 Mo</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Breach Prob (P90)</p>
+                      <p className="text-xl font-headline font-bold text-amber-300">17%</p>
+                    </div>
                   </div>
                   <Separator className="bg-white/10" />
                   <div className="flex justify-between items-end">
@@ -161,7 +168,7 @@ export default function ProfilePage() {
                   <CardTitle className="flex items-center gap-2 font-headline">
                     <Wallet className="text-primary" size={20} /> Budget Guardrails
                   </CardTitle>
-                  <CardDescription className="text-xs">Establish hard and soft limits for monthly forensic burn monitoring.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Establish hard and soft limits for monthly forensic burn monitoring. These thresholds trigger the stress alerts in the main dashboard.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
@@ -174,7 +181,7 @@ export default function ProfilePage() {
                       <Input id="threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="h-10 bg-muted/20" />
                     </div>
                   </div>
-                  <Button onClick={handleSaveBudget} disabled={saving} className="w-full h-12 font-headline font-bold">
+                  <Button onClick={handleSaveBudget} disabled={saving} className="w-full h-12 font-headline font-bold shadow-sm">
                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={18} />}
                     Persist Guardrails
                   </Button>

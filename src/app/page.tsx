@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -241,7 +242,7 @@ export default function Home() {
         <div className="text-center space-y-4">
           <Badge className="bg-destructive/10 text-destructive border-none uppercase tracking-widest text-[10px] font-bold">Survival Breach Risk</Badge>
           <h2 className="text-4xl font-headline font-bold leading-tight">
-            At 2× scale, your API burn explodes to: <br />
+            At 2&times; scale, your API burn explodes to: <br />
             <span className="text-destructive font-bold text-5xl md:text-6xl">${metrics.growth2x.toLocaleString()}</span>
           </h2>
         </div>
@@ -388,12 +389,21 @@ export default function Home() {
               <div className="text-3xl font-headline font-bold text-primary">${metrics.dailyBurn.toFixed(2)}</div>
               <p className="text-[10px] text-muted-foreground mt-2">Trailing 24h normalized</p>
             </Card>
-            <Card className="p-6 border-none shadow-sm">
+            <Card className="p-6 border-none shadow-sm relative overflow-hidden">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">MTD Bill Projection</span><TrendingUp size={16} className="text-accent" /></div>
               <div className="text-3xl font-headline font-bold text-accent">${metrics.forecasts.base.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[9px] font-bold text-muted-foreground uppercase">Stress Band</span>
                 <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} — ${metrics.forecasts.p90.toFixed(0)}</span>
+              </div>
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-muted/20">
+                <div 
+                  className="h-full bg-accent/30" 
+                  style={{ 
+                    left: `${(metrics.forecasts.p25 / metrics.forecasts.p90) * 100}%`,
+                    width: `${((metrics.forecasts.p90 - metrics.forecasts.p25) / metrics.forecasts.p90) * 100}%`
+                  }} 
+                />
               </div>
             </Card>
             <Card className="p-6 border-none shadow-sm">
@@ -406,7 +416,7 @@ export default function Home() {
               <div className={`text-3xl font-headline font-bold ${metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : "text-foreground"}`}>
                 {(metrics.forecasts.probabilityOfRunwayBreach * 100).toFixed(0)}%
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2">Risk of budget exhaustion</p>
+              <p className="text-[10px] text-muted-foreground mt-2">P90 Risk Intensity</p>
             </Card>
           </div>
 
