@@ -1,74 +1,114 @@
 /**
- * Sleek Math Engine
- * Implementation of Feature 5 (Runway), Feature 7 (Unit Economics), and Feature 12 (Scenarios).
+ * Sleek Math Engine - Production v1
+ * Implementation of Scenario Bands, Multi-mode Forecasting, and P90 Risk.
  */
 
-export interface DailyDataPoint {
-  date: string;
-  cost: number;
-  requests: number;
+export type ForecastMode = 'FLAT' | 'LINEAR' | 'GEOMETRIC';
+
+export interface ForecastScenarios {
+  p25: number; // Best case (Low usage/Efficiency)
+  base: number; // Expected case
+  p90: number; // Stress case (High usage/Spikes)
 }
 
 /**
- * Calculates projected runway for API spend.
- * @param dailySpend Average spend over the last 7-14 days.
- * @param currentCash Allocation for AI spend.
- * @param growthRate Daily growth multiplier (e.g., 1.02 for 2% daily growth).
+ * Calculates projected month-end bill based on trajectory and mode.
  */
-export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 1.0): number {
-  if (dailySpend <= 0) return Infinity;
-  
-  // Basic Linear Runway: Cash / Burn
-  if (growthRate === 1.0) {
-    return Math.floor(currentCash / dailySpend);
+export function calculateMonthEndForecast(
+  currentSpend: number,
+  daysElapsed: number,
+  totalDaysInMonth: number = 30,
+  mode: ForecastMode = 'FLAT',
+  growthRate: number = 0.05 // e.g., 5% monthly growth
+): ForecastScenarios {
+  const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : currentSpend;
+  const remainingDays = Math.max(0, totalDaysInMonth - daysElapsed);
+
+  let projectedRemaining: number;
+
+  switch (mode) {
+    case 'LINEAR':
+      // Adds a fixed % of daily avg as growth per day
+      const dailyGrowth = (dailyAvg * growthRate) / 30;
+      projectedRemaining = 0;
+      for (let i = 1; i <= remainingDays; i++) {
+        projectedRemaining += dailyAvg + (dailyGrowth * i);
+      }
+      break;
+    case 'GEOMETRIC':
+      // Compound growth
+      const dailyRate = Math.pow(1 + growthRate, 1/30);
+      projectedRemaining = dailyAvg * (Math.pow(dailyRate, remainingDays + 1) - 1) / (dailyRate - 1) - dailyAvg;
+      break;
+    case 'FLAT':
+    default:
+      projectedRemaining = dailyAvg * remainingDays;
+      break;
   }
 
-  // Geometric Series Runway: Sum(dailySpend * growthRate^n) = currentCash
-  // Solve for n: dailySpend * (1 - growthRate^n) / (1 - growthRate) = currentCash
-  // growthRate^n = 1 - (currentCash * (1 - growthRate) / dailySpend)
-  // n = log(1 - (currentCash * (1 - growthRate) / dailySpend)) / log(growthRate)
-  
-  const val = 1 - (currentCash * (1 - growthRate) / dailySpend);
-  if (val <= 0) return 0; // Growth exceeds cash immediately
-  
-  const days = Math.log(val) / Math.log(growthRate);
-  return Math.floor(days);
-}
+  const base = currentSpend + projectedRemaining;
 
-/**
- * Calculates Unit Economics for a specific feature.
- * @param totalCost Total feature spend.
- * @param actionCount Total successful actions/runs.
- * @param revenuePerAction Price charged to customer for that action.
- */
-export function calculateUnitEconomics(totalCost: number, actionCount: number, revenuePerAction: number = 0) {
-  const costPerAction = actionCount > 0 ? totalCost / actionCount : 0;
-  const margin = revenuePerAction > 0 ? (revenuePerAction - costPerAction) / revenuePerAction : 0;
-  
   return {
-    costPerAction,
-    margin: margin * 100, // as percentage
-    isHealthy: revenuePerAction > 0 ? margin > 0.4 : true // Default 40% margin threshold
+    p25: base * 0.85, // Assumes 15% efficiency gain or low traffic
+    base: base,
+    p90: base * 1.4, // Assumes 40% spike/retry storm
   };
 }
 
 /**
- * Feature 6: P90 Risk Detection
- * Identifies share of cost consumed by the top 10% of users/requests.
+ * Calculates P90 Daily Spend (90th percentile of daily spend over trailing window).
  */
-export function calculateP90Risk(userCosts: number[]): number {
-  if (userCosts.length === 0) return 0;
-  const sorted = [...userCosts].sort((a, b) => b - a);
-  const total = sorted.reduce((a, b) => a + b, 0);
-  const top10PercentCount = Math.ceil(sorted.length * 0.1);
-  const top10Total = sorted.slice(0, top10PercentCount).reduce((a, b) => a + b, 0);
-  
-  return (top10Total / total) * 100;
+export function calculateP90DailySpend(dailyCosts: number[]): number {
+  if (dailyCosts.length === 0) return 0;
+  const sorted = [...dailyCosts].sort((a, b) => a - b);
+  const index = Math.floor(sorted.length * 0.9);
+  return sorted[index];
 }
 
 /**
- * Scenario Engine: Price Shock Simulator
+ * Enhanced Margin Status with Explainability.
  */
-export function simulatePriceShock(currentMonthlyCost: number, multiplier: number) {
-  return currentMonthlyCost * multiplier;
+export function getMarginStatus(margin: number) {
+  if (margin >= 50) {
+    return {
+      label: "SAFE",
+      color: "text-green-600",
+      bg: "bg-green-100",
+      description: "Margin buffer exceeds 50%. Unit economics are healthy.",
+      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
+    };
+  } else if (margin >= 30) {
+    return {
+      label: "WATCH",
+      color: "text-amber-600",
+      bg: "bg-amber-100",
+      description: "Margin dropping. Model cost density is high relative to revenue.",
+      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
+    };
+  } else {
+    return {
+      label: "RISK",
+      color: "text-destructive",
+      bg: "bg-destructive/10",
+      description: "Critical margin erosion. AI costs are consuming product value.",
+      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
+    };
+  }
+}
+
+/**
+ * Runway Projection with Forecast Scenarios.
+ */
+export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 0): number {
+  if (dailySpend <= 0) return 365; // Default to 1 year for zero burn
+  
+  if (growthRate === 0) {
+    return Math.floor(currentCash / dailySpend);
+  }
+
+  const val = 1 - (currentCash * (0 - growthRate) / dailySpend);
+  if (val <= 0) return 0;
+  
+  const days = Math.log(val) / Math.log(1 + growthRate/30);
+  return Math.max(0, Math.floor(days));
 }

@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield, Info } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { calculateRunway, calculateUnitEconomics } from "@/lib/math-engine"
+import { calculateMonthEndForecast, calculateRunway, getMarginStatus, type ForecastMode } from "@/lib/math-engine"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   openai: [
@@ -54,6 +55,8 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
 
+  const [forecastMode, setForecastMode] = useState<ForecastMode>('FLAT');
+
   useEffect(() => {
     if (!isUserLoading) {
       if (user && !user.isAnonymous) {
@@ -74,17 +77,13 @@ export default function Home() {
   const metrics = useMemo(() => {
     const s = parseFloat(spend) || 5000;
     const u = parseFloat(usersCount) || 500;
-    const runway = calculateRunway(s / 30, s * 5, 1.05);
-    const unitEcon = calculateUnitEconomics(s, u * 20, 0.5);
-    const dailyBurn = s / 30;
-    const forecastBill = s * 1.15; // Simulated growth
-
-    let marginStatus = { label: "SAFE", color: "text-green-600", bg: "bg-green-100", icon: ShieldCheck };
-    if (unitEcon.margin < 30) {
-      marginStatus = { label: "RISK", color: "text-destructive", bg: "bg-destructive/10", icon: AlertTriangle };
-    } else if (unitEcon.margin < 50) {
-      marginStatus = { label: "WATCH", color: "text-amber-600", bg: "bg-amber-100", icon: ShieldAlert };
-    }
+    const daysElapsed = 10; // Simulated
+    
+    const forecasts = calculateMonthEndForecast(s, daysElapsed, 30, forecastMode, 0.15);
+    const unitMargin = 42; // Simulated base margin
+    const marginInfo = getMarginStatus(unitMargin);
+    const dailyBurn = s / daysElapsed;
+    const runway = calculateRunway(dailyBurn, s * 5);
 
     return { 
       costPerUser: s / u, 
@@ -92,12 +91,13 @@ export default function Home() {
       optimizedSpend: s * 0.55, 
       savings: s - (s * 0.55),
       runway,
-      margin: unitEcon.margin,
+      margin: unitMargin,
       dailyBurn,
-      forecastBill,
-      marginStatus
+      forecasts,
+      marginInfo,
+      p90DailySpend: dailyBurn * 1.8 // Simulated P90 spike
     };
-  }, [spend, usersCount]);
+  }, [spend, usersCount, forecastMode]);
 
   const handleStartAnalysis = () => setStep(1);
   const handleAnalyze = () => {
@@ -130,7 +130,6 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     }, { merge: true });
 
-    // Seed initial subscription from onboarding data
     const subId = `sub_${uid}_initial`;
     setDocumentNonBlocking(doc(firestore, 'users', uid, 'aiSubscriptions', subId), {
       userProfileId: uid,
@@ -160,7 +159,6 @@ export default function Home() {
     return <div className="flex h-screen items-center justify-center bg-background"><BarChart3 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  // Step 0: Positioning
   if (step === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center space-y-8 max-w-2xl mx-auto">
@@ -180,7 +178,6 @@ export default function Home() {
     );
   }
 
-  // Step 1: Snapshot
   if (step === 1) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
@@ -232,7 +229,6 @@ export default function Home() {
     );
   }
 
-  // Step 2: Risk Reveal
   if (step === 2) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-3xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-700">
@@ -258,7 +254,6 @@ export default function Home() {
     );
   }
 
-  // Step 3: Optimization
   if (step === 3) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-4xl mx-auto w-full space-y-8 animate-in zoom-in-95 duration-700">
@@ -276,7 +271,6 @@ export default function Home() {
     );
   }
 
-  // Step 4: Lock / Signup
   if (step === 4) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 max-w-md mx-auto w-full space-y-8 animate-in fade-in">
@@ -299,7 +293,6 @@ export default function Home() {
     );
   }
 
-  // Step 5: Dashboard
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -307,10 +300,35 @@ export default function Home() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Sleek Dashboard</h1></div>
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${metrics.marginStatus.bg} ${metrics.marginStatus.color}`}>
-              <metrics.marginStatus.icon size={14} />
-              MARGIN {metrics.marginStatus.label}
-            </div>
+            <Select value={forecastMode} onValueChange={(v: any) => setForecastMode(v)}>
+              <SelectTrigger className="w-[140px] h-8 text-xs">
+                <SelectValue placeholder="Forecast Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FLAT">Flat (Static)</SelectItem>
+                <SelectItem value="LINEAR">Linear (Growth)</SelectItem>
+                <SelectItem value="GEOMETRIC">Geometric (Scaling)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className={`flex items-center cursor-help gap-2 px-3 py-1 rounded-full text-xs font-bold ${metrics.marginInfo.bg} ${metrics.marginInfo.color}`}>
+                  <Activity size={14} />
+                  MARGIN {metrics.marginInfo.label}
+                  <Info size={12} className="ml-1 opacity-50" />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-2">
+                  <h4 className="font-bold font-headline text-sm">Risk Analysis</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{metrics.marginInfo.description}</p>
+                  <div className="pt-2 border-t mt-2">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thresholds</p>
+                    <p className="text-[10px] font-mono mt-1">{metrics.marginInfo.thresholds}</p>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </header>
 
@@ -321,10 +339,13 @@ export default function Home() {
               <div className="text-3xl font-headline font-bold text-primary">${metrics.dailyBurn.toFixed(2)}</div>
               <p className="text-[10px] text-muted-foreground mt-2">Current 30-day average</p>
             </Card>
-            <Card className="p-6 border-none shadow-sm">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">MTD Forecast</span><TrendingUp size={16} className="text-accent" /></div>
-              <div className="text-3xl font-headline font-bold text-accent">${metrics.forecastBill.toLocaleString()}</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Projected month-end bill</p>
+            <Card className="p-6 border-none shadow-sm relative overflow-hidden">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">MTD Forecast (Base)</span><TrendingUp size={16} className="text-accent" /></div>
+              <div className="text-3xl font-headline font-bold text-accent">${metrics.forecasts.base.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase">Scenario Band</span>
+                <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} — ${metrics.forecasts.p90.toFixed(0)}</span>
+              </div>
             </Card>
             <Card className="p-6 border-none shadow-sm">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Runway Impact</span><Target size={16} className="text-primary" /></div>
@@ -332,15 +353,15 @@ export default function Home() {
               <p className="text-[10px] text-muted-foreground mt-2">Assuming current cash buffer</p>
             </Card>
             <Card className="p-6 border-none shadow-sm">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Unit Margin</span><Activity size={16} className="text-green-600" /></div>
-              <div className="text-3xl font-headline font-bold text-green-600">{metrics.margin.toFixed(0)}%</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Gross buffer per token</p>
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">P90 Daily Spend</span><ShieldAlert size={16} className="text-destructive" /></div>
+              <div className="text-3xl font-headline font-bold text-destructive">${metrics.p90DailySpend.toFixed(2)}</div>
+              <p className="text-[10px] text-muted-foreground mt-2">Stress threshold (Last 14 days)</p>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Spend Normalization</CardTitle><CardDescription>Forecasting trajectory for next 90 days.</CardDescription></CardHeader>
+              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Spend Trajectory</CardTitle><CardDescription>Forecasting trajectory for next 90 days (Mode: {forecastMode})</CardDescription></CardHeader>
               <div className="h-[300px] w-full mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[{ name: 'Oct', cost: 12000 }, { name: 'Nov', cost: 15500 }, { name: 'Dec', cost: 22000 }]}>
@@ -362,8 +383,8 @@ export default function Home() {
                 {[
                   { title: "GPT-4o Production", share: "42%", cost: "$2,100" },
                   { title: "Retry Loops", share: "18%", cost: "$900" },
-                  { title: "Feature: Summarize", share: "12%", cost: "$600" },
-                  { title: "Batch Jobs", share: "9%", cost: "$450" }
+                  { title: "Output Bloat (Verbose)", share: "12%", cost: "$600" },
+                  { title: "Context Waste", share: "9%", cost: "$450" }
                 ].map((item, i) => (
                   <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-secondary/50 transition-colors">
                     <div>
