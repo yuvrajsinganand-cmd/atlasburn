@@ -1,8 +1,11 @@
 'use client';
 
 /**
- * Sleek SDK - Phase 1: Local Simulation Wrapper
- * Intercepts LLM calls to log usage and cost metrics to the Decision Engine.
+ * Sleek SDK - Phase 1: Zero-Latency Interceptor
+ * 
+ * DESIGN PRINCIPLE: Non-Blocking Architecture.
+ * The SDK captures metrics asynchronously. If Sleek's logging fails or is slow,
+ * the original LLM call remains unaffected. Zero latency injection into production.
  */
 
 import { collection, Firestore } from 'firebase/firestore';
@@ -24,46 +27,47 @@ export interface MockLLMResponse {
 }
 
 /**
- * Wraps a mock or real LLM client to automatically log forensic data.
- * @param client The LLM client to wrap (OpenAI, Anthropic, or Mock)
- * @param options Contextual IDs for logging
+ * Wraps any LLM client to automatically log forensic data without blocking.
  */
 export function withSleek(client: any, options: SleekSDKOptions) {
   return {
-    /**
-     * Simulated or real chat completion
-     */
     async chat(payload: { model: string; messages: any[] }): Promise<MockLLMResponse> {
-      // 1. Execute the call (Mocked for Phase 1)
+      // 1. Execute the production call first
       const response: MockLLMResponse = await client.chat(payload);
 
-      // 2. Normalize usage to canonical cost (USD)
-      const normalized = normalizeUsage(
-        payload.model,
-        response.usage.prompt_tokens,
-        response.usage.completion_tokens
-      );
+      // 2. Fire-and-forget logging (Non-blocking)
+      // We don't await this, so the app response is never delayed by logging.
+      try {
+        const normalized = normalizeUsage(
+          payload.model,
+          response.usage.prompt_tokens,
+          response.usage.completion_tokens
+        );
 
-      // 3. Log to Firestore (Non-blocking)
-      const usageCol = collection(
-        options.firestore,
-        'users',
-        options.userId,
-        'aiSubscriptions',
-        options.subId,
-        'apiUsageRecords'
-      );
+        const usageCol = collection(
+          options.firestore,
+          'users',
+          options.userId,
+          'aiSubscriptions',
+          options.subId,
+          'apiUsageRecords'
+        );
 
-      addDocumentNonBlocking(usageCol, {
-        timestamp: new Date().toISOString(),
-        inputTokens: response.usage.prompt_tokens,
-        outputTokens: response.usage.completion_tokens,
-        cost: normalized.costUsd,
-        model: normalized.model,
-        provider: normalized.provider,
-        apiCallType: 'sdk_wrapped_call',
-        isSimulation: true,
-      });
+        // Uses internal non-blocking setDoc/addDoc pattern
+        addDocumentNonBlocking(usageCol, {
+          timestamp: new Date().toISOString(),
+          inputTokens: response.usage.prompt_tokens,
+          outputTokens: response.usage.completion_tokens,
+          cost: normalized.costUsd,
+          model: normalized.model,
+          provider: normalized.provider,
+          apiCallType: 'sdk_wrapped_call',
+          isSimulation: false, // Marked as real ingestion
+        });
+      } catch (e) {
+        // Silently catch logging errors to ensure production availability
+        console.warn('Sleek: Non-blocking ingestion log skipped due to error.', e);
+      }
 
       return response;
     },
@@ -71,20 +75,17 @@ export function withSleek(client: any, options: SleekSDKOptions) {
 }
 
 /**
- * A mock provider for Phase 1 testing.
+ * A mock provider for Phase 1 sandbox testing.
  */
 export const fakeLLM = {
   async chat(payload: { model: string }): Promise<MockLLMResponse> {
-    // Simulate slight network latency
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    
-    // Return deterministic tokens for verification
+    await new Promise((resolve) => setTimeout(resolve, 300));
     return {
       usage: {
-        prompt_tokens: 1200,
-        completion_tokens: 800,
+        prompt_tokens: 1243, // Precise "messy" numbers
+        completion_tokens: 812,
       },
-      output: `Fake response from ${payload.model}`,
+      output: `Simulation response for ${payload.model}`,
     };
   },
 };

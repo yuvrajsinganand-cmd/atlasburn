@@ -1,6 +1,6 @@
 /**
- * Sleek Math Engine - Production v2
- * Probabilistic Decision Core.
+ * Sleek Math Engine - Production v2.1
+ * Probabilistic Decision Core with Runway Extension Logic.
  */
 
 import { runMonteCarloSimulation, type SimulationInput } from './probabilistic-engine';
@@ -16,13 +16,6 @@ export interface ForecastScenarios {
 
 /**
  * Calculates projected month-end bill using Monte Carlo simulation.
- * @param currentSpend Total spend so far this month
- * @param daysElapsed Days passed in the current month
- * @param totalDaysInMonth Default 30
- * @param mode FLAT, LINEAR, or GEOMETRIC
- * @param growthRate Monthly growth expectation (as decimal)
- * @param cashReserve Total monthly budget or reserve
- * @param volatility Retry storm probability (0-1)
  */
 export function calculateMonthEndForecast(
   currentSpend: number,
@@ -36,22 +29,20 @@ export function calculateMonthEndForecast(
   const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : currentSpend;
   const remainingDays = Math.max(0, totalDaysInMonth - daysElapsed);
 
-  // Convert monthly growth expectation to daily for the simulation
   const dailyGrowthRate = mode === 'FLAT' ? 0 : 
                           mode === 'GEOMETRIC' ? Math.pow(1 + growthRate, 1/30) - 1 :
                           growthRate / 30;
 
-  // Run the Monte Carlo Simulation (1000 paths)
   const simInput: SimulationInput = {
     baseDailyCost: dailyAvg,
     dailyGrowthRate,
-    retryStormProbability: volatility, // 8% daily chance of anomaly by default
-    retryStormMultiplier: 1.4,   // 40% spike in burn during storm
-    priceShockProbability: 0.03,  // 3% daily chance of provider price hike
-    priceShockMultiplier: 1.2,    // 20% cost increase
+    retryStormProbability: volatility,
+    retryStormMultiplier: 1.4,
+    priceShockProbability: 0.03,
+    priceShockMultiplier: 1.2,
     simulationDays: remainingDays,
     runs: 1000,
-    startingCashReserve: Math.max(0, cashReserve - currentSpend), // Remaining budget
+    startingCashReserve: Math.max(0, cashReserve - currentSpend),
   };
 
   const simResult = runMonteCarloSimulation(simInput);
@@ -65,29 +56,31 @@ export function calculateMonthEndForecast(
 }
 
 /**
- * Calculates P90 Daily Spend (90th percentile of daily spend over trailing 14 days).
- * This is our primary stability metric.
+ * Calculates how many extra days of runway an optimization buys the founder.
  */
-export function calculateP90DailySpend(dailyCosts: number[]): number {
-  if (dailyCosts.length === 0) return 0;
-  // We use a trailing 14-day window as defined in the trust layer spec
-  const window = dailyCosts.slice(-14);
-  const sorted = [...window].sort((a, b) => a - b);
-  const index = Math.floor(sorted.length * 0.9);
-  return sorted[index];
+export function calculateRunwayExtension(
+  currentDailyBurn: number,
+  monthlySavings: number,
+  currentCash: number
+): number {
+  if (currentDailyBurn <= 0) return 0;
+  
+  const dailySavings = monthlySavings / 30;
+  const optimizedBurn = Math.max(0.1, currentDailyBurn - dailySavings);
+  
+  const originalRunway = currentCash / currentDailyBurn;
+  const optimizedRunway = currentCash / optimizedBurn;
+  
+  return Math.floor(optimizedRunway - originalRunway);
 }
 
-/**
- * Probabilistic Margin Status.
- * Thresholds are based on probability of breach, not just current margin.
- */
 export function getMarginStatus(breachProbability: number, margin: number) {
   if (breachProbability > 0.25 || margin < 30) {
     return {
       label: "RISK",
       color: "text-destructive",
       bg: "bg-destructive/10",
-      description: `Critical runway risk. There is a ${(breachProbability * 100).toFixed(0)}% probability of exceeding your budget buffer under current volatility.`,
+      description: `Critical runway risk. Your spend is currently burning through capital at a rate that yields a ${(breachProbability * 100).toFixed(0)}% probability of total budget exhaustion.`,
       thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
     };
   } else if (breachProbability >= 0.10 || margin < 50) {
@@ -95,7 +88,7 @@ export function getMarginStatus(breachProbability: number, margin: number) {
       label: "WATCH",
       color: "text-amber-600",
       bg: "bg-amber-100",
-      description: `Margin under stress. Volatility simulation detected a ${(breachProbability * 100).toFixed(0)}% chance of breach.`,
+      description: `Margin under stress. Volatility simulation detected a ${(breachProbability * 100).toFixed(0)}% chance of breach. This usually precedes a pivot or a fundraising emergency.`,
       thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
     };
   } else {
@@ -103,25 +96,17 @@ export function getMarginStatus(breachProbability: number, margin: number) {
       label: "SAFE",
       color: "text-green-600",
       bg: "bg-green-100",
-      description: "Low volatility risk. Projections suggest 90%+ confidence in staying within budget.",
+      description: "Low volatility risk. Your burn trajectory is sustainable within current cash reserves with 90%+ confidence.",
       thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
     };
   }
 }
 
-/**
- * Runway Projection.
- */
 export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 0): number {
   if (dailySpend <= 0) return 365;
-  
-  if (growthRate === 0) {
-    return Math.floor(currentCash / dailySpend);
-  }
-
+  if (growthRate === 0) return Math.floor(currentCash / dailySpend);
   const val = 1 - (currentCash * (0 - growthRate) / dailySpend);
   if (val <= 0) return 0;
-  
   const days = Math.log(val) / Math.log(1 + growthRate/30);
   return Math.max(0, Math.floor(days));
 }
