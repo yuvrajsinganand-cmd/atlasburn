@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield, Info, Loader2 } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield, Info, Loader2, SlidersHorizontal } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
@@ -17,6 +17,7 @@ import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { calculateMonthEndForecast, calculateRunway, getMarginStatus, type ForecastMode } from "@/lib/math-engine"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
 
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   openai: [
@@ -51,7 +52,10 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
 
+  // Simulation Stress Parameters
   const [forecastMode, setForecastMode] = useState<ForecastMode>('FLAT');
+  const [simulationGrowthRate, setSimulationGrowthRate] = useState(0.05); // 5% growth
+  const [simulationVolatility, setSimulationVolatility] = useState(0.08); // 8% retry prob
 
   useEffect(() => {
     if (!isUserLoading) {
@@ -75,14 +79,22 @@ export default function Home() {
     const u = parseFloat(usersCount) || 500;
     const daysElapsed = 10; 
     
-    // FORECAST: Now utilizes probabilistic Monte Carlo simulation
-    const forecasts = calculateMonthEndForecast(s, daysElapsed, 30, forecastMode, 0.15, s * 1.5);
+    // FORECAST: Now utilizes probabilistic Monte Carlo simulation with stress parameters
+    const forecasts = calculateMonthEndForecast(
+      s, 
+      daysElapsed, 
+      30, 
+      forecastMode, 
+      simulationGrowthRate, 
+      s * 1.5,
+      simulationVolatility
+    );
     
     const unitMargin = 42; 
     const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, unitMargin);
     const dailyBurn = s / daysElapsed;
     
-    const runway = calculateRunway(dailyBurn, s * 5);
+    const runway = calculateRunway(dailyBurn, s * 5, simulationGrowthRate);
 
     return { 
       costPerUser: s / u, 
@@ -96,7 +108,7 @@ export default function Home() {
       marginInfo,
       p90DailySpend: dailyBurn * 1.8 
     };
-  }, [spend, usersCount, forecastMode]);
+  }, [spend, usersCount, forecastMode, simulationGrowthRate, simulationVolatility]);
 
   const handleStartAnalysis = () => setStep(1);
   const handleAnalyze = () => {
@@ -299,16 +311,61 @@ export default function Home() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Sleek Dashboard</h1></div>
           <div className="flex items-center gap-4">
-            <Select value={forecastMode} onValueChange={(v: any) => setForecastMode(v)}>
-              <SelectTrigger className="w-[140px] h-8 text-xs">
-                <SelectValue placeholder="Forecast Mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FLAT">Flat (Static)</SelectItem>
-                <SelectItem value="LINEAR">Linear (Growth)</SelectItem>
-                <SelectItem value="GEOMETRIC">Geometric (Scaling)</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 h-8 text-xs font-headline font-bold">
+                  <SlidersHorizontal size={14} /> Stress Test
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-bold font-headline text-sm">Monte Carlo Stress Toggles</h4>
+                  <p className="text-[10px] text-muted-foreground">Adjust simulation parameters to test runway resilience.</p>
+                </div>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] font-bold uppercase">
+                      <span>Forecast Mode</span>
+                    </div>
+                    <Select value={forecastMode} onValueChange={(v: any) => setForecastMode(v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FLAT">Flat (Static)</SelectItem>
+                        <SelectItem value="LINEAR">Linear (Growth)</SelectItem>
+                        <SelectItem value="GEOMETRIC">Geometric (Scaling)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-[10px] font-bold uppercase">
+                      <span>Usage Volatility</span>
+                      <span>{(simulationVolatility * 100).toFixed(0)}%</span>
+                    </div>
+                    <Slider 
+                      value={[simulationVolatility * 100]} 
+                      onValueChange={([v]) => setSimulationVolatility(v / 100)} 
+                      max={40} 
+                      step={1} 
+                    />
+                    <p className="text-[9px] text-muted-foreground italic">Prob. of "Retry Storms" or usage spikes per day.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-[10px] font-bold uppercase">
+                      <span>Monthly Growth Slope</span>
+                      <span>{(simulationGrowthRate * 100).toFixed(0)}%</span>
+                    </div>
+                    <Slider 
+                      value={[simulationGrowthRate * 100]} 
+                      onValueChange={([v]) => setSimulationGrowthRate(v / 100)} 
+                      max={100} 
+                      step={5} 
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Popover>
               <PopoverTrigger asChild>
                 <div className={`flex items-center cursor-help gap-2 px-3 py-1 rounded-full text-xs font-bold ${metrics.marginInfo.bg} ${metrics.marginInfo.color}`}>
@@ -403,4 +460,3 @@ export default function Home() {
     </SidebarProvider>
   )
 }
-

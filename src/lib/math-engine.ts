@@ -16,6 +16,13 @@ export interface ForecastScenarios {
 
 /**
  * Calculates projected month-end bill using Monte Carlo simulation.
+ * @param currentSpend Total spend so far this month
+ * @param daysElapsed Days passed in the current month
+ * @param totalDaysInMonth Default 30
+ * @param mode FLAT, LINEAR, or GEOMETRIC
+ * @param growthRate Monthly growth expectation (as decimal)
+ * @param cashReserve Total monthly budget or reserve
+ * @param volatility Retry storm probability (0-1)
  */
 export function calculateMonthEndForecast(
   currentSpend: number,
@@ -23,7 +30,8 @@ export function calculateMonthEndForecast(
   totalDaysInMonth: number = 30,
   mode: ForecastMode = 'FLAT',
   growthRate: number = 0.05,
-  cashReserve: number = 10000 // Total monthly budget or reserve
+  cashReserve: number = 10000,
+  volatility: number = 0.08
 ): ForecastScenarios {
   const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : currentSpend;
   const remainingDays = Math.max(0, totalDaysInMonth - daysElapsed);
@@ -37,8 +45,8 @@ export function calculateMonthEndForecast(
   const simInput: SimulationInput = {
     baseDailyCost: dailyAvg,
     dailyGrowthRate,
-    retryStormProbability: 0.08, // 8% daily chance of anomaly
-    retryStormMultiplier: 1.4,   // 40% spike in burn
+    retryStormProbability: volatility, // 8% daily chance of anomaly by default
+    retryStormMultiplier: 1.4,   // 40% spike in burn during storm
     priceShockProbability: 0.03,  // 3% daily chance of provider price hike
     priceShockMultiplier: 1.2,    // 20% cost increase
     simulationDays: remainingDays,
@@ -58,19 +66,22 @@ export function calculateMonthEndForecast(
 
 /**
  * Calculates P90 Daily Spend (90th percentile of daily spend over trailing 14 days).
+ * This is our primary stability metric.
  */
 export function calculateP90DailySpend(dailyCosts: number[]): number {
   if (dailyCosts.length === 0) return 0;
-  const sorted = [...dailyCosts].sort((a, b) => a - b);
+  // We use a trailing 14-day window as defined in the trust layer spec
+  const window = dailyCosts.slice(-14);
+  const sorted = [...window].sort((a, b) => a - b);
   const index = Math.floor(sorted.length * 0.9);
   return sorted[index];
 }
 
 /**
  * Probabilistic Margin Status.
+ * Thresholds are based on probability of breach, not just current margin.
  */
 export function getMarginStatus(breachProbability: number, margin: number) {
-  // Primary trigger: Probabilistic Risk
   if (breachProbability > 0.25 || margin < 30) {
     return {
       label: "RISK",
