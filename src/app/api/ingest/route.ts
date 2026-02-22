@@ -1,79 +1,105 @@
+
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { normalizeUsage } from '@/lib/normalization-engine';
 import { hashIngestKey } from '@/lib/crypto';
 
-// Initialize Firebase (Server Side)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-/**
- * @fileOverview Hardened Ingestion API (v2).
- * Implements Hashed Key Verification and Batched Writes.
- */
+const MAX_EVENTS_PER_BATCH = 50;
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { apiKey, projectId, events, event } = body;
 
     if (!apiKey || !projectId) {
-      return NextResponse.json({ error: 'Missing credentials.' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing identity.' }, { status: 401 });
     }
 
-    // 1. Auth: Compute Hash and Validate against Ingest Key Hash
+    // 1. Auth: Verify Hashed Key
     const hashedKey = hashIngestKey(apiKey);
-    const subQuery = query(
+    const keysQuery = query(
       collection(db, 'users', projectId, 'aiSubscriptions'),
-      where('ingestKeyHash', '==', hashedKey),
-      limit(1)
+      limit(10) // Search across subscriptions
     );
-    const subSnapshot = await getDocs(subQuery);
+    
+    // For MVP, we search across all sub paths. In production, mapping subId in SDK is better.
+    const subSnap = await getDocs(keysQuery);
+    let targetSubId = null;
+    let targetKeyId = null;
 
-    if (subSnapshot.empty) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    for (const sub of subSnap.docs) {
+      const keysSubQuery = query(
+        collection(db, 'users', projectId, 'aiSubscriptions', sub.id, 'ingestKeys'),
+        where('hash', '==', hashedKey),
+        where('status', '==', 'active'),
+        limit(1)
+      );
+      const keySnap = await getDocs(keysSubQuery);
+      if (!keySnap.empty) {
+        targetSubId = sub.id;
+        targetKeyId = keySnap.docs[0].id;
+        break;
+      }
     }
 
-    const subDoc = subSnapshot.docs[0];
-    
-    // 2. Event Normalization
-    // Support: {events: []}, {event: {}}, or root body as event
-    const rawEvents = Array.isArray(events) ? events : (event ? [event] : (body.model ? [body] : []));
-    
-    if (rawEvents.length === 0) {
-      return NextResponse.json({ status: 'ignored', reason: 'No valid usage events found.' });
+    if (!targetSubId) {
+      // Log failed attempt
+      console.warn(`Unauthorized ingest attempt for project ${projectId}`);
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 3. Batched Writes
+    // 2. Parse Events
+    const rawEvents = Array.isArray(events) ? events : (event ? [event] : []);
+    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored' });
+    if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
+      return NextResponse.json({ error: 'Batch too large' }, { status: 413 });
+    }
+
+    // 3. Batched Atomic Ingestion
     const batch = writeBatch(db);
-    const usageColPath = `users/${projectId}/aiSubscriptions/${subDoc.id}/apiUsageRecords`;
+    const usagePath = `users/${projectId}/aiSubscriptions/${targetSubId}/apiUsageRecords`;
+    const dedupePath = `users/${projectId}/aiSubscriptions/${targetSubId}/deduplicatedEvents`;
 
-    rawEvents.forEach((evt) => {
-      const { model, usage, metadata } = evt;
-      if (!model || !usage) return;
+    for (const evt of rawEvents) {
+      if (!evt.model || !evt.usage || !evt.eventId) continue;
 
-      const normalized = normalizeUsage(model, usage.prompt_tokens, usage.completion_tokens);
-      const newDocRef = doc(collection(db, usageColPath));
-      
-      batch.set(newDocRef, {
-        timestamp: metadata?.timestamp || new Date().toISOString(),
-        inputTokens: usage.prompt_tokens,
-        outputTokens: usage.completion_tokens,
+      // Replay Protection Check
+      const dedupeRef = doc(db, dedupePath, evt.eventId);
+      const dedupeSnap = await getDoc(dedupeRef);
+      if (dedupeSnap.exists()) continue;
+
+      const normalized = normalizeUsage(evt.model, evt.usage.prompt_tokens, evt.usage.completion_tokens);
+      const newRecordRef = doc(collection(db, usagePath));
+
+      batch.set(newRecordRef, {
+        timestamp: evt.timestamp || new Date().toISOString(),
+        inputTokens: evt.usage.prompt_tokens,
+        outputTokens: evt.usage.completion_tokens,
         cost: normalized.costUsd,
         model: normalized.model,
         provider: normalized.provider,
-        apiCallType: 'production_sdk_call',
-        metadata: metadata || {},
-        isSimulation: false
+        eventId: evt.eventId,
+        apiCallType: 'production_sdk_call'
       });
-    });
+
+      // Mark as processed
+      batch.set(dedupeRef, { createdAt: serverTimestamp() });
+    }
+
+    // Update Key Usage
+    const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
+    batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 
     await batch.commit();
 
-    return NextResponse.json({ status: 'success', processed: rawEvents.length }, { status: 200 });
-  } catch (error: any) {
-    console.error('Ingestion API Failure:', error);
-    return NextResponse.json({ error: 'Internal Failure' }, { status: 500 });
+    return NextResponse.json({ status: 'success', count: rawEvents.length });
+  } catch (err: any) {
+    console.error('Ingest API Failure:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

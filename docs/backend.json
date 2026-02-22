@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -31,20 +32,45 @@
     "AISubscription": {
       "title": "AISubscription",
       "type": "object",
-      "description": "Stores provider credentials and ingestion security metadata.",
+      "description": "Stores provider metadata and connection status.",
       "properties": {
         "id": { "type": "string" },
         "organizationId": { "type": "string" },
         "providerName": { "type": "string" },
         "customName": { "type": "string" },
-        "ingestKeyHash": { "type": "string", "description": "HMAC-SHA256 hash of the ingest key." },
-        "ingestKeyPrefix": { "type": "string", "description": "Plaintext prefix for UI identification." },
         "status": { "type": "string", "enum": ["active", "error", "pending"] },
         "monthlyFixedCost": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "providerName"]
+    },
+    "IngestKey": {
+      "title": "IngestKey",
+      "type": "object",
+      "description": "Hashed ingest key for SDK authentication.",
+      "properties": {
+        "id": { "type": "string" },
+        "hash": { "type": "string" },
+        "prefix": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastUsedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "organizationId", "providerName"]
+      "required": ["id", "hash", "status"]
+    },
+    "UsageRecord": {
+      "title": "UsageRecord",
+      "type": "object",
+      "description": "Request-level token usage record.",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "model": { "type": "string" },
+        "provider": { "type": "string" },
+        "inputTokens": { "type": "number" },
+        "outputTokens": { "type": "number" },
+        "cost": { "type": "number" },
+        "eventId": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -61,7 +87,15 @@
     },
     "/users/{userId}/aiSubscriptions/{subId}": {
       "schema": "#/backend/entities/AISubscription",
-      "description": "API connections for the user/project."
+      "description": "API connections for the user."
+    },
+    "/users/{userId}/aiSubscriptions/{subId}/ingestKeys/{keyId}": {
+      "schema": "#/backend/entities/IngestKey",
+      "description": "Scoped, hashed keys for this subscription."
+    },
+    "/users/{userId}/aiSubscriptions/{subId}/apiUsageRecords/{recordId}": {
+      "schema": "#/backend/entities/UsageRecord",
+      "description": "Ingested forensic data."
     }
   }
 }

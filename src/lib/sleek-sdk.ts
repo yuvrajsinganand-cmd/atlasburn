@@ -1,14 +1,14 @@
+
 /**
- * Sleek SDK - Production v1.3
+ * Sleek SDK - Production v1.4
  * 
- * DESIGN PRINCIPLE: Server-Side Forensic Ingestion.
- * This SDK MUST only be used in server-side environments (Node.js, Edge).
- * It intercepts LLM usage and forwards it to Sleek's forensic ingestion API.
+ * DESIGN PRINCIPLE: Non-Blocking Forensic Ingestion with Replay Protection.
+ * This SDK wraps LLM clients and forwards metadata to Sleek.
  */
 
 export interface SleekSDKOptions {
-  apiKey: string;    // Sleek Ingest Key (Keep this secret!)
-  projectId: string; // User/Org UID
+  apiKey: string;    // Raw Ingest Key (Keep secret)
+  projectId: string; // User UID
   ingestUrl?: string;
   batchSize?: number;
   maxQueueSize?: number;
@@ -27,39 +27,30 @@ class SleekIngestor {
   private options: SleekSDKOptions;
   private isProcessing: boolean = false;
   private maxRetries: number = 3;
-  private maxQueueSize: number;
 
   constructor(options: SleekSDKOptions) {
     this.options = {
-      ingestUrl: 'https://' + (typeof window !== 'undefined' ? window.location.host : '') + '/api/ingest',
+      ingestUrl: typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : '/api/ingest',
       batchSize: 5,
       maxQueueSize: 100,
       ...options
     };
-    this.maxQueueSize = this.options.maxQueueSize || 100;
   }
 
-  /**
-   * Enqueues an event for background ingestion.
-   * If the queue is full, the oldest event is dropped.
-   */
   public enqueue(event: any) {
-    if (this.queue.length >= this.maxQueueSize) {
-      this.queue.shift(); // Drop oldest to prevent memory leak
+    if (this.queue.length >= (this.options.maxQueueSize || 100)) {
+      this.queue.shift(); // Drop oldest
     }
-    this.queue.push(event);
+    this.queue.push({
+      ...event,
+      eventId: crypto.randomUUID(), // Replay protection ID
+    });
 
-    // In serverless environments, we often want to flush immediately 
-    // or use ctx.waitUntil. For now, we trigger a flush if batch size is met.
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
   }
 
-  /**
-   * Flushes the queue to the ingestion API.
-   * Ensures only one flush is in-flight at a time.
-   */
   public async flush() {
     if (this.isProcessing || this.queue.length === 0) return;
     
@@ -70,13 +61,9 @@ class SleekIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      console.warn('Sleek SDK: Final flush failure.', err);
+      console.warn('Sleek SDK: Failed to flush ingestion events.', err);
     } finally {
       this.isProcessing = false;
-      // If new items were added while we were processing, flush again
-      if (this.queue.length >= (this.options.batchSize || 5)) {
-        this.flush();
-      }
     }
   }
 
@@ -84,9 +71,7 @@ class SleekIngestor {
     try {
       const response = await fetch(this.options.ingestUrl!, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: this.options.apiKey,
           projectId: this.options.projectId,
@@ -94,13 +79,11 @@ class SleekIngestor {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Sleek Ingest Error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Status ${response.status}`);
     } catch (err) {
       if (attempt < this.maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
       }
       throw err;
@@ -110,10 +93,6 @@ class SleekIngestor {
 
 let globalIngestor: SleekIngestor | null = null;
 
-/**
- * Wraps an LLM client for forensic ingestion.
- * IMPORTANT: Call this only in Server Components, API Routes, or Server Actions.
- */
 export function withSleek(client: any, options: SleekSDKOptions) {
   if (!globalIngestor) {
     globalIngestor = new SleekIngestor(options);
@@ -121,27 +100,19 @@ export function withSleek(client: any, options: SleekSDKOptions) {
 
   return {
     async chat(payload: { model: string; messages: any[] }): Promise<MockLLMResponse> {
-      // 1. Priority #1: Production call
       const response: MockLLMResponse = await client.chat(payload);
 
-      // 2. Background ingestion (Non-blocking)
-      // Note: In serverless, you should ideally await the flush or use ctx.waitUntil
       globalIngestor?.enqueue({
         model: payload.model,
         usage: {
           prompt_tokens: response.usage.prompt_tokens,
           completion_tokens: response.usage.completion_tokens,
         },
-        metadata: {
-          sdk_version: '1.3.0-prod',
-          timestamp: new Date().toISOString(),
-          environment: process.env.NODE_ENV
-        }
+        timestamp: new Date().toISOString(),
       });
 
       return response;
     },
-    // Explicit flush for serverless environments
     async flush() {
       await globalIngestor?.flush();
     }
@@ -150,13 +121,10 @@ export function withSleek(client: any, options: SleekSDKOptions) {
 
 export const fakeLLM = {
   async chat(payload: { model: string }): Promise<MockLLMResponse> {
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise(r => setTimeout(r, 200));
     return {
-      usage: {
-        prompt_tokens: 1243,
-        completion_tokens: 812,
-      },
-      output: `Simulation response for ${payload.model}`,
+      usage: { prompt_tokens: 1000, completion_tokens: 500 },
+      output: "Mock response."
     };
-  },
+  }
 };

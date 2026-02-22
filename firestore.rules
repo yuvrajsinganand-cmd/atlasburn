@@ -1,16 +1,7 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * AISleek Security Rules - Hardened for Founder Mode
-     *
-     * CORE PHILOSOPHY:
-     * Users have full read/write access to any document within their personal 
-     * user subtree or their personalized organization subtree.
-     */
-
-    // --- Global Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
@@ -20,59 +11,50 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isOrgOwner(orgId) {
-      return isSignedIn() && (orgId == 'org_' + request.auth.uid);
-    }
-
-    // --- Collection Rules ---
-
     /**
      * @description Organization level rules. 
-     * Owners have full access to their personal 'org_{uid}' container and all nested data.
      */
     match /organizations/{orgId} {
-      // Allow access if user is the direct org owner (via UID prefix) 
-      // or if they exist as a user within that organization.
-      allow read, write: if isOrgOwner(orgId) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
-
-      /**
-       * @description Recursive match for all nested organizational data.
-       */
+      allow read, write: if isOwner(orgId.replace('org_', '')) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
       match /{allChildren=**} {
-        allow read, write: if isOrgOwner(orgId) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+        allow read, write: if isOwner(orgId.replace('org_', '')) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
       }
     }
 
     /**
      * @description Root User level rules.
-     * Owners have full access to their own user profile and all nested sub-collections.
      */
     match /users/{userId} {
       allow read, write: if isOwner(userId);
 
-      /**
-       * @description Recursive match for all nested user-specific data 
-       * (aiSubscriptions, apiUsageRecords, userBudgets, alerts, etc).
-       */
+      match /aiSubscriptions/{subId} {
+        allow read, write: if isOwner(userId);
+
+        // Usage records can only be read by the owner. 
+        // Ingestion API writes them via the service-side initializeApp flow.
+        match /apiUsageRecords/{recordId} {
+          allow read: if isOwner(userId);
+          allow write: if false; // Only written via secure ingestion flow
+        }
+
+        match /ingestKeys/{keyId} {
+          allow read: if isOwner(userId);
+          allow write: if isOwner(userId);
+        }
+
+        match /deduplicatedEvents/{eventId} {
+          allow read: if isOwner(userId);
+          allow write: if false; // Ingestion-internal
+        }
+      }
+
       match /{allChildren=**} {
         allow read, write: if isOwner(userId);
       }
     }
 
-    /**
-     * @description Public catalog of AI models.
-     */
     match /aiProductOfferings/{offeringId} {
       allow get, list: if true;
-    }
-
-    /**
-     * @description Admin role registration.
-     */
-    match /roles_admin/{adminId} {
-      allow get: if isSignedIn();
-      allow list: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      allow write: if false; // Admin roles are system-assigned
     }
   }
 }

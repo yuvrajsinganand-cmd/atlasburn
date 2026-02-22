@@ -1,3 +1,4 @@
+
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -5,56 +6,44 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, CheckCircle2, Terminal, Code, Info, ShieldAlert } from "lucide-react"
+import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, Terminal, Code, Info, ShieldAlert, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { generateAndHashIngestKey } from "./actions"
+import { rotateIngestKey, revokeIngestKey } from "./actions"
 
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [generating, setGenerating] = useState(false);
+  const [rotating, setRotating] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const connectionsQuery = useMemoFirebase(() => {
+  const subsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users', user.uid, 'aiSubscriptions'));
   }, [firestore, user]);
 
-  const { data: connections } = useCollection(connectionsQuery);
+  const { data: subscriptions } = useCollection(subsQuery);
 
-  const handleGenerateKey = async (subId: string) => {
+  const handleRotate = async (subId: string) => {
     if (!user) return;
-    setGenerating(true);
-    
+    setRotating(subId);
     try {
-      const result = await generateAndHashIngestKey(user.uid, subId);
-      
-      // Copy raw key immediately as it won't be shown again
+      const result = await rotateIngestKey(user.uid, subId);
       navigator.clipboard.writeText(result.rawKey);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
-
       toast({ 
-        title: "Ingest Key Generated & Copied", 
-        description: "Key copied to clipboard. Sleek only stores the hash; this key cannot be retrieved again.",
+        title: "New Ingest Key Active", 
+        description: "Raw key copied to clipboard. We only store the hash.",
       });
     } catch (e: any) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Generation Failed", description: e.message });
+      toast({ variant: "destructive", title: "Rotation Failed", description: e.message });
     } finally {
-      setGenerating(false);
+      setRotating(null);
     }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({ title: "Copied", description: "Key copied to clipboard." });
   };
 
   return (
@@ -83,106 +72,80 @@ export default function SettingsPage() {
                       <CardTitle className="text-xl font-headline flex items-center gap-2">
                         <Code className="text-primary" /> Implementation Wizard
                       </CardTitle>
-                      <CardDescription>
-                        Integrate Sleek directly into your runtime for zero-latency token tracking.
-                      </CardDescription>
+                      <CardDescription>Zero-latency token tracking via server-side wrapper.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-4">
-                        <div className="p-4 bg-secondary/20 rounded-xl space-y-3">
-                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Step 1: Install Package</p>
-                          <div className="bg-zinc-950 text-zinc-50 p-3 rounded-lg font-mono text-sm flex justify-between items-center group">
-                            <span>npm i @sleek/sdk</span>
-                            <Copy size={14} className="opacity-0 group-hover:opacity-50 cursor-pointer" onClick={() => copyToClipboard("npm i @sleek/sdk")} />
-                          </div>
+                    <CardContent className="space-y-4">
+                      <div className="p-4 bg-secondary/20 rounded-xl space-y-3">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Step 1: Install</p>
+                        <div className="bg-zinc-950 text-zinc-50 p-3 rounded-lg font-mono text-xs flex justify-between items-center group">
+                          <span>npm i @sleek/sdk</span>
+                          <Copy size={14} className="opacity-0 group-hover:opacity-50 cursor-pointer" />
                         </div>
-
-                        <div className="p-4 bg-secondary/20 rounded-xl space-y-3">
-                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Step 2: Initialize Wrapper (Server Side)</p>
-                          <pre className="bg-zinc-950 text-zinc-50 p-4 rounded-lg font-mono text-xs overflow-x-auto">
+                      </div>
+                      <div className="p-4 bg-secondary/20 rounded-xl space-y-3">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Step 2: Server-Side Init</p>
+                        <pre className="bg-zinc-950 text-zinc-50 p-4 rounded-lg font-mono text-[10px] overflow-x-auto">
 {`import { withSleek } from "@sleek/sdk";
 import OpenAI from "openai";
 
-// Secret Key used in production environment
 const client = withSleek(new OpenAI({ ... }), {
   apiKey: process.env.SLEEK_INGEST_KEY,
-  projectId: "${user?.uid || 'PROJECT_ID'}"
+  projectId: "${user?.uid || 'USER_ID'}"
 });`}
-                          </pre>
-                        </div>
+                        </pre>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-none shadow-sm bg-white">
-                    <CardHeader><CardTitle className="text-lg">Project Ingest Keys</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {connections?.map(conn => (
-                          <div key={conn.id} className="p-4 border rounded-xl flex items-center justify-between hover:bg-muted/10 transition-colors">
-                            <div className="space-y-1">
-                              <p className="font-bold text-sm uppercase">{conn.customName}</p>
-                              {conn.ingestKeyPrefix ? (
-                                <p className="text-xs font-mono text-muted-foreground flex items-center gap-2">
-                                  {conn.ingestKeyPrefix} 
-                                  <Badge variant="outline" className="text-[9px] h-4 px-1">HASHED</Badge>
-                                </p>
-                              ) : (
-                                <p className="text-xs text-amber-600 font-medium">No active Ingest Key</p>
-                              )}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold font-headline px-2">Active Ingest Keys</h3>
+                    {subscriptions?.map(sub => (
+                       <Card key={sub.id} className="border-none shadow-sm">
+                        <CardContent className="p-4 flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold uppercase">{sub.customName}</p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[9px]">HMAC-SHA256</Badge>
+                              <span className="text-[10px] text-muted-foreground">Deterministic verification enabled</span>
                             </div>
-                            <Button size="sm" variant="outline" onClick={() => handleGenerateKey(conn.id)} disabled={generating}>
-                              {generating ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} className="mr-2" />}
-                              {conn.ingestKeyPrefix ? "Rotate Key" : "Generate Key"}
-                            </Button>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled={rotating === sub.id}
+                            onClick={() => handleRotate(sub.id)}
+                          >
+                            {rotating === sub.id ? <Loader2 className="animate-spin mr-2" size={12} /> : <RefreshCw size={12} className="mr-2" />}
+                            Rotate Key
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-6">
                   <Card className="border-none shadow-sm bg-accent/5 p-6 space-y-4">
                     <div className="p-3 bg-accent/10 rounded-2xl text-accent w-fit"><ShieldCheck size={24} /></div>
-                    <h3 className="font-headline font-bold text-lg">Zero-Knowledge Storage</h3>
+                    <h3 className="font-headline font-bold text-lg">Zero-Knowledge</h3>
                     <div className="text-sm space-y-4 text-muted-foreground leading-relaxed">
-                      <p>Sleek implements <b>Key Hashing</b>. We only store an HMAC-SHA256 signature of your Ingest Key.</p>
-                      <p>If Sleek's database is ever compromised, your raw Ingest Keys remain mathematically protected.</p>
+                      <p>We only store peppered <b>HMAC hashes</b>. Your raw keys never touch our logs or database.</p>
                       <p className="text-xs text-amber-600 flex gap-2 font-medium">
                         <ShieldAlert size={14} />
-                        Once generated, the raw key cannot be retrieved. Store it in your secrets manager immediately.
+                        Keys are visible once. Store them in your ENV immediately.
                       </p>
                     </div>
-                  </Card>
-
-                  <Card className="border-none shadow-sm p-6 bg-primary text-primary-foreground">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 size={18} />
-                      <p className="text-xs font-bold uppercase tracking-widest opacity-80">Security Protocol</p>
-                    </div>
-                    <p className="text-sm leading-relaxed opacity-90">Ingest keys are scoped per project and can be rotated instantly. Ingestion is strictly server-side.</p>
                   </Card>
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="connectors">
-              <Card className="border-none shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Billing Truth Sync</CardTitle>
-                  <CardDescription>Verify your SDK ledger against official provider dashboards.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="p-6 bg-muted/20 rounded-2xl border border-dashed border-muted-foreground/20 flex flex-col items-center text-center space-y-4">
-                    <div className="p-3 bg-white rounded-xl shadow-sm"><Info className="text-muted-foreground" /></div>
-                    <div className="space-y-1">
-                      <p className="font-bold text-sm">Historical Reconciliation (24h Delay)</p>
-                      <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">Official billing APIs are used for final reconciliation only. For real-time runway monitoring, use the Sleek SDK.</p>
-                    </div>
-                    <Button variant="outline" className="h-10">Configure Official APIs</Button>
-                  </div>
-                </CardContent>
+              <Card className="border-none shadow-sm p-12 text-center">
+                <Info className="mx-auto mb-4 text-muted-foreground" size={48} />
+                <h3 className="text-xl font-headline font-bold mb-2">Billing Truth Sync</h3>
+                <p className="text-muted-foreground max-w-sm mx-auto mb-6">Verify SDK data against provider ledgers (24h delay). Recommended for reconciliation only.</p>
+                <Button variant="outline">Connect Provider API</Button>
               </Card>
             </TabsContent>
           </Tabs>

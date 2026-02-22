@@ -1,45 +1,50 @@
+
 'use server';
 
-/**
- * @fileOverview Server Actions for Ingest Key Management.
- * Handles secure generation, hashing, and one-time display logic.
- */
-
-import { hashIngestKey } from '@/lib/crypto';
+import { hashIngestKey, generateRawIngestKey } from '@/lib/crypto';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-export async function generateAndHashIngestKey(userId: string, subId: string) {
-  if (!userId || !subId) {
-    throw new Error("Missing identification context.");
+export async function rotateIngestKey(userId: string, subId: string) {
+  if (!userId || !subId) throw new Error("Missing context");
+
+  // 1. Revoke existing keys
+  const keysQuery = query(
+    collection(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys'),
+    where('status', '==', 'active')
+  );
+  const existingKeys = await getDocs(keysQuery);
+  for (const kDoc of existingKeys.docs) {
+    await updateDoc(kDoc.ref, { 
+      status: 'revoked', 
+      revokedAt: new Date().toISOString() 
+    });
   }
 
-  // 1. Generate Raw Key (Secret)
-  // Format: slk_random_random
-  const entropy = () => Math.random().toString(36).substring(2, 15);
-  const rawKey = `slk_${entropy()}_${entropy()}`;
-  
-  // 2. Prepare Public Metadata
-  const prefix = rawKey.substring(0, 10);
-  
-  // 3. Compute Secure Hash
+  // 2. Generate New
+  const rawKey = generateRawIngestKey();
   const hash = hashIngestKey(rawKey);
+  const prefix = rawKey.substring(0, 10);
 
-  // 4. Update Firestore (Never store rawKey)
-  const docRef = doc(db, 'users', userId, 'aiSubscriptions', subId);
-  await updateDoc(docRef, {
-    ingestKeyHash: hash,
-    ingestKeyPrefix: `${prefix}...`,
-    updatedAt: new Date().toISOString()
+  const newKeyRef = await addDoc(collection(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys'), {
+    hash,
+    prefix: `${prefix}...`,
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null
   });
 
-  // 5. Return Raw Key for one-time display/copy
-  return { 
-    rawKey, 
-    prefix: `${prefix}...` 
-  };
+  return { rawKey, keyId: newKeyRef.id };
+}
+
+export async function revokeIngestKey(userId: string, subId: string, keyId: string) {
+  const docRef = doc(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys', keyId);
+  await updateDoc(docRef, { 
+    status: 'revoked', 
+    revokedAt: new Date().toISOString() 
+  });
 }

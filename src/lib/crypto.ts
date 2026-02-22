@@ -1,3 +1,4 @@
+
 import { createHmac } from 'crypto';
 
 /**
@@ -14,4 +15,12 @@ const PEPPER = process.env.SLEEK_INTERNAL_PEPPER || 'default-sleek-pepper-2024-v
  */
 export function hashIngestKey(key: string): string {
   return createHmac('sha256', PEPPER).update(key).digest('hex');
+}
+
+/**
+ * Generates a random secure ingest key.
+ */
+export function generateRawIngestKey(): string {
+  const entropy = () => Math.random().toString(36).substring(2, 15);
+  return `slk_${entropy()}_${entropy()}`;
 }
