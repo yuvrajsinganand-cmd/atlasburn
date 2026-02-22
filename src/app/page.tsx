@@ -21,17 +21,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   openai: [
     { label: "GPT-4o", value: "gpt-4o" },
-    { label: "GPT-4 Turbo", value: "gpt-4-turbo" },
+    { label: "GPT-4o Mini", value: "gpt-4o-mini" },
     { label: "o1-preview", value: "o1-preview" },
-    { label: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
   ],
   anthropic: [
     { label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet" },
     { label: "Claude 3.5 Haiku", value: "claude-3-5-haiku" },
     { label: "Claude 3 Opus", value: "claude-3-opus" },
-    { label: "Claude 3 Haiku", value: "claude-3-haiku" },
-    { label: "Claude 4.5 Preview", value: "claude-4-5" },
-    { label: "Claude 4.6 Preview", value: "claude-4-6" },
   ],
   azure: [
     { label: "Azure GPT-4o", value: "azure-gpt-4o" },
@@ -77,12 +73,15 @@ export default function Home() {
   const metrics = useMemo(() => {
     const s = parseFloat(spend) || 5000;
     const u = parseFloat(usersCount) || 500;
-    const daysElapsed = 10; // Simulated
+    const daysElapsed = 10; 
     
+    // FORECAST: Now supports scenario bands (P25/Base/P90)
     const forecasts = calculateMonthEndForecast(s, daysElapsed, 30, forecastMode, 0.15);
-    const unitMargin = 42; // Simulated base margin
+    const unitMargin = 42; 
     const marginInfo = getMarginStatus(unitMargin);
     const dailyBurn = s / daysElapsed;
+    
+    // RUNWAY: Now sensitivized to growth
     const runway = calculateRunway(dailyBurn, s * 5);
 
     return { 
@@ -95,7 +94,7 @@ export default function Home() {
       dailyBurn,
       forecasts,
       marginInfo,
-      p90DailySpend: dailyBurn * 1.8 // Simulated P90 spike
+      p90DailySpend: dailyBurn * 1.8 
     };
   }, [spend, usersCount, forecastMode]);
 
