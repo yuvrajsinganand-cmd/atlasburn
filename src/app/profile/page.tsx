@@ -11,13 +11,14 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key } from "lucide-react"
+import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key, Database, Activity, Clock, Server, ShieldAlert } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { Separator } from "@/components/ui/separator"
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [budgetCap, setBudgetCap] = useState("100");
+  const [budgetCap, setBudgetCap] = useState("1000");
   const [threshold, setThreshold] = useState("80");
   const [saving, setSaving] = useState(false);
 
@@ -52,81 +53,151 @@ export default function ProfilePage() {
 
     setTimeout(() => {
       setSaving(false);
-      toast({ title: "Settings Saved", description: "Your budget preferences have been updated." });
+      toast({ title: "Guardrails Updated", description: "Operational limits have been persisted." });
     }, 500);
   };
 
   if (isUserLoading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" /></div>;
   }
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="bg-background/50">
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold">Account Settings</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Command Authority</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
+              <Server size={10} /> v1.0.4-PROD
+            </Badge>
           </div>
         </header>
 
-        <main className="p-6 space-y-6 max-w-4xl mx-auto w-full">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="md:col-span-1 border-none shadow-sm h-fit">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-4 border-4 border-white shadow-xl">
-                  <User size={48} className="text-primary" />
-                </div>
-                <CardTitle className="font-headline">{user?.displayName || "Founder"}</CardTitle>
-                <CardDescription className="flex items-center justify-center gap-1">
-                  <Mail size={12} /> {user?.email}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground font-medium">Status</span>
-                  <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
-                    <ShieldCheck size={12} className="mr-1" /> Active
-                  </Badge>
-                </div>
-              </CardContent>
+        <main className="p-6 space-y-6 max-w-5xl mx-auto w-full">
+          {/* System Status Banner */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
+              <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Database size={20} /></div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ingestion Mode</p>
+                <p className="text-sm font-bold">SDK + Connector</p>
+              </div>
             </Card>
+            <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
+              <div className="p-2 bg-primary/10 text-primary rounded-lg"><Clock size={20} /></div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Last Forensic Sync</p>
+                <p className="text-sm font-bold">4 minutes ago</p>
+              </div>
+            </Card>
+            <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">System Health</p>
+                <p className="text-sm font-bold">Operational</p>
+              </div>
+            </Card>
+          </div>
 
-            <div className="md:col-span-2 space-y-6">
-              <Card className="border-none shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Wallet className="text-primary" size={20} /> Budget Guardrails
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Identity & Health */}
+            <div className="lg:col-span-1 space-y-6">
+              <Card className="border-none shadow-sm overflow-hidden bg-white">
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto w-20 h-20 rounded-2xl bg-primary/5 flex items-center justify-center mb-4 border border-primary/10 shadow-inner">
+                    <User size={40} className="text-primary/60" />
+                  </div>
+                  <CardTitle className="font-headline text-lg">{user?.displayName || "Lead Founder"}</CardTitle>
+                  <CardDescription className="text-xs truncate px-4">{user?.email}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-2">
+                  <Separator className="opacity-50" />
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground font-medium uppercase tracking-tight">Org Role</span>
+                    <Badge className="bg-primary text-white border-none font-bold text-[10px]">OWNER</Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground font-medium uppercase tracking-tight">Verification</span>
+                    <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200 text-[10px]">
+                      <ShieldCheck size={10} className="mr-1" /> VERIFIED
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-primary text-primary-foreground">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase tracking-widest opacity-80 flex items-center gap-2">
+                    <Activity size={14} /> Health Snapshot
                   </CardTitle>
-                  <CardDescription>Hard and soft limits for monthly burn.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="budget-cap">Monthly Budget Cap ($)</Label>
-                    <Input id="budget-cap" type="number" value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} />
+                  <div>
+                    <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Projected Runway</p>
+                    <p className="text-2xl font-headline font-bold">14.2 Months</p>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="threshold">Alert Threshold (%)</Label>
-                    <Input id="threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+                  <Separator className="bg-white/10" />
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Margin Status</p>
+                      <p className="text-sm font-bold text-green-300">Sustainable (58%)</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-white hover:bg-white/10" asChild>
+                      <a href="/">View Live Audit</a>
+                    </Button>
                   </div>
-                  <Button onClick={handleSaveBudget} disabled={saving} className="w-full">
-                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
-                    Save Guardrails
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column: Settings */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-headline">
+                    <Wallet className="text-primary" size={20} /> Budget Guardrails
+                  </CardTitle>
+                  <CardDescription className="text-xs">Establish hard and soft limits for monthly forensic burn monitoring.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="budget-cap" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Monthly Budget Cap ($)</Label>
+                      <Input id="budget-cap" type="number" value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} className="h-10 bg-muted/20" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="threshold" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Alert Threshold (%)</Label>
+                      <Input id="threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="h-10 bg-muted/20" />
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveBudget} disabled={saving} className="w-full h-12 font-headline font-bold">
+                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={18} />}
+                    Persist Guardrails
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm">
+              <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
-                  <CardTitle className="text-lg">Security Information</CardTitle>
+                  <CardTitle className="text-sm font-headline uppercase tracking-tight flex items-center gap-2">
+                    <Key size={16} className="text-muted-foreground" /> Security Access
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label>Sign-in Provider</Label>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Key size={14} /> {user?.providerData[0]?.providerId || "password"}
+                  <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Auth Provider</p>
+                      <p className="text-xs font-mono">{user?.providerData[0]?.providerId || "password"}</p>
                     </div>
+                    <Badge variant="secondary" className="text-[10px] font-bold">ENCRYPTED</Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground px-2">
+                    <ShieldAlert size={12} className="text-amber-500" />
+                    <p>Changing your authentication method requires a 24-hour forensic cooldown period.</p>
                   </div>
                 </CardContent>
               </Card>
