@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Loader2, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
@@ -26,8 +26,11 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   ],
   anthropic: [
     { label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet" },
+    { label: "Claude 3.5 Haiku", value: "claude-3-5-haiku" },
     { label: "Claude 3 Opus", value: "claude-3-opus" },
     { label: "Claude 3 Haiku", value: "claude-3-haiku" },
+    { label: "Claude 4.5 Preview", value: "claude-4-5" },
+    { label: "Claude 4.6 Preview", value: "claude-4-6" },
   ],
   azure: [
     { label: "Azure GPT-4o", value: "azure-gpt-4o" },
@@ -123,6 +126,19 @@ export default function Home() {
       email: email || user?.email,
       organizationId: orgId,
       role: 'owner',
+      isEmailVerified: user?.providerData[0]?.providerId === 'google.com',
+      createdAt: new Date().toISOString(),
+    }, { merge: true });
+
+    // Seed initial subscription from onboarding data
+    const subId = `sub_${uid}_initial`;
+    setDocumentNonBlocking(doc(firestore, 'users', uid, 'aiSubscriptions', subId), {
+      userProfileId: uid,
+      name: model || 'Initial Model',
+      providerName: provider,
+      customName: `${provider.toUpperCase()} Production`,
+      monthlyFixedCost: parseFloat(spend) || 0,
+      status: 'active',
       createdAt: new Date().toISOString(),
     }, { merge: true });
   };
@@ -364,4 +380,8 @@ export default function Home() {
       </SidebarInset>
     </SidebarProvider>
   )
+}
+
+function Loader2({ className }: { className?: string }) {
+  return <TrendingUp className={`animate-pulse ${className}`} />
 }
