@@ -1,3 +1,4 @@
+
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -5,16 +6,20 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
-import { Info, TrendingUp, Zap, MousePointer2, Loader2, Database } from "lucide-react"
+import { Info, TrendingUp, Zap, MousePointer2, Loader2, Database, Play } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { toast } from "@/hooks/use-toast"
 
 export default function Usage() {
   const { user } = useUser()
   const firestore = useFirestore()
   const [selectedSubId, setSelectedSubId] = useState<string | null>(null)
+  const [simulating, setSimulating] = useState(false)
 
   const subscriptionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -38,10 +43,41 @@ export default function Usage() {
     if (!usageRecords) return [];
     return usageRecords.map(record => ({
       date: new Date(record.timestamp).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }),
-      tokens: record.inputTokens + record.outputTokens,
-      cost: record.cost
+      tokens: (record.inputTokens || 0) + (record.outputTokens || 0),
+      cost: record.cost || 0
     }));
   }, [usageRecords]);
+
+  const handleSimulateCall = () => {
+    if (!user || !firestore || !selectedSubId) return;
+    setSimulating(true);
+    
+    const usageCol = collection(firestore, 'users', user.uid, 'aiSubscriptions', selectedSubId, 'apiUsageRecords');
+    
+    const input = Math.floor(Math.random() * 2000) + 500;
+    const output = Math.floor(Math.random() * 1000) + 200;
+    const cost = (input + output) * 0.00002;
+
+    addDocumentNonBlocking(usageCol, {
+      id: Math.random().toString(36).substring(7),
+      aiSubscriptionId: selectedSubId,
+      timestamp: new Date().toISOString(),
+      apiCallType: 'chat_completion',
+      inputTokens: input,
+      outputTokens: output,
+      cost: cost,
+      latencyMs: Math.floor(Math.random() * 1200) + 300,
+      userProfileId: user.uid
+    });
+
+    setTimeout(() => {
+      setSimulating(false);
+      toast({
+        title: "API Call Simulated",
+        description: `Logged ${input + output} tokens to Firestore.`,
+      });
+    }, 600);
+  };
 
   const currentSubName = subscriptions?.find(s => s.id === selectedSubId)?.customName || 'Select Tool';
 
@@ -65,6 +101,16 @@ export default function Usage() {
                 ))}
               </SelectContent>
             </Select>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="gap-2 border-primary/20 hover:bg-primary/5"
+              disabled={!selectedSubId || simulating}
+              onClick={handleSimulateCall}
+            >
+              {simulating ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />}
+              Simulate Call
+            </Button>
           </div>
         </header>
 
