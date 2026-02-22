@@ -5,719 +5,122 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user of the AISleek application, holding personal and account-level information.",
+      "description": "Represents a user, linked to an Organization for RBAC.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for contact and identification.",
-          "format": "email"
-        },
-        "name": {
-          "type": "string",
-          "description": "The user's display name or full name."
-        },
-        "isEmailVerified": {
-          "type": "boolean",
-          "description": "Indicates whether the user has verified their email address (auto-true for Google users)."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the user profile was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "organizationId": { "type": "string", "description": "Link to the Org entity." },
+        "role": { "type": "string", "enum": ["owner", "admin", "finance", "engineer"] },
+        "isEmailVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "email",
-        "isEmailVerified",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "email", "organizationId", "role"]
     },
-    "AIProductOffering": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "AIProductOffering",
+    "Organization": {
+      "title": "Organization",
       "type": "object",
-      "description": "Represents a specific AI model or product offering provided by an AI vendor, detailing its characteristics and base pricing.",
+      "description": "B2B Org container for teams and billing.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the AIProductOffering entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The common name of the AI product or model (e.g., 'GPT-4o', 'Claude 3 Opus', 'Gemini 1.5 Pro')."
-        },
-        "providerName": {
-          "type": "string",
-          "description": "The name of the AI service provider (e.g., 'OpenAI', 'Anthropic', 'Google')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description of the AI product offering, its capabilities, and ideal use cases."
-        },
-        "inputCostPerToken": {
-          "type": "number",
-          "description": "The cost per token for input (prompt) data, used for calculating API usage costs."
-        },
-        "outputCostPerToken": {
-          "type": "number",
-          "description": "The cost per token for output (response) data, used for calculating API usage costs."
-        },
-        "typicalLatencyMs": {
-          "type": "number",
-          "description": "The average latency in milliseconds for typical API calls to this model, for performance comparisons."
-        },
-        "capabilities": {
-          "type": "array",
-          "description": "A list of key capabilities supported by this AI model (e.g., 'text_generation', 'image_analysis', 'code_generation').",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when this AI product offering was first added to the system.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the details of this AI product offering were last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "revenueStage": { "type": "string" },
+        "apiBudgetUsd": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "providerName",
-        "inputCostPerToken",
-        "outputCostPerToken",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "name"]
     },
     "AISubscription": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "AISubscription",
       "type": "object",
-      "description": "Represents a user's active subscription or access to a specific AI product offering, including personalized settings and costs.",
+      "description": "Stores provider credentials (encrypted) and connection status.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the AISubscription entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity that owns this subscription. (Relationship: UserProfile 1:N AISubscription)"
-        },
-        "aiProductOfferingId": {
-          "type": "string",
-          "description": "Reference to the AIProductOffering entity that this subscription is for. (Relationship: AIProductOffering 1:N AISubscription)"
-        },
-        "customName": {
-          "type": "string",
-          "description": "A user-defined name for this specific subscription instance (e.g., 'My Dev GPT-4o API Key', 'Marketing Team Claude Access')."
-        },
-        "subscriptionType": {
-          "type": "string",
-          "description": "The type of subscription or access mechanism (e.g., 'API Key', 'Web UI Plan', 'Enterprise Tier')."
-        },
-        "monthlyFixedCost": {
-          "type": "number",
-          "description": "The fixed monthly cost associated with this subscription plan, if any."
-        },
-        "estimatedMonthlyUsageCost": {
-          "type": "number",
-          "description": "The system's estimated variable monthly cost based on historical API usage for this subscription."
-        },
-        "renewalDate": {
-          "type": "string",
-          "description": "The date when this subscription is due for renewal or the next billing cycle.",
-          "format": "date-time"
-        },
-        "apiEndpointUrl": {
-          "type": "string",
-          "description": "The specific API endpoint URL for this subscription, if applicable.",
-          "format": "uri"
-        },
-        "isActive": {
-          "type": "boolean",
-          "description": "Indicates whether the subscription is currently active."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when this subscription record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when this subscription record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "providerName": { "type": "string" },
+        "customName": { "type": "string" },
+        "apiKeyMetadata": { "type": "string", "description": "Encrypted metadata or masked key." },
+        "status": { "type": "string", "enum": ["active", "error", "pending"] },
+        "monthlyFixedCost": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "userProfileId",
-        "aiProductOfferingId",
-        "customName",
-        "subscriptionType",
-        "monthlyFixedCost",
-        "isActive",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "organizationId", "providerName"]
     },
-    "APIUsageRecord": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "APIUsageRecord",
+    "DailyRollup": {
+      "title": "DailyRollup",
       "type": "object",
-      "description": "A detailed record of a single API call made through a user's AI subscription, capturing usage and cost metrics.",
+      "description": "Pre-aggregated time-series data for the dashboard.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the APIUsageRecord entity."
-        },
-        "aiSubscriptionId": {
-          "type": "string",
-          "description": "Reference to the AISubscription entity this usage record pertains to. (Relationship: AISubscription 1:N APIUsageRecord)"
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "The exact date and time when the API call occurred.",
-          "format": "date-time"
-        },
-        "apiCallType": {
-          "type": "string",
-          "description": "The type of API call made (e.g., 'chat_completion', 'image_generation', 'embedding', 'text_moderation')."
-        },
-        "inputTokens": {
-          "type": "number",
-          "description": "The number of input tokens used in this specific API call."
-        },
-        "outputTokens": {
-          "type": "number",
-          "description": "The number of output tokens generated by this specific API call."
-        },
-        "cost": {
-          "type": "number",
-          "description": "The calculated cost of this individual API call based on token usage and model pricing."
-        },
-        "latencyMs": {
-          "type": "number",
-          "description": "The latency of the API call in milliseconds, useful for performance analysis."
-        },
-        "associatedTask": {
-          "type": "string",
-          "description": "An optional user-defined string or tag to associate this API usage with a specific task, project, or feature within the user's workflow."
-        }
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "costUsd": { "type": "number" },
+        "tokensIn": { "type": "number" },
+        "tokensOut": { "type": "number" },
+        "requestCount": { "type": "number" },
+        "topFeature": { "type": "string" }
       },
-      "required": [
-        "id",
-        "aiSubscriptionId",
-        "timestamp",
-        "apiCallType",
-        "inputTokens",
-        "outputTokens",
-        "cost"
-      ]
+      "required": ["id", "organizationId", "date", "costUsd"]
     },
-    "OptimizationSuggestion": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "OptimizationSuggestion",
+    "Anomaly": {
+      "title": "Anomaly",
       "type": "object",
-      "description": "A suggestion generated by the AISleek cost optimization tool, providing actionable insights for users to reduce AI spending.",
+      "description": "Detected spend spikes with automated explanations.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the OptimizationSuggestion entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity to whom this suggestion is made. (Relationship: UserProfile 1:N OptimizationSuggestion)"
-        },
-        "suggestionTimestamp": {
-          "type": "string",
-          "description": "Timestamp when the optimization suggestion was generated.",
-          "format": "date-time"
-        },
-        "suggestionType": {
-          "type": "string",
-          "description": "The category of the suggestion (e.g., 'switch_tool', 'cancel_subscription', 'adjust_usage', 'optimize_model_settings')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed explanation of the optimization suggestion and its rationale."
-        },
-        "potentialSavingsMonthly": {
-          "type": "number",
-          "description": "The estimated monthly financial savings if this suggestion is adopted."
-        },
-        "currentAISubscriptionId": {
-          "type": "string",
-          "description": "Reference to the AISubscription entity that is the primary subject of the optimization. (Relationship: AISubscription 1:N OptimizationSuggestion)"
-        },
-        "recommendedAIProductOfferingId": {
-          "type": "string",
-          "description": "Optional: Reference to the AIProductOffering recommended as a more cost-effective or efficient alternative, if applicable. (Relationship: AIProductOffering 1:N OptimizationSuggestion)"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the suggestion (e.g., 'pending', 'applied', 'dismissed', 'archived')."
-        },
-        "appliedDate": {
-          "type": "string",
-          "description": "Optional: Timestamp when the user marked the suggestion as applied.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "severity": { "type": "string" },
+        "description": { "type": "string" },
+        "primaryDriver": { "type": "string" },
+        "isResolved": { "type": "boolean" }
       },
-      "required": [
-        "id",
-        "userProfileId",
-        "suggestionTimestamp",
-        "suggestionType",
-        "description",
-        "potentialSavingsMonthly",
-        "currentAISubscriptionId",
-        "status"
-      ]
-    },
-    "ModelComparison": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ModelComparison",
-      "type": "object",
-      "description": "Records the results of a side-by-side comparison of AI model outputs, including quality scores and differences, for performance analysis.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the ModelComparison entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity that initiated this comparison. (Relationship: UserProfile 1:N ModelComparison)"
-        },
-        "comparisonTimestamp": {
-          "type": "string",
-          "description": "Timestamp when the model comparison was performed.",
-          "format": "date-time"
-        },
-        "testScenarioDescription": {
-          "type": "string",
-          "description": "A description of the specific task or scenario for which the models were compared (e.g., 'Summarizing meeting notes', 'Generating marketing copy')."
-        },
-        "model1SubscriptionId": {
-          "type": "string",
-          "description": "Reference to the first AISubscription entity involved in the comparison. (Relationship: AISubscription 1:N ModelComparison)"
-        },
-        "model2SubscriptionId": {
-          "type": "string",
-          "description": "Reference to the second AISubscription entity involved in the comparison. (Relationship: AISubscription 1:N ModelComparison)"
-        },
-        "inputPrompt": {
-          "type": "string",
-          "description": "The common input prompt or task instruction given to both models."
-        },
-        "outputModel1": {
-          "type": "string",
-          "description": "The output generated by the first model in response to the input prompt."
-        },
-        "outputModel2": {
-          "type": "string",
-          "description": "The output generated by the second model in response to the input prompt."
-        },
-        "qualityScoreModel1": {
-          "type": "number",
-          "description": "The assigned quality score for the first model's output (e.g., on a scale of 1-100)."
-        },
-        "qualityScoreModel2": {
-          "type": "number",
-          "description": "The assigned quality score for the second model's output (e.g., on a scale of 1-100)."
-        },
-        "qualityDifferencePercentage": {
-          "type": "number",
-          "description": "The percentage difference in quality score between model 1 and model 2 (positive for model 1 better, negative for model 2 better)."
-        },
-        "toleranceThresholdMet": {
-          "type": "boolean",
-          "description": "Indicates whether the observed quality difference is within the user-defined acceptable tolerance threshold."
-        }
-      },
-      "required": [
-        "id",
-        "userProfileId",
-        "comparisonTimestamp",
-        "testScenarioDescription",
-        "model1SubscriptionId",
-        "model2SubscriptionId",
-        "inputPrompt",
-        "outputModel1",
-        "outputModel2",
-        "qualityScoreModel1",
-        "qualityScoreModel2",
-        "qualityDifferencePercentage",
-        "toleranceThresholdMet"
-      ]
-    },
-    "ModelSwitchSimulation": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ModelSwitchSimulation",
-      "type": "object",
-      "description": "Records the details and projected outcomes of simulating a switch from one AI model subscription to another.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the ModelSwitchSimulation entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity that performed this simulation. (Relationship: UserProfile 1:N ModelSwitchSimulation)"
-        },
-        "simulationTimestamp": {
-          "type": "string",
-          "description": "Timestamp when the model switch simulation was performed.",
-          "format": "date-time"
-        },
-        "currentAISubscriptionId": {
-          "type": "string",
-          "description": "Reference to the current AISubscription entity being considered for replacement. (Relationship: AISubscription 1:N ModelSwitchSimulation)"
-        },
-        "proposedAISubscriptionId": {
-          "type": "string",
-          "description": "Reference to the proposed AISubscription entity to switch to. (Relationship: AISubscription 1:N ModelSwitchSimulation)"
-        },
-        "projectedCostDifferenceMonthly": {
-          "type": "number",
-          "description": "The estimated monthly cost difference if the switch is made (negative for savings, positive for increased cost)."
-        },
-        "estimatedPerformanceDeltaPercentage": {
-          "type": "number",
-          "description": "The estimated percentage change in performance if the switch is made (positive for improvement, negative for degradation)."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the simulation (e.g., 'simulated', 'approved', 'rejected', 'executed')."
-        },
-        "executedDate": {
-          "type": "string",
-          "description": "Optional: Timestamp when the simulated switch was actually executed or scheduled.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userProfileId",
-        "simulationTimestamp",
-        "currentAISubscriptionId",
-        "proposedAISubscriptionId",
-        "projectedCostDifferenceMonthly",
-        "estimatedPerformanceDeltaPercentage",
-        "status"
-      ]
-    },
-    "UserBudget": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "UserBudget",
-      "type": "object",
-      "description": "Stores a user's monthly budget caps, alert thresholds, and current spending for AI tool usage.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserBudget entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity to whom this budget belongs. (Relationship: UserProfile 1:N UserBudget)"
-        },
-        "monthYear": {
-          "type": "string",
-          "description": "The specific month and year for which the budget is set (e.g., '2023-10')."
-        },
-        "monthlyBudgetCap": {
-          "type": "number",
-          "description": "The maximum monetary amount allocated for AI tool spending for the specified month."
-        },
-        "alertThresholdPercentage": {
-          "type": "number",
-          "description": "The percentage of the monthly budget cap at which an alert should be triggered (e.g., 80 for 80%)."
-        },
-        "currentSpend": {
-          "type": "number",
-          "description": "The aggregated current spend for the given month, typically calculated from APIUsageRecords."
-        },
-        "lastUpdatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when this budget record was last updated or refreshed.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userProfileId",
-        "monthYear",
-        "monthlyBudgetCap",
-        "alertThresholdPercentage",
-        "currentSpend",
-        "lastUpdatedAt"
-      ]
-    },
-    "Alert": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Alert",
-      "type": "object",
-      "description": "Records notifications generated by the system for various events, such as budget thresholds being crossed or quality degradation detected.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Alert entity."
-        },
-        "userProfileId": {
-          "type": "string",
-          "description": "Reference to the UserProfile entity to whom the alert is directed. (Relationship: UserProfile 1:N Alert)"
-        },
-        "alertTimestamp": {
-          "type": "string",
-          "description": "Timestamp when the alert was generated.",
-          "format": "date-time"
-        },
-        "alertType": {
-          "type": "string",
-          "description": "The category or type of the alert (e.g., 'budget_threshold_exceeded', 'usage_spike_detected', 'quality_degradation_flagged', 'vendor_lock_in_risk_increased')."
-        },
-        "message": {
-          "type": "string",
-          "description": "The descriptive message content of the alert, providing details about the event."
-        },
-        "relatedAISubscriptionId": {
-          "type": "string",
-          "description": "Optional: Reference to the AISubscription entity directly related to this alert, if applicable. (Relationship: AISubscription 1:N Alert)"
-        },
-        "severity": {
-          "type": "string",
-          "description": "The severity level of the alert (e.g., 'info', 'warning', 'critical')."
-        },
-        "isRead": {
-          "type": "boolean",
-          "description": "Indicates whether the user has marked the alert as read."
-        }
-      },
-      "required": [
-        "id",
-        "userProfileId",
-        "alertTimestamp",
-        "alertType",
-        "message",
-        "severity",
-        "isRead"
-      ]
+      "required": ["id", "organizationId", "timestamp", "severity", "description"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous",
-      "google.com"
-    ]
+    "providers": ["google.com", "password"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}",
+        "path": "/organizations/{orgId}",
+        "definition": {
+          "entityName": "Organization",
+          "schema": { "$ref": "#/backend/entities/Organization" },
+          "description": "Root org document."
+        }
+      },
+      {
+        "path": "/organizations/{orgId}/users/{userId}",
         "definition": {
           "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profiles. Access is restricted to the owner matching `request.auth.uid`.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, corresponding to `request.auth.uid`."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/UserProfile" },
+          "description": "Users within the org."
         }
       },
       {
-        "path": "/aiProductOfferings/{offeringId}",
-        "definition": {
-          "entityName": "AIProductOffering",
-          "schema": {
-            "$ref": "#/backend/entities/AIProductOffering"
-          },
-          "description": "Stores globally available information about various AI model offerings. This data is public/read-only for all users and managed by administrators.",
-          "params": [
-            {
-              "name": "offeringId",
-              "description": "The unique identifier for a specific AI product offering."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/aiSubscriptions/{subscriptionId}",
+        "path": "/organizations/{orgId}/subscriptions/{subId}",
         "definition": {
           "entityName": "AISubscription",
-          "schema": {
-            "$ref": "#/backend/entities/AISubscription"
-          },
-          "description": "Contains user-specific AI subscriptions. Includes denormalized 'userProfileId' for authorization independence, allowing direct `resource.data.userProfileId == request.auth.uid` checks.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns this subscription."
-            },
-            {
-              "name": "subscriptionId",
-              "description": "The unique identifier for a specific AI subscription."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/AISubscription" },
+          "description": "API connections for the org."
         }
       },
       {
-        "path": "/users/{userId}/aiSubscriptions/{subscriptionId}/apiUsageRecords/{recordId}",
+        "path": "/organizations/{orgId}/dailyRollups/{rollupId}",
         "definition": {
-          "entityName": "APIUsageRecord",
-          "schema": {
-            "$ref": "#/backend/entities/APIUsageRecord"
-          },
-          "description": "Detailed records of API calls for a specific user's AI subscription. For authorization independence, each document *must* include a denormalized 'userProfileId' field, even though it's not explicitly in the provided schema. This enables direct ownership checks (`resource.data.userProfileId == request.auth.uid`).",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns this usage record."
-            },
-            {
-              "name": "subscriptionId",
-              "description": "The unique identifier of the AI subscription this usage record belongs to."
-            },
-            {
-              "name": "recordId",
-              "description": "The unique identifier for a single API usage record."
-            }
-          ]
+          "entityName": "DailyRollup",
+          "schema": { "$ref": "#/backend/entities/DailyRollup" },
+          "description": "Pre-computed metrics."
         }
       },
       {
-        "path": "/users/{userId}/optimizationSuggestions/{suggestionId}",
+        "path": "/organizations/{orgId}/anomalies/{anomalyId}",
         "definition": {
-          "entityName": "OptimizationSuggestion",
-          "schema": {
-            "$ref": "#/backend/entities/OptimizationSuggestion"
-          },
-          "description": "Stores cost optimization suggestions generated for a user. Includes denormalized 'userProfileId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user for whom the suggestion is made."
-            },
-            {
-              "name": "suggestionId",
-              "description": "The unique identifier for an optimization suggestion."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/modelComparisons/{comparisonId}",
-        "definition": {
-          "entityName": "ModelComparison",
-          "schema": {
-            "$ref": "#/backend/entities/ModelComparison"
-          },
-          "description": "Records user-initiated model comparisons. Includes denormalized 'userProfileId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who performed the comparison."
-            },
-            {
-              "name": "comparisonId",
-              "description": "The unique identifier for a model comparison record."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/modelSwitchSimulations/{simulationId}",
-        "definition": {
-          "entityName": "ModelSwitchSimulation",
-          "schema": {
-            "$ref": "#/backend/entities/ModelSwitchSimulation"
-          },
-          "description": "Stores simulations of switching between AI models for a user. Includes denormalized 'userProfileId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who performed the simulation."
-            },
-            {
-              "name": "simulationId",
-              "description": "The unique identifier for a model switch simulation record."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/userBudgets/{budgetId}",
-        "definition": {
-          "entityName": "UserBudget",
-          "schema": {
-            "$ref": "#/backend/entities/UserBudget"
-          },
-          "description": "Stores monthly budget caps and spending for a user. Includes denormalized 'userProfileId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user to whom this budget belongs."
-            },
-            {
-              "name": "budgetId",
-              "description": "The unique identifier for a user's budget record (e.g., could be a specific month/year)."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/alerts/{alertId}",
-        "definition": {
-          "entityName": "Alert",
-          "schema": {
-            "$ref": "#/backend/entities/Alert"
-          },
-          "description": "Records system-generated alerts for a user. Includes denormalized 'userProfileId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user to whom this alert is directed."
-            },
-            {
-              "name": "alertId",
-              "description": "The unique identifier for an alert."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{adminId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/AdminRole"
-          },
-          "description": "Dedicated collection for storing admin role assignments. Document existence determines admin status (DBAC).",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "The unique identifier of a user who has been assigned an administrator role."
-            }
-          ]
+          "entityName": "Anomaly",
+          "schema": { "$ref": "#/backend/entities/Anomaly" },
+          "description": "Spend spikes."
         }
       }
     ]

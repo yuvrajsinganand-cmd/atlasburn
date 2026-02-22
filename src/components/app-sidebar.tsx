@@ -1,6 +1,7 @@
+
 "use client"
 
-import { LayoutDashboard, Wallet, BrainCircuit, Lightbulb, TrendingUp, LogOut, LogIn, UserCircle } from "lucide-react"
+import { LayoutDashboard, Wallet, BrainCircuit, Lightbulb, TrendingUp, LogOut, LogIn, UserCircle, Settings, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
@@ -21,30 +22,17 @@ import {
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Subscriptions", url: "/subscriptions", icon: Wallet },
-  { title: "Optimizer", url: "/optimizer", icon: TrendingUp },
-  { title: "Recommender", url: "/recommender", icon: Lightbulb },
-  { title: "Comparator", url: "/comparator", icon: TrendingUp },
-  { title: "Usage", url: "/usage", icon: BrainCircuit },
+  { title: "Audit Hub", url: "/subscriptions", icon: Wallet },
+  { title: "Decision Engine", url: "/optimizer", icon: ShieldAlert },
+  { title: "Model Matrix", url: "/comparator", icon: TrendingUp },
+  { title: "Usage Intelligence", url: "/usage", icon: BrainCircuit },
+  { title: "Connectors", url: "/settings", icon: Settings },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { user } = useUser()
   const auth = useAuth()
-  const firestore = useFirestore()
-
-  const budgetQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'userBudgets'));
-  }, [firestore, user]);
-
-  const { data: budgets } = useCollection(budgetQuery);
-  const currentBudget = budgets?.[0] || { monthlyBudgetCap: 100, currentSpend: 0 };
-  
-  const budgetPercentage = currentBudget.monthlyBudgetCap > 0 
-    ? Math.min(100, Math.round((currentBudget.currentSpend / currentBudget.monthlyBudgetCap) * 100)) 
-    : 0;
 
   return (
     <Sidebar collapsible="icon" className="border-r">
@@ -54,7 +42,7 @@ export function AppSidebar() {
             <BrainCircuit size={20} />
           </div>
           <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden">
-            AISleek
+            SLEEK
           </span>
         </div>
       </SidebarHeader>
@@ -70,14 +58,6 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/profile'} tooltip="Profile Settings">
-              <Link href="/profile">
-                <UserCircle />
-                <span className="font-medium">Profile</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4 gap-4">
@@ -85,13 +65,12 @@ export function AppSidebar() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3 px-2">
               <Avatar className="h-8 w-8 border border-primary/20">
-                <AvatarImage src={user.photoURL || ""} />
                 <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                  {user.displayName?.[0] || user.email?.[0] || "U"}
+                  {user.email?.[0]?.toUpperCase() || "F"}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="text-sm font-bold truncate leading-tight">{user.displayName || "User"}</span>
+                <span className="text-sm font-bold truncate leading-tight">Founder Mode</span>
                 <span className="text-[10px] text-muted-foreground truncate">{user.email}</span>
               </div>
             </div>
@@ -106,29 +85,10 @@ export function AppSidebar() {
             </Button>
           </div>
         ) : (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full border-primary/20 hover:bg-primary/5 group-data-[collapsible=icon]:px-2"
-            asChild
-          >
-            <Link href="/login">
-              <LogIn className="h-4 w-4 mr-2 text-primary" />
-              <span className="group-data-[collapsible=icon]:hidden">Sign In</span>
-            </Link>
+          <Button variant="outline" size="sm" className="w-full" asChild>
+            <Link href="/"><LogIn className="h-4 w-4 mr-2" /><span>Enter Sleek</span></Link>
           </Button>
         )}
-        
-        <div className="bg-secondary p-4 rounded-xl group-data-[collapsible=icon]:hidden">
-          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Current Budget</p>
-          <div className="flex justify-between items-end">
-            <span className="font-headline text-lg font-bold text-primary">${currentBudget.currentSpend.toFixed(0)}</span>
-            <span className="text-xs text-muted-foreground">/ ${currentBudget.monthlyBudgetCap}</span>
-          </div>
-          <div className="w-full bg-primary/10 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${budgetPercentage}%` }} />
-          </div>
-        </div>
       </SidebarFooter>
     </Sidebar>
   )

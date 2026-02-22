@@ -10,38 +10,32 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Loader2, Cpu, Wallet, ShieldCheck, Mail, Lock } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Loader2, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
-import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { setDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { calculateRunway, calculateP90Risk, calculateUnitEconomics } from "@/lib/math-engine"
 
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   openai: [
     { label: "GPT-4o", value: "gpt-4o" },
     { label: "GPT-4 Turbo", value: "gpt-4-turbo" },
     { label: "o1-preview", value: "o1-preview" },
-    { label: "o1-mini", value: "o1-mini" },
     { label: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
   ],
   anthropic: [
-    { label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet" },
     { label: "Claude 3.5 Sonnet v2", value: "claude-3-5-sonnet-v2" },
-    { label: "Claude 4.6 (Preview)", value: "claude-4-6" },
-    { label: "Claude 4.5 (Beta)", value: "claude-4-5" },
+    { label: "Claude 4.5 (Preview)", value: "claude-4-5" },
     { label: "Claude 3 Opus", value: "claude-3-opus" },
     { label: "Claude 3 Haiku", value: "claude-3-haiku" },
   ],
   azure: [
     { label: "Azure GPT-4o", value: "azure-gpt-4o" },
-    { label: "Azure GPT-4", value: "azure-gpt-4" },
-    { label: "Azure GPT-3.5", value: "azure-gpt-35" },
   ],
   mixed: [
-    { label: "GPT-4o + Claude 3.5", value: "mixed-high" },
-    { label: "GPT-3.5 + Haiku", value: "mixed-low" },
     { label: "Multi-Model Router", value: "router" },
   ]
 };
@@ -51,24 +45,20 @@ export default function Home() {
   const auth = useAuth();
   const firestore = useFirestore();
   
-  // Steps: 0: Welcome, 1: Snapshot, 2: Risk, 3: Optimization, 4: Lock/Signup, 5: Dashboard
+  // Steps: 0: Positioning, 1: Snapshot, 2: Risk, 3: Optimization, 4: Lock/Signup, 5: Dashboard
   const [step, setStep] = useState<number | null>(null);
 
-  // Form State for Onboarding
+  // Form State
   const [spend, setSpend] = useState("");
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [usersCount, setUsersCount] = useState("");
-  const [reqPerUser, setReqPerUser] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // Auth Form State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [revenueStage, setRevenueStage] = useState("seed");
 
-  // Determine initial step based on auth state
   useEffect(() => {
     if (!isUserLoading) {
       if (user && !user.isAnonymous) {
@@ -79,34 +69,30 @@ export default function Home() {
     }
   }, [isUserLoading, user, step]);
 
-  // Dashboard Data
   const subscriptionsQuery = useMemoFirebase(() => {
     if (!firestore || !user || step !== 5) return null;
     return query(collection(firestore, 'users', user.uid, 'aiSubscriptions'));
   }, [firestore, user, step]);
 
-  const budgetQuery = useMemoFirebase(() => {
-    if (!firestore || !user || step !== 5) return null;
-    return query(collection(firestore, 'users', user.uid, 'userBudgets'));
-  }, [firestore, user, step]);
-
   const { data: subscriptions } = useCollection(subscriptionsQuery);
-  const { data: budgets } = useCollection(budgetQuery);
 
-  const activeSubscriptions = subscriptions || [];
-  const currentBudget = budgets?.[0] || { monthlyBudgetCap: 0, currentSpend: 0 };
-  
-  // Heuristic Calculations
+  // Calculations for Onboarding & Dashboard
   const metrics = useMemo(() => {
     const s = parseFloat(spend) || 0;
     const u = parseFloat(usersCount) || 1;
-    
-    const costPerUser = s / u;
-    const growth2x = s * 2.4; 
-    const optimizedSpend = s * 0.55;
-    const savings = s - optimizedSpend;
+    const runway = calculateRunway(s / 30, s * 5, 1.05); // Simulated: 5x cash, 5% growth
+    const unitEcon = calculateUnitEconomics(s, u * 20, 0.5); // 20 actions/user, $0.50 revenue
+    const p90Risk = 42; // Simulated P90 share
 
-    return { costPerUser, growth2x, optimizedSpend, savings };
+    return { 
+      costPerUser: s / u, 
+      growth2x: s * 2.4, 
+      optimizedSpend: s * 0.55, 
+      savings: s - (s * 0.55),
+      runway,
+      margin: unitEcon.margin,
+      p90Risk
+    };
   }, [spend, usersCount]);
 
   const handleStartAnalysis = () => setStep(1);
@@ -120,52 +106,24 @@ export default function Home() {
   const handleSimulate = () => setStep(3);
   const handleGoToLock = () => setStep(4);
 
-  // Persistence Logic
-  const saveDataToFirestore = (uid: string) => {
-    if (!firestore || !user) return;
+  const handlePersistence = (uid: string) => {
+    if (!firestore) return;
+    const orgId = `org_${uid}`;
+    
+    setDocumentNonBlocking(doc(firestore, 'organizations', orgId), {
+      id: orgId,
+      name: companyName || 'My Org',
+      apiBudgetUsd: parseFloat(spend) * 2 || 10000,
+      createdAt: new Date().toISOString(),
+    }, { merge: true });
 
-    const isGoogle = user.providerData[0]?.providerId === 'google.com';
-
-    // Create User Profile
-    const profileRef = doc(firestore, 'users', uid);
-    setDocumentNonBlocking(profileRef, {
+    setDocumentNonBlocking(doc(firestore, 'organizations', orgId, 'users', uid), {
       id: uid,
-      email: user.email,
-      name: companyName || user.displayName || 'Founding User',
-      isEmailVerified: isGoogle,
+      email: email || user?.email,
+      organizationId: orgId,
+      role: 'owner',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     }, { merge: true });
-
-    // Create a budget record
-    const budgetRef = doc(firestore, 'users', uid, 'userBudgets', 'onboarding');
-    setDocumentNonBlocking(budgetRef, {
-      userProfileId: uid,
-      monthYear: new Date().toISOString().substring(0, 7),
-      monthlyBudgetCap: (parseFloat(spend) || 0) * 1.5,
-      alertThresholdPercentage: 80,
-      currentSpend: parseFloat(spend) || 0,
-      lastUpdatedAt: new Date().toISOString(),
-    }, { merge: true });
-
-    // Create a subscription record
-    const subRef = collection(firestore, 'users', uid, 'aiSubscriptions');
-    addDocumentNonBlocking(subRef, {
-      userProfileId: uid,
-      name: model || 'Main Model',
-      customName: `${companyName || 'Main'} ${model || 'Tool'}`,
-      providerName: provider || 'Generic',
-      subscriptionType: 'API Key',
-      monthlyFixedCost: parseFloat(spend) || 0,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  };
-
-  const handleGoogleSignup = () => {
-    if (!auth) return;
-    initiateGoogleSignIn(auth);
   };
 
   const handleEmailSignup = (e: React.FormEvent) => {
@@ -174,28 +132,18 @@ export default function Home() {
     initiateEmailSignUp(auth, email, password);
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth) return;
-    initiateEmailSignIn(auth, email, password);
-  };
-
   useEffect(() => {
     if (user && !user.isAnonymous && step === 4) {
-      saveDataToFirestore(user.uid);
+      handlePersistence(user.uid);
       setStep(5);
     }
   }, [user, step]);
 
   if (isUserLoading || step === null) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  // Step 0: POSITIONING
+  // Positioning
   if (step === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center space-y-8 max-w-2xl mx-auto">
@@ -215,7 +163,7 @@ export default function Home() {
     );
   }
 
-  // Step 1: SNAPSHOT
+  // Snapshot
   if (step === 1) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
@@ -239,14 +187,13 @@ export default function Home() {
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="anthropic">Anthropic</SelectItem>
                     <SelectItem value="azure">Azure</SelectItem>
-                    <SelectItem value="mixed">Mixed Providers</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Most Used Model</Label>
                 <Select value={model} onValueChange={setModel} disabled={!provider}>
-                  <SelectTrigger className="h-12"><SelectValue placeholder={provider ? "Select Model" : "Select Provider First"} /></SelectTrigger>
+                  <SelectTrigger className="h-12"><SelectValue placeholder="Select Model" /></SelectTrigger>
                   <SelectContent>
                     {provider && PROVIDER_MODELS[provider]?.map((m) => (
                       <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
@@ -255,17 +202,11 @@ export default function Home() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monthly Active Users</Label>
-                <Input type="number" placeholder="500" value={usersCount} onChange={(e) => setUsersCount(e.target.value)} className="h-12" />
-              </div>
-              <div className="space-y-2">
-                <Label>Avg. Req/User/Day</Label>
-                <Input type="number" placeholder="20" value={reqPerUser} onChange={(e) => setReqPerUser(e.target.value)} className="h-12" />
-              </div>
+            <div className="space-y-2">
+              <Label>Monthly Active Users</Label>
+              <Input type="number" placeholder="500" value={usersCount} onChange={(e) => setUsersCount(e.target.value)} className="h-12" />
             </div>
-            <Button onClick={handleAnalyze} disabled={loading || !spend || !provider || !model} className="w-full h-14 text-lg font-headline font-bold bg-primary hover:bg-primary/90">
+            <Button onClick={handleAnalyze} disabled={loading || !spend || !provider || !model} className="w-full h-14 text-lg font-headline font-bold bg-primary">
               {loading ? <Loader2 className="animate-spin mr-2" /> : "Analyze My Spend"}
             </Button>
           </CardContent>
@@ -274,7 +215,7 @@ export default function Home() {
     );
   }
 
-  // Step 2: RISK REVEAL
+  // Risk Reveal
   if (step === 2) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-3xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-700">
@@ -285,44 +226,23 @@ export default function Home() {
             <span className="text-destructive font-bold text-5xl md:text-6xl">${metrics.growth2x.toLocaleString()}</span>
           </h2>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground uppercase">Cost per active user</span>
-                <span className="text-2xl font-bold font-headline">${metrics.costPerUser.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground uppercase">Retention growth impact</span>
-                <span className="text-lg font-bold text-accent">+${(metrics.growth2x * 0.2).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground uppercase">Margin Decay Projected</span>
-                <span className="text-lg font-bold text-destructive">18.4%</span>
-              </div>
-            </CardContent>
+          <Card className="p-6 space-y-4 border-none shadow-sm">
+            <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">COST PER USER</span><span className="text-2xl font-bold font-headline">${metrics.costPerUser.toFixed(2)}</span></div>
+            <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">P90 RISK SHARE</span><span className="text-lg font-bold text-destructive">{metrics.p90Risk}%</span></div>
+            <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">MARGIN BUFFER</span><span className="text-lg font-bold text-green-600">{metrics.margin.toFixed(0)}%</span></div>
           </Card>
-
-          <Card className="border-destructive/30 bg-destructive/5 flex flex-col justify-center p-6 space-y-4 border-2">
-            <div className="flex items-center gap-3 text-destructive">
-              <AlertTriangle size={32} />
-              <h3 className="text-xl font-bold font-headline uppercase leading-tight">Safety Breach</h3>
-            </div>
-            <p className="text-sm text-destructive font-medium leading-relaxed">
-              Your current routing logic lacks cost-density optimization. No circuit breakers detected in logic flow.
-            </p>
+          <Card className="border-destructive/30 bg-destructive/5 p-6 space-y-4 border-2">
+            <div className="flex items-center gap-3 text-destructive"><AlertTriangle size={32} /><h3 className="text-xl font-bold font-headline uppercase">Safety Breach</h3></div>
+            <p className="text-sm text-destructive font-medium">Your current routing logic lacks cost-density optimization. No circuit breakers detected.</p>
           </Card>
         </div>
-
-        <Button onClick={handleSimulate} size="lg" className="h-16 px-12 text-xl font-headline font-bold bg-accent hover:bg-accent/90 shadow-2xl rounded-2xl">
-          Simulate Optimization
-        </Button>
+        <Button onClick={handleSimulate} size="lg" className="h-16 px-12 text-xl font-headline font-bold bg-accent">Simulate Optimization</Button>
       </div>
     );
   }
 
-  // Step 3: OPTIMIZATION
+  // Optimization
   if (step === 3) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-4xl mx-auto w-full space-y-8 animate-in zoom-in-95 duration-700">
@@ -330,254 +250,102 @@ export default function Home() {
           <h2 className="text-3xl font-headline font-bold">Projected Leverage</h2>
           <p className="text-lg text-muted-foreground">“If we switch 40% of traffic to a lower-cost model with &lt;2% quality drop…”</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-          <div className="p-6 bg-primary rounded-2xl text-primary-foreground space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Target Monthly Spend</p>
-            <p className="text-3xl font-headline font-bold">${metrics.optimizedSpend.toLocaleString()}</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl border-none shadow-sm space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Monthly Savings</p>
-            <p className="text-3xl font-headline font-bold text-green-600">${metrics.savings.toLocaleString()}</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl border-none shadow-sm space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Annual Margin Impact</p>
-            <p className="text-3xl font-headline font-bold text-green-600">${(metrics.savings * 12).toLocaleString()}</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full text-center">
+          <Card className="p-6 bg-primary text-primary-foreground"><p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Target Spend</p><p className="text-3xl font-headline font-bold">${metrics.optimizedSpend.toLocaleString()}</p></Card>
+          <Card className="p-6"><p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Monthly Savings</p><p className="text-3xl font-headline font-bold text-green-600">${metrics.savings.toLocaleString()}</p></Card>
+          <Card className="p-6"><p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Annual Impact</p><p className="text-3xl font-headline font-bold text-green-600">${(metrics.savings * 12).toLocaleString()}</p></Card>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-          {[
-            { title: "Batch Potential", value: "High", desc: "Detected 65% non-streaming reqs." },
-            { title: "Caching Gap", value: "Critical", desc: "12% redundant prompt overlap." },
-            { title: "Routing Overkill", value: "Flagged", desc: "High-tier used for classification." }
-          ].map((item, i) => (
-            <div key={i} className="flex flex-col p-5 bg-secondary/50 rounded-xl border border-primary/10">
-              <span className="text-[10px] font-bold uppercase text-primary tracking-widest mb-1">{item.title}</span>
-              <span className="text-lg font-bold font-headline mb-1">{item.value}</span>
-              <p className="text-xs text-muted-foreground">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <Button onClick={handleGoToLock} size="lg" className="h-16 px-12 text-xl font-headline font-bold bg-primary hover:bg-primary/90 shadow-2xl rounded-2xl">
-          Get Full Audit Report
-        </Button>
+        <Button onClick={handleGoToLock} size="lg" className="h-16 px-12 text-xl font-headline font-bold bg-primary">Get Full Audit Report</Button>
       </div>
     );
   }
 
-  // Step 4: LOCK / SIGNUP REQUIRED
+  // Lock / Signup
   if (step === 4) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 max-w-md mx-auto w-full space-y-8 animate-in fade-in duration-500">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 max-w-md mx-auto w-full space-y-8 animate-in fade-in">
         <div className="text-center space-y-3">
-          <div className="mx-auto w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-white shadow-lg mb-2">
-            <Lock size={32} />
-          </div>
+          <div className="mx-auto w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-white shadow-lg mb-2"><Lock size={32} /></div>
           <h2 className="text-3xl font-headline font-bold">Unlock Cost Report</h2>
-          <p className="text-muted-foreground text-sm px-4">Create your account to access the detailed breakdown, cost-per-feature map, and model switch simulator.</p>
+          <p className="text-muted-foreground text-sm">Create your organization account to access the detailed forensic map.</p>
         </div>
-
-        <Card className="w-full border-none shadow-2xl">
-          <CardHeader className="pb-0">
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label>Company Name</Label>
-                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme AI" className="h-11" />
-              </div>
-              <div className="grid gap-2">
-                <Label>Revenue Stage</Label>
-                <Select value={revenueStage} onValueChange={setRevenueStage}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pre">Pre-revenue</SelectItem>
-                    <SelectItem value="seed">Seed ($10k-$50k MRR)</SelectItem>
-                    <SelectItem value="growth">Growth ($50k+ MRR)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="signup">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                <TabsTrigger value="login">Login</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="signup" className="space-y-4">
-                <form onSubmit={handleEmailSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" placeholder="founder@company.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                  </div>
-                  <Button type="submit" className="w-full h-12 font-headline font-bold">Unlock Audit Report</Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="login" className="space-y-4">
-                <form onSubmit={handleEmailLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                  </div>
-                  <Button type="submit" className="w-full h-12 font-headline font-bold">Sign In & Unlock</Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-card px-2 text-muted-foreground">Quick Access</span></div>
-            </div>
-
-            <Button variant="outline" className="w-full h-12 gap-2" onClick={handleGoogleSignup}>
-              <svg className="h-4 w-4" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.28z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              Google Login
-            </Button>
-          </CardContent>
+        <Card className="w-full border-none shadow-2xl p-6 space-y-6">
+          <form onSubmit={handleEmailSignup} className="space-y-4">
+            <div className="space-y-2"><Label>Company Name</Label><Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></div>
+            <div className="space-y-2"><Label>Founder Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+            <div className="space-y-2"><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+            <Button type="submit" className="w-full h-12 font-headline font-bold bg-primary">Unlock Audit Report</Button>
+          </form>
+          <div className="relative my-4"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-card px-2">Quick Access</span></div></div>
+          <Button variant="outline" className="w-full h-12 gap-2" onClick={() => auth && initiateGoogleSignIn(auth)}>Google Login</Button>
         </Card>
       </div>
     );
   }
 
-  // Step 5: FOUNDER DASHBOARD
+  // Step 5: Dashboard
   return (
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="bg-background/50">
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold">Sleek Intelligence</h1>
-          </div>
-          <Badge variant="outline" className="gap-1.5 px-3 py-1 border-primary/20 bg-primary/5 text-primary">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            Live Monitoring
-          </Badge>
+          <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Sleek Control Plane</h1></div>
+          <Badge variant="outline" className="gap-1.5 px-3 py-1 border-primary/20 bg-primary/5 text-primary"><div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />Live Forensic Link</Badge>
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Risk Index</CardTitle>
-                <ShieldAlert size={16} className="text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-headline font-bold text-destructive">68/100</div>
-                <div className="w-full bg-destructive/10 h-1 rounded-full mt-2 overflow-hidden">
-                  <div className="bg-destructive h-full" style={{ width: '68%' }} />
-                </div>
-              </CardContent>
+            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Runway Left</span><Landmark size={16} className="text-primary" /></div>
+              <div className="text-3xl font-headline font-bold text-primary">{metrics.runway} <span className="text-lg font-normal opacity-70">Days</span></div>
+              <p className="text-[10px] text-muted-foreground mt-2">Projection @ 5% daily growth</p>
             </Card>
-
-            <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Opt. Score</CardTitle>
-                <Zap size={16} className="text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-headline font-bold text-primary">42%</div>
-                <div className="w-full bg-primary/10 h-1 rounded-full mt-2 overflow-hidden">
-                  <div className="bg-primary h-full" style={{ width: '42%' }} />
-                </div>
-              </CardContent>
+            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Risk Index</span><ShieldAlert size={16} className="text-destructive" /></div>
+              <div className="text-3xl font-headline font-bold text-destructive">68/100</div>
+              <div className="w-full bg-destructive/10 h-1 rounded-full mt-3 overflow-hidden"><div className="bg-destructive h-full" style={{ width: '68%' }} /></div>
             </Card>
-
-            <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Monthly Burn</CardTitle>
-                <Wallet size={16} className="text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-headline font-bold">${currentBudget.currentSpend.toLocaleString()}</div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Budget: ${currentBudget.monthlyBudgetCap.toLocaleString()}
-                </p>
-              </CardContent>
+            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">P90 Share</span><Target size={16} className="text-accent" /></div>
+              <div className="text-3xl font-headline font-bold text-accent">{metrics.p90Risk}%</div>
+              <p className="text-[10px] text-muted-foreground mt-2">Share of spend by top users</p>
             </Card>
-
-            <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active Models</CardTitle>
-                <Cpu size={16} className="text-accent" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-headline font-bold">{activeSubscriptions.length}</div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Across {new Set(activeSubscriptions.map(s => s.providerName)).size} vendors
-                </p>
-              </CardContent>
+            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Gross Margin</span><Activity size={16} className="text-green-600" /></div>
+              <div className="text-3xl font-headline font-bold text-green-600">{metrics.margin.toFixed(0)}%</div>
+              <p className="text-[10px] text-muted-foreground mt-2">Buffer after API COGS</p>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border-none shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg font-headline">Margin Forecast (3 Mo)</CardTitle>
-                <CardDescription>Projected API costs vs baseline at current growth rate.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px] w-full mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={[
-                      { name: 'Month 1', cost: currentBudget.currentSpend, risk: currentBudget.currentSpend * 1.1 },
-                      { name: 'Month 2', cost: currentBudget.currentSpend * 1.3, risk: currentBudget.currentSpend * 1.5 },
-                      { name: 'Month 3', cost: currentBudget.currentSpend * 1.6, risk: currentBudget.currentSpend * 2.2 },
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                      <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val}`} />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(103, 58, 183, 0.05)' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Bar dataKey="cost" fill="#673AB7" radius={[4, 4, 0, 0]} name="Baseline" />
-                      <Bar dataKey="risk" fill="#EF4444" radius={[4, 4, 0, 0]} name="Inefficiency Risk" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
+            <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
+              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Spend Normalization Layer</CardTitle><CardDescription>Unified time-series across providers.</CardDescription></CardHeader>
+              <div className="h-[300px] w-full mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[{ name: 'Oct', cost: 12000 }, { name: 'Nov', cost: 15500 }, { name: 'Dec', cost: 22000 }]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val}`} />
+                    <Tooltip cursor={{ fill: 'rgba(103, 58, 183, 0.05)' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                    <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </Card>
-
-            <Card className="lg:col-span-1 border-none shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg font-headline">Model Switch Suggestions</CardTitle>
-                <CardDescription>Highest ROI switches detected.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <Card className="lg:col-span-1 border-none shadow-sm bg-white p-6">
+              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Critical Optimization</CardTitle><CardDescription>Top recommendations by savings.</CardDescription></CardHeader>
+              <div className="space-y-4 mt-4">
                 {[
-                  { from: 'GPT-4o', to: 'Claude 3.5 Sonnet', saving: '$420/mo', quality: '99%' },
-                  { from: 'Claude 3 Opus', to: 'GPT-4o mini', saving: '$1,200/mo', quality: '94%' },
-                  { from: 'GPT-4', to: 'Llama 3 70B', saving: '$2,800/mo', quality: '92%' },
+                  { title: "Switch GPT-4 to Sonnet", save: "$1,240/mo", risk: "Low" },
+                  { title: "Enable Prompt Caching", save: "$850/mo", risk: "None" },
+                  { title: "Reduce Timeout Retries", save: "$320/mo", risk: "None" }
                 ].map((item, i) => (
-                  <div key={i} className="p-3 bg-secondary/30 rounded-lg flex justify-between items-center group cursor-pointer hover:bg-secondary/50 transition-colors">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">{item.from} → {item.to}</p>
-                      <p className="text-xs font-medium">Quality Match: <span className="font-bold">{item.quality}</span></p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-green-600">Save {item.saving}</p>
-                      <ArrowRight size={14} className="ml-auto opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                    </div>
+                  <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-secondary/50">
+                    <div><p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">{item.title}</p><p className="text-xs text-muted-foreground">Risk Rating: {item.risk}</p></div>
+                    <p className="text-sm font-bold text-green-600">{item.save}</p>
                   </div>
                 ))}
-              </CardContent>
+              </div>
             </Card>
           </div>
         </main>
