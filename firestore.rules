@@ -10,22 +10,6 @@ service cloud.firestore {
      * and sequestered within user-specific subcollections. Authorization decisions are 
      * primarily made based on the hierarchy of the request path and denormalized identity 
      * fields within the documents.
-     *
-     * DATA STRUCTURE:
-     * - /users/{userId}: The root of a user's private data tree.
-     * - /aiProductOfferings: Global, public read-only catalog of AI models.
-     * - /roles_admin: Administrative roles used for managing global data.
-     *
-     * KEY SECURITY DECISIONS:
-     * 1. Authorization Independence: User-owned documents denormalize 'userProfileId' to 
-     *    enable fast, single-document authorization checks without parent lookups.
-     * 2. Path-Identity Consistency: For all user-scoped data, the rules enforce that 
-     *    the 'userProfileId' field in the document matches the {userId} segment of the path.
-     * 3. Prototyping Flexibility: Logic enforces "who" can access data and "where" 
-     *    relationships point, but ignores specific data types for general content fields 
-     *    to support rapid iteration.
-     * 4. Admin Management: Global offerings are public for reading but require administrative 
-     *    privileges (verified via the /roles_admin collection) for any modifications.
      */
 
     // --- Global Helper Functions ---
@@ -49,26 +33,37 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     /**
-     * @description Rules for UserProfile documents. Users can only manage their own profile.
-     * @path /users/{userId}
-     * @allow (get, list, create, update) if userId matches request.auth.uid.
-     * @deny (all) if userId does not match request.auth.uid.
-     * @principle Validates that users can only create or modify their own identity document.
+     * @description Organization level rules. Users can access their own organization.
      */
-    match /users/{userId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if false; // Profiles are typically not deleted by the client.
+    match /organizations/{orgId} {
+      allow get: if isSignedIn() && (orgId == 'org_' + request.auth.uid || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)));
+      allow create: if isSignedIn() && (orgId == 'org_' + request.auth.uid);
+      allow update: if isSignedIn() && (orgId == 'org_' + request.auth.uid);
+      allow list: if isSignedIn();
     }
 
     /**
-     * @description Public catalog of AI models. Everyone can browse; only admins can modify.
-     * @path /aiProductOfferings/{offeringId}
-     * @allow (get, list) for any user.
-     * @allow (write) only for users with admin roles.
-     * @deny (write) for non-admin users.
-     * @principle Implements Public Read with Role-Based Writes.
+     * @description User profiles within organizations.
+     */
+    match /organizations/{orgId}/users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    /**
+     * @description Rules for root UserProfile documents.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && (request.resource.data.id == userId || !('id' in request.resource.data));
+      allow update: if isExistingOwner(userId);
+      allow delete: if false;
+    }
+
+    /**
+     * @description Public catalog of AI models.
      */
     match /aiProductOfferings/{offeringId} {
       allow get, list: if true;
@@ -76,25 +71,17 @@ service cloud.firestore {
     }
 
     /**
-     * @description User-specific AI subscriptions. Access is strictly owner-only.
-     * @path /users/{userId}/aiSubscriptions/{subscriptionId}
-     * @allow (all) if the user is the owner of the parent path and the document contains their ID.
-     * @deny (all) if the user is not the path owner.
-     * @principle Enforces path-based ownership and relational integrity via userProfileId.
+     * @description User-specific AI subscriptions.
      */
     match /users/{userId}/aiSubscriptions/{subscriptionId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Usage records for specific subscriptions. Access is owner-only.
-     * @path /users/{userId}/aiSubscriptions/{subscriptionId}/apiUsageRecords/{recordId}
-     * @allow (all) if the user owns the path.
-     * @deny (all) if the user does not own the path.
-     * @principle Relies on hierarchical ownership and denormalized userProfileId for secure listing.
+     * @description Usage records for specific subscriptions.
      */
     match /users/{userId}/aiSubscriptions/{subscriptionId}/apiUsageRecords/{recordId} {
       allow get, list: if isOwner(userId);
@@ -104,76 +91,37 @@ service cloud.firestore {
     }
 
     /**
-     * @description Cost optimization suggestions generated for the user.
-     * @path /users/{userId}/optimizationSuggestions/{suggestionId}
-     * @allow (all) if the user owns the path and userProfileId field is consistent.
-     * @principle Ensures private system-generated data is only visible to the intended recipient.
+     * @description Cost optimization suggestions.
      */
     match /users/{userId}/optimizationSuggestions/{suggestionId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description User-initiated comparisons of different AI models.
-     * @path /users/{userId}/modelComparisons/{comparisonId}
-     * @allow (all) if the user owns the path.
-     * @principle Enforces strict user ownership of simulation and comparison data.
-     */
-    match /users/{userId}/modelComparisons/{comparisonId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description User-performed simulations of switching model subscriptions.
-     * @path /users/{userId}/modelSwitchSimulations/{simulationId}
-     * @allow (all) if the user owns the path.
-     * @principle Maintains privacy of user-generated decision-making simulations.
-     */
-    match /users/{userId}/modelSwitchSimulations/{simulationId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Budget settings and current spending trackers.
-     * @path /users/{userId}/userBudgets/{budgetId}
-     * @allow (all) if the user owns the path.
-     * @principle Protects sensitive financial and budgeting information.
      */
     match /users/{userId}/userBudgets/{budgetId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description System-generated notifications and alerts.
-     * @path /users/{userId}/alerts/{alertId}
-     * @allow (all) if the user owns the path.
-     * @principle Restricts notification history to the specific user recipient.
      */
     match /users/{userId}/alerts/{alertId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Admin role registration. Managed outside of the client application.
-     * @path /roles_admin/{adminId}
-     * @allow (get) for signed-in users to verify their own admin status.
-     * @deny (write) for all client requests.
-     * @principle DBAC (Database Access Control) where document existence defines permissions.
+     * @description Admin role registration.
      */
     match /roles_admin/{adminId} {
       allow get: if isSignedIn();
