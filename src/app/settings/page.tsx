@@ -1,4 +1,3 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, CheckCircle2, Terminal, Code } from "lucide-react"
+import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, CheckCircle2, Terminal, Code, Info } from "lucide-react"
 import { useState } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
@@ -69,7 +68,7 @@ export default function SettingsPage() {
           <Tabs defaultValue="sdk" className="space-y-6">
             <TabsList className="bg-muted/50 p-1">
               <TabsTrigger value="sdk" className="gap-2"><Terminal size={14} /> SDK Setup</TabsTrigger>
-              <TabsTrigger value="connectors" className="gap-2"><Database size={14} /> Legacy Connectors</TabsTrigger>
+              <TabsTrigger value="connectors" className="gap-2"><Database size={14} /> Billing Sync</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sdk" className="space-y-6">
@@ -166,11 +165,18 @@ const client = withSleek(new OpenAI({ ... }), {
             <TabsContent value="connectors">
               <Card className="border-none shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Legacy Provider Sync</CardTitle>
-                  <CardDescription>Pull billing truth directly from provider dashboards (Syncs every 24h).</CardDescription>
+                  <CardTitle className="text-lg">Billing Truth Sync</CardTitle>
+                  <CardDescription>Verify your SDK ledger against official provider dashboards.</CardDescription>
                 </CardHeader>
-                <CardContent className="py-12 text-center text-muted-foreground italic">
-                  Connectors are currently in maintenance mode. Use the SDK for real-time burn attribution.
+                <CardContent className="space-y-6">
+                  <div className="p-6 bg-muted/20 rounded-2xl border border-dashed border-muted-foreground/20 flex flex-col items-center text-center space-y-4">
+                    <div className="p-3 bg-white rounded-xl shadow-sm"><Info className="text-muted-foreground" /></div>
+                    <div className="space-y-1">
+                      <p className="font-bold text-sm">Historical Reconciliation (24h Delay)</p>
+                      <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">Official billing APIs are used for final reconciliation only. For real-time runway monitoring and anomaly detection, use the Sleek SDK.</p>
+                    </div>
+                    <Button variant="outline" className="h-10">Configure Official APIs</Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
