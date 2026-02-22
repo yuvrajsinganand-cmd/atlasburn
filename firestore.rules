@@ -3,13 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * AISleek Security Rules
+     * AISleek Security Rules - Production Hardened
      *
      * CORE PHILOSOPHY:
-     * This ruleset implements a strict user-ownership model. The majority of data is private 
-     * and sequestered within user-specific subcollections. Authorization decisions are 
-     * primarily made based on the hierarchy of the request path and denormalized identity 
-     * fields within the documents.
+     * Implements a strict owner-access model. Users have full control over documents
+     * within paths that match their UID or their personal organization (org_UID).
      */
 
     // --- Global Helper Functions ---
@@ -22,8 +20,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+    function isOrgOwner(orgId) {
+      return isSignedIn() && (orgId == 'org_' + request.auth.uid);
     }
 
     function isAdmin() {
@@ -33,33 +31,63 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     /**
-     * @description Organization level rules. Users can access their own organization.
+     * @description Organization level rules. 
+     * Users have full access to their personal 'org_{uid}' container.
      */
     match /organizations/{orgId} {
-      allow get: if isSignedIn() && (orgId == 'org_' + request.auth.uid || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)));
-      allow create: if isSignedIn() && (orgId == 'org_' + request.auth.uid);
-      allow update: if isSignedIn() && (orgId == 'org_' + request.auth.uid);
+      allow get, create, update: if isOrgOwner(orgId) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
       allow list: if isSignedIn();
+
+      /**
+       * @description Nested user profiles within the organization.
+       */
+      match /users/{userId} {
+        allow get, list, create, update: if isOwner(userId) || isOrgOwner(orgId);
+        allow delete: if false;
+      }
     }
 
     /**
-     * @description User profiles within organizations.
-     */
-    match /organizations/{orgId}/users/{userId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if false;
-    }
-
-    /**
-     * @description Rules for root UserProfile documents.
+     * @description Root UserProfile documents.
      */
     match /users/{userId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && (request.resource.data.id == userId || !('id' in request.resource.data));
-      allow update: if isExistingOwner(userId);
+      allow get, list, create, update: if isOwner(userId);
       allow delete: if false;
+
+      /**
+       * @description User-specific AI subscriptions.
+       */
+      match /aiSubscriptions/{subscriptionId} {
+        allow read, write: if isOwner(userId);
+
+        /**
+         * @description Usage records for specific subscriptions.
+         */
+        match /apiUsageRecords/{recordId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      /**
+       * @description Cost optimization suggestions.
+       */
+      match /optimizationSuggestions/{suggestionId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      /**
+       * @description Budget settings and current spending trackers.
+       */
+      match /userBudgets/{budgetId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      /**
+       * @description System-generated notifications and alerts.
+       */
+      match /alerts/{alertId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     /**
@@ -68,56 +96,6 @@ service cloud.firestore {
     match /aiProductOfferings/{offeringId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description User-specific AI subscriptions.
-     */
-    match /users/{userId}/aiSubscriptions/{subscriptionId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Usage records for specific subscriptions.
-     */
-    match /users/{userId}/aiSubscriptions/{subscriptionId}/apiUsageRecords/{recordId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Cost optimization suggestions.
-     */
-    match /users/{userId}/optimizationSuggestions/{suggestionId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Budget settings and current spending trackers.
-     */
-    match /users/{userId}/userBudgets/{budgetId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description System-generated notifications and alerts.
-     */
-    match /users/{userId}/alerts/{alertId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
     }
 
     /**
