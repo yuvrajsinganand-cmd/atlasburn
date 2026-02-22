@@ -1,8 +1,6 @@
-
 {
   "entities": {
     "UserProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
       "description": "Represents a user, linked to an Organization for RBAC.",
@@ -10,7 +8,7 @@
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "organizationId": { "type": "string", "description": "Link to the Org entity." },
+        "organizationId": { "type": "string" },
         "role": { "type": "string", "enum": ["owner", "admin", "finance", "engineer"] },
         "isEmailVerified": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -33,96 +31,37 @@
     "AISubscription": {
       "title": "AISubscription",
       "type": "object",
-      "description": "Stores provider credentials (encrypted) and connection status.",
+      "description": "Stores provider credentials and ingestion security metadata.",
       "properties": {
         "id": { "type": "string" },
         "organizationId": { "type": "string" },
         "providerName": { "type": "string" },
         "customName": { "type": "string" },
-        "apiKeyMetadata": { "type": "string", "description": "Encrypted metadata or masked key." },
+        "ingestKeyHash": { "type": "string", "description": "HMAC-SHA256 hash of the ingest key." },
+        "ingestKeyPrefix": { "type": "string", "description": "Plaintext prefix for UI identification." },
         "status": { "type": "string", "enum": ["active", "error", "pending"] },
         "monthlyFixedCost": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastUsedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "organizationId", "providerName"]
-    },
-    "DailyRollup": {
-      "title": "DailyRollup",
-      "type": "object",
-      "description": "Pre-aggregated time-series data for the dashboard.",
-      "properties": {
-        "id": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "costUsd": { "type": "number" },
-        "tokensIn": { "type": "number" },
-        "tokensOut": { "type": "number" },
-        "requestCount": { "type": "number" },
-        "topFeature": { "type": "string" }
-      },
-      "required": ["id", "organizationId", "date", "costUsd"]
-    },
-    "Anomaly": {
-      "title": "Anomaly",
-      "type": "object",
-      "description": "Detected spend spikes with automated explanations.",
-      "properties": {
-        "id": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "severity": { "type": "string" },
-        "description": { "type": "string" },
-        "primaryDriver": { "type": "string" },
-        "isResolved": { "type": "boolean" }
-      },
-      "required": ["id", "organizationId", "timestamp", "severity", "description"]
     }
   },
   "auth": {
     "providers": ["google.com", "password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/organizations/{orgId}",
-        "definition": {
-          "entityName": "Organization",
-          "schema": { "$ref": "#/backend/entities/Organization" },
-          "description": "Root org document."
-        }
-      },
-      {
-        "path": "/organizations/{orgId}/users/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": { "$ref": "#/backend/entities/UserProfile" },
-          "description": "Users within the org."
-        }
-      },
-      {
-        "path": "/organizations/{orgId}/subscriptions/{subId}",
-        "definition": {
-          "entityName": "AISubscription",
-          "schema": { "$ref": "#/backend/entities/AISubscription" },
-          "description": "API connections for the org."
-        }
-      },
-      {
-        "path": "/organizations/{orgId}/dailyRollups/{rollupId}",
-        "definition": {
-          "entityName": "DailyRollup",
-          "schema": { "$ref": "#/backend/entities/DailyRollup" },
-          "description": "Pre-computed metrics."
-        }
-      },
-      {
-        "path": "/organizations/{orgId}/anomalies/{anomalyId}",
-        "definition": {
-          "entityName": "Anomaly",
-          "schema": { "$ref": "#/backend/entities/Anomaly" },
-          "description": "Spend spikes."
-        }
-      }
-    ]
+    "/organizations/{orgId}": {
+      "schema": "#/backend/entities/Organization",
+      "description": "Root org document."
+    },
+    "/organizations/{orgId}/users/{userId}": {
+      "schema": "#/backend/entities/UserProfile",
+      "description": "Users within the org."
+    },
+    "/users/{userId}/aiSubscriptions/{subId}": {
+      "schema": "#/backend/entities/AISubscription",
+      "description": "API connections for the user/project."
+    }
   }
 }
