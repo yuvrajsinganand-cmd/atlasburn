@@ -69,7 +69,7 @@ export default function RecommendationsPage() {
                 <p className="text-muted-foreground leading-relaxed">Sleek will scan your recent usage for model overkill, repeat costs, and inefficient retry cycles.</p>
               </div>
               <Button onClick={runAudit} disabled={loading} size="lg" className="w-full h-16 text-xl font-headline font-bold shadow-xl">
-                {loading ? <Loader2 className="animate-spin mr-2" /> : "Run Forensic Audit"}
+                {loading ? <TrendingDown className="animate-pulse mr-2" /> : "Run Forensic Audit"}
               </Button>
             </div>
           ) : (
@@ -143,8 +143,4 @@ export default function RecommendationsPage() {
       </SidebarInset>
     </SidebarProvider>
   )
-}
-
-function Loader2({ className }: { className?: string }) {
-  return <TrendingDown className={`animate-pulse ${className}`} />
 }

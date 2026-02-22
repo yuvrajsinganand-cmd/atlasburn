@@ -1,4 +1,3 @@
-
 /**
  * Sleek Math Engine
  * Implementation of Feature 5 (Runway), Feature 7 (Unit Economics), and Feature 12 (Scenarios).
@@ -65,4 +64,11 @@ export function calculateP90Risk(userCosts: number[]): number {
   const top10Total = sorted.slice(0, top10PercentCount).reduce((a, b) => a + b, 0);
   
   return (top10Total / total) * 100;
+}
+
+/**
+ * Scenario Engine: Price Shock Simulator
+ */
+export function simulatePriceShock(currentMonthlyCost: number, multiplier: number) {
+  return currentMonthlyCost * multiplier;
 }

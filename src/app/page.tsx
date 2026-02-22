@@ -157,10 +157,10 @@ export default function Home() {
   }, [user, step]);
 
   if (isUserLoading || step === null) {
-    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return <div className="flex h-screen items-center justify-center bg-background"><BarChart3 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  // Positioning
+  // Step 0: Positioning
   if (step === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center space-y-8 max-w-2xl mx-auto">
@@ -180,7 +180,7 @@ export default function Home() {
     );
   }
 
-  // Snapshot
+  // Step 1: Snapshot
   if (step === 1) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
@@ -224,7 +224,7 @@ export default function Home() {
               <Input type="number" placeholder="500" value={usersCount} onChange={(e) => setUsersCount(e.target.value)} className="h-12" />
             </div>
             <Button onClick={handleAnalyze} disabled={loading || !spend || !provider || !model} className="w-full h-14 text-lg font-headline font-bold bg-primary">
-              {loading ? <Loader2 className="animate-spin mr-2" /> : "Analyze My Spend"}
+              {loading ? <BarChart3 className="animate-spin mr-2" /> : "Analyze My Spend"}
             </Button>
           </CardContent>
         </Card>
@@ -232,7 +232,7 @@ export default function Home() {
     );
   }
 
-  // Risk Reveal
+  // Step 2: Risk Reveal
   if (step === 2) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-3xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-700">
@@ -258,7 +258,7 @@ export default function Home() {
     );
   }
 
-  // Optimization
+  // Step 3: Optimization
   if (step === 3) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-4xl mx-auto w-full space-y-8 animate-in zoom-in-95 duration-700">
@@ -276,7 +276,7 @@ export default function Home() {
     );
   }
 
-  // Lock / Signup
+  // Step 4: Lock / Signup
   if (step === 4) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 max-w-md mx-auto w-full space-y-8 animate-in fade-in">
@@ -380,8 +380,4 @@ export default function Home() {
       </SidebarInset>
     </SidebarProvider>
   )
-}
-
-function Loader2({ className }: { className?: string }) {
-  return <TrendingUp className={`animate-pulse ${className}`} />
 }
