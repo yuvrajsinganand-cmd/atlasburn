@@ -1,21 +1,17 @@
+
 'use client';
 
 /**
- * Sleek SDK - Phase 1: Zero-Latency Interceptor
+ * Sleek SDK - Production v1.0
  * 
  * DESIGN PRINCIPLE: Non-Blocking Architecture.
- * The SDK captures metrics asynchronously. If Sleek's logging fails or is slow,
- * the original LLM call remains unaffected. Zero latency injection into production.
+ * Intercepts LLM usage and forwards it to Sleek's forensic ingestion API.
  */
 
-import { collection, Firestore } from 'firebase/firestore';
-import { normalizeUsage } from './normalization-engine';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-
 export interface SleekSDKOptions {
-  userId: string;
-  subId: string;
-  firestore: Firestore;
+  apiKey: string;    // Sleek Ingest Key
+  projectId: string; // User/Org UID
+  ingestUrl?: string;
 }
 
 export interface MockLLMResponse {
@@ -27,46 +23,42 @@ export interface MockLLMResponse {
 }
 
 /**
- * Wraps any LLM client to automatically log forensic data without blocking.
+ * Wraps any LLM client to automatically log forensic data without blocking production traffic.
  */
 export function withSleek(client: any, options: SleekSDKOptions) {
+  const ingestUrl = options.ingestUrl || '/api/ingest';
+
   return {
     async chat(payload: { model: string; messages: any[] }): Promise<MockLLMResponse> {
-      // 1. Execute the production call first
+      // 1. Execute the production call first (Priority #1)
       const response: MockLLMResponse = await client.chat(payload);
 
-      // 2. Fire-and-forget logging (Non-blocking)
-      // We don't await this, so the app response is never delayed by logging.
+      // 2. Fire-and-forget ingestion (Priority #2 - Non-blocking)
+      // We use a simple fetch call and do not await it.
+      // This ensures Sleek logging has ZERO impact on your response latency.
       try {
-        const normalized = normalizeUsage(
-          payload.model,
-          response.usage.prompt_tokens,
-          response.usage.completion_tokens
-        );
-
-        const usageCol = collection(
-          options.firestore,
-          'users',
-          options.userId,
-          'aiSubscriptions',
-          options.subId,
-          'apiUsageRecords'
-        );
-
-        // Uses internal non-blocking setDoc/addDoc pattern
-        addDocumentNonBlocking(usageCol, {
-          timestamp: new Date().toISOString(),
-          inputTokens: response.usage.prompt_tokens,
-          outputTokens: response.usage.completion_tokens,
-          cost: normalized.costUsd,
-          model: normalized.model,
-          provider: normalized.provider,
-          apiCallType: 'sdk_wrapped_call',
-          isSimulation: false, // Marked as real ingestion
+        fetch(ingestUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: options.apiKey,
+            projectId: options.projectId,
+            model: payload.model,
+            usage: {
+              prompt_tokens: response.usage.prompt_tokens,
+              completion_tokens: response.usage.completion_tokens,
+            },
+            metadata: {
+              sdk_version: '1.0.0-prod',
+              timestamp: new Date().toISOString(),
+            }
+          }),
+        }).catch(err => {
+          // Fail silently in production to avoid affecting main app
+          console.warn('Sleek: Background ingestion failed.', err);
         });
       } catch (e) {
-        // Silently catch logging errors to ensure production availability
-        console.warn('Sleek: Non-blocking ingestion log skipped due to error.', e);
+        // Absolute safety catch
       }
 
       return response;
@@ -75,14 +67,14 @@ export function withSleek(client: any, options: SleekSDKOptions) {
 }
 
 /**
- * A mock provider for Phase 1 sandbox testing.
+ * A mock provider for sandbox testing.
  */
 export const fakeLLM = {
   async chat(payload: { model: string }): Promise<MockLLMResponse> {
     await new Promise((resolve) => setTimeout(resolve, 300));
     return {
       usage: {
-        prompt_tokens: 1243, // Precise "messy" numbers
+        prompt_tokens: 1243,
         completion_tokens: 812,
       },
       output: `Simulation response for ${payload.model}`,
