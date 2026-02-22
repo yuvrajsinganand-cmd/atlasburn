@@ -1,14 +1,12 @@
-
 "use client"
 
-import { LayoutDashboard, Wallet, BrainCircuit, Lightbulb, TrendingUp, LogOut, LogIn, UserCircle, Settings, ShieldAlert } from "lucide-react"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, ShieldAlert, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useUser, useAuth } from "@/firebase"
 import { initiateSignOut } from "@/firebase/non-blocking-login"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { collection, query } from "firebase/firestore"
 
 import {
   Sidebar,
@@ -22,10 +20,8 @@ import {
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Audit Hub", url: "/subscriptions", icon: Wallet },
-  { title: "Decision Engine", url: "/optimizer", icon: ShieldAlert },
-  { title: "Model Matrix", url: "/comparator", icon: TrendingUp },
-  { title: "Usage Intelligence", url: "/usage", icon: BrainCircuit },
+  { title: "Usage Drivers", url: "/usage", icon: BarChart3 },
+  { title: "Recommendations", url: "/optimizer", icon: Zap },
   { title: "Connectors", url: "/settings", icon: Settings },
 ]
 
@@ -63,7 +59,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 gap-4">
         {user && !user.isAnonymous ? (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3 px-2">
+            <Link href="/profile" className="flex items-center gap-3 px-2 hover:bg-sidebar-accent p-2 rounded-lg transition-colors">
               <Avatar className="h-8 w-8 border border-primary/20">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs">
                   {user.email?.[0]?.toUpperCase() || "F"}
@@ -73,7 +69,7 @@ export function AppSidebar() {
                 <span className="text-sm font-bold truncate leading-tight">Founder Mode</span>
                 <span className="text-[10px] text-muted-foreground truncate">{user.email}</span>
               </div>
-            </div>
+            </Link>
             <Button 
               variant="ghost" 
               size="sm" 

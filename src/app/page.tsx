@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -10,14 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Loader2, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Loader2, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
-import { initiateGoogleSignIn, initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
-import { setDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { calculateRunway, calculateP90Risk, calculateUnitEconomics } from "@/lib/math-engine"
+import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { calculateRunway, calculateUnitEconomics } from "@/lib/math-engine"
 
 const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   openai: [
@@ -27,16 +25,12 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
     { label: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
   ],
   anthropic: [
-    { label: "Claude 3.5 Sonnet v2", value: "claude-3-5-sonnet-v2" },
-    { label: "Claude 4.5 (Preview)", value: "claude-4-5" },
+    { label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet" },
     { label: "Claude 3 Opus", value: "claude-3-opus" },
     { label: "Claude 3 Haiku", value: "claude-3-haiku" },
   ],
   azure: [
     { label: "Azure GPT-4o", value: "azure-gpt-4o" },
-  ],
-  mixed: [
-    { label: "Multi-Model Router", value: "router" },
   ]
 };
 
@@ -44,8 +38,6 @@ export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
-  
-  // Steps: 0: Positioning, 1: Snapshot, 2: Risk, 3: Optimization, 4: Lock/Signup, 5: Dashboard
   const [step, setStep] = useState<number | null>(null);
 
   // Form State
@@ -76,13 +68,20 @@ export default function Home() {
 
   const { data: subscriptions } = useCollection(subscriptionsQuery);
 
-  // Calculations for Onboarding & Dashboard
   const metrics = useMemo(() => {
-    const s = parseFloat(spend) || 0;
-    const u = parseFloat(usersCount) || 1;
-    const runway = calculateRunway(s / 30, s * 5, 1.05); // Simulated: 5x cash, 5% growth
-    const unitEcon = calculateUnitEconomics(s, u * 20, 0.5); // 20 actions/user, $0.50 revenue
-    const p90Risk = 42; // Simulated P90 share
+    const s = parseFloat(spend) || 5000;
+    const u = parseFloat(usersCount) || 500;
+    const runway = calculateRunway(s / 30, s * 5, 1.05);
+    const unitEcon = calculateUnitEconomics(s, u * 20, 0.5);
+    const dailyBurn = s / 30;
+    const forecastBill = s * 1.15; // Simulated growth
+
+    let marginStatus = { label: "SAFE", color: "text-green-600", bg: "bg-green-100", icon: ShieldCheck };
+    if (unitEcon.margin < 30) {
+      marginStatus = { label: "RISK", color: "text-destructive", bg: "bg-destructive/10", icon: AlertTriangle };
+    } else if (unitEcon.margin < 50) {
+      marginStatus = { label: "WATCH", color: "text-amber-600", bg: "bg-amber-100", icon: ShieldAlert };
+    }
 
     return { 
       costPerUser: s / u, 
@@ -91,7 +90,9 @@ export default function Home() {
       savings: s - (s * 0.55),
       runway,
       margin: unitEcon.margin,
-      p90Risk
+      dailyBurn,
+      forecastBill,
+      marginStatus
     };
   }, [spend, usersCount]);
 
@@ -229,7 +230,6 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
           <Card className="p-6 space-y-4 border-none shadow-sm">
             <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">COST PER USER</span><span className="text-2xl font-bold font-headline">${metrics.costPerUser.toFixed(2)}</span></div>
-            <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">P90 RISK SHARE</span><span className="text-lg font-bold text-destructive">{metrics.p90Risk}%</span></div>
             <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">MARGIN BUFFER</span><span className="text-lg font-bold text-green-600">{metrics.margin.toFixed(0)}%</span></div>
           </Card>
           <Card className="border-destructive/30 bg-destructive/5 p-6 space-y-4 border-2">
@@ -289,37 +289,42 @@ export default function Home() {
       <AppSidebar />
       <SidebarInset className="bg-background/50">
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
-          <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Sleek Control Plane</h1></div>
-          <Badge variant="outline" className="gap-1.5 px-3 py-1 border-primary/20 bg-primary/5 text-primary"><div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />Live Forensic Link</Badge>
+          <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Sleek Dashboard</h1></div>
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${metrics.marginStatus.bg} ${metrics.marginStatus.color}`}>
+              <metrics.marginStatus.icon size={14} />
+              MARGIN {metrics.marginStatus.label}
+            </div>
+          </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Runway Left</span><Landmark size={16} className="text-primary" /></div>
-              <div className="text-3xl font-headline font-bold text-primary">{metrics.runway} <span className="text-lg font-normal opacity-70">Days</span></div>
-              <p className="text-[10px] text-muted-foreground mt-2">Projection @ 5% daily growth</p>
+            <Card className="p-6 border-none shadow-sm">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Avg Daily Burn</span><Landmark size={16} className="text-primary" /></div>
+              <div className="text-3xl font-headline font-bold text-primary">${metrics.dailyBurn.toFixed(2)}</div>
+              <p className="text-[10px] text-muted-foreground mt-2">Current 30-day average</p>
             </Card>
-            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Risk Index</span><ShieldAlert size={16} className="text-destructive" /></div>
-              <div className="text-3xl font-headline font-bold text-destructive">68/100</div>
-              <div className="w-full bg-destructive/10 h-1 rounded-full mt-3 overflow-hidden"><div className="bg-destructive h-full" style={{ width: '68%' }} /></div>
+            <Card className="p-6 border-none shadow-sm">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">MTD Forecast</span><TrendingUp size={16} className="text-accent" /></div>
+              <div className="text-3xl font-headline font-bold text-accent">${metrics.forecastBill.toLocaleString()}</div>
+              <p className="text-[10px] text-muted-foreground mt-2">Projected month-end bill</p>
             </Card>
-            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">P90 Share</span><Target size={16} className="text-accent" /></div>
-              <div className="text-3xl font-headline font-bold text-accent">{metrics.p90Risk}%</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Share of spend by top users</p>
+            <Card className="p-6 border-none shadow-sm">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Runway Impact</span><Target size={16} className="text-primary" /></div>
+              <div className="text-3xl font-headline font-bold">{metrics.runway} <span className="text-lg font-normal opacity-70">Days</span></div>
+              <p className="text-[10px] text-muted-foreground mt-2">Assuming current cash buffer</p>
             </Card>
-            <Card className="p-6 border-none shadow-sm hover:shadow-md transition-all">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Gross Margin</span><Activity size={16} className="text-green-600" /></div>
+            <Card className="p-6 border-none shadow-sm">
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Unit Margin</span><Activity size={16} className="text-green-600" /></div>
               <div className="text-3xl font-headline font-bold text-green-600">{metrics.margin.toFixed(0)}%</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Buffer after API COGS</p>
+              <p className="text-[10px] text-muted-foreground mt-2">Gross buffer per token</p>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Spend Normalization Layer</CardTitle><CardDescription>Unified time-series across providers.</CardDescription></CardHeader>
+              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Spend Normalization</CardTitle><CardDescription>Forecasting trajectory for next 90 days.</CardDescription></CardHeader>
               <div className="h-[300px] w-full mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[{ name: 'Oct', cost: 12000 }, { name: 'Nov', cost: 15500 }, { name: 'Dec', cost: 22000 }]}>
@@ -333,16 +338,23 @@ export default function Home() {
               </div>
             </Card>
             <Card className="lg:col-span-1 border-none shadow-sm bg-white p-6">
-              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Critical Optimization</CardTitle><CardDescription>Top recommendations by savings.</CardDescription></CardHeader>
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="text-lg font-headline">Top Cost Drivers</CardTitle>
+                <CardDescription>Highest impact segments identified.</CardDescription>
+              </CardHeader>
               <div className="space-y-4 mt-4">
                 {[
-                  { title: "Switch GPT-4 to Sonnet", save: "$1,240/mo", risk: "Low" },
-                  { title: "Enable Prompt Caching", save: "$850/mo", risk: "None" },
-                  { title: "Reduce Timeout Retries", save: "$320/mo", risk: "None" }
+                  { title: "GPT-4o Production", share: "42%", cost: "$2,100" },
+                  { title: "Retry Loops", share: "18%", cost: "$900" },
+                  { title: "Feature: Summarize", share: "12%", cost: "$600" },
+                  { title: "Batch Jobs", share: "9%", cost: "$450" }
                 ].map((item, i) => (
-                  <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-secondary/50">
-                    <div><p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">{item.title}</p><p className="text-xs text-muted-foreground">Risk Rating: {item.risk}</p></div>
-                    <p className="text-sm font-bold text-green-600">{item.save}</p>
+                  <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-secondary/50 transition-colors">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.share} total share</p>
+                    </div>
+                    <p className="text-sm font-bold text-foreground">{item.cost}</p>
                   </div>
                 ))}
               </div>
