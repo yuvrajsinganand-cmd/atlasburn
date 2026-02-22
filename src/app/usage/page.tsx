@@ -5,21 +5,20 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, MousePointer2, Database, Play, BarChart3, Target, Activity, Loader2 } from "lucide-react"
+import { TrendingUp, MousePointer2, Database, Play, BarChart3, Target, Activity, Loader2, Beaker, Zap } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { toast } from "@/hooks/use-toast"
-import { normalizeUsage } from "@/lib/normalization-engine"
+import { withSleek, fakeLLM } from "@/lib/sleek-sdk"
 
 export default function Usage() {
   const { user } = useUser()
   const firestore = useFirestore()
   const [selectedSubId, setSelectedSubId] = useState<string | null>(null)
-  const [simulating, setSimulating] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   const subscriptionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -56,45 +55,42 @@ export default function Usage() {
     }));
   }, [usageRecords]);
 
-  const handleSimulateCall = () => {
+  const handlePhase1Test = async () => {
     if (!user || !firestore || !selectedSubId) return;
     
     const sub = subscriptions?.find(s => s.id === selectedSubId);
     if (!sub) return;
 
-    setSimulating(true);
+    setTesting(true);
     
-    const usageCol = collection(firestore, 'users', user.uid, 'aiSubscriptions', selectedSubId, 'apiUsageRecords');
-    
-    // Simulate raw token distribution
-    const input = Math.floor(Math.random() * 2000) + 500;
-    const output = Math.floor(Math.random() * 1000) + 200;
-    
-    // NORMALIZE: Use the real pricing engine instead of a flat multiplier
-    const modelId = sub.name || 'gpt-4o'; // Fallback to 4o
-    const normalized = normalizeUsage(modelId, input, output);
-
-    addDocumentNonBlocking(usageCol, {
-      id: Math.random().toString(36).substring(7),
-      aiSubscriptionId: selectedSubId,
-      timestamp: new Date().toISOString(),
-      apiCallType: 'chat_completion',
-      inputTokens: normalized.inputTokens,
-      outputTokens: normalized.outputTokens,
-      cost: normalized.costUsd,
-      latencyMs: Math.floor(Math.random() * 1200) + 300,
-      userProfileId: user.uid,
-      model: normalized.model,
-      provider: normalized.provider
+    // Phase 1: Instantiate the SDK with the fake LLM
+    const sleek = withSleek(fakeLLM, {
+      userId: user.uid,
+      subId: selectedSubId,
+      firestore: firestore
     });
 
-    setTimeout(() => {
-      setSimulating(false);
-      toast({
-        title: "API Call Normalized",
-        description: `Logged $${normalized.costUsd.toFixed(4)} using ${normalized.model} rates.`,
+    try {
+      // Trigger a wrapped call
+      await sleek.chat({
+        model: sub.name || 'gpt-4o',
+        messages: [{ role: 'user', content: 'Phase 1 Test' }]
       });
-    }, 600);
+
+      toast({
+        title: "Phase 1: SDK Call Captured",
+        description: "Mock tokens normalized and logged to the risk engine.",
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: "Test Failed",
+        description: "Check console for SDK errors."
+      });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const currentSubName = subscriptions?.find(s => s.id === selectedSubId)?.customName || 'Select Tool';
@@ -122,12 +118,12 @@ export default function Usage() {
             <Button 
               size="sm" 
               variant="outline" 
-              className="gap-2 border-primary/20 hover:bg-primary/5"
-              disabled={!selectedSubId || simulating}
-              onClick={handleSimulateCall}
+              className="gap-2 border-accent/20 hover:bg-accent/5 text-accent"
+              disabled={!selectedSubId || testing}
+              onClick={handlePhase1Test}
             >
-              {simulating ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />}
-              Simulate Normalization
+              {testing ? <Loader2 className="animate-spin" size={14} /> : <Beaker size={14} />}
+              Run Phase 1 Test
             </Button>
           </div>
         </header>
@@ -139,6 +135,11 @@ export default function Usage() {
                 <div>
                   <CardTitle className="text-xl font-headline">Cost Attribution</CardTitle>
                   <CardDescription>Visualizing traffic density for {currentSubName}</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20">
+                    SDK v1.0 (Mock)
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent>
@@ -171,38 +172,14 @@ export default function Usage() {
             </Card>
 
             <div className="space-y-6">
-              <Card className="border-none shadow-sm p-6">
-                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2 mb-6">
-                  <Target size={16} className="text-primary" /> Model Concentration
+              <Card className="border-none shadow-sm p-6 bg-accent/5">
+                <CardTitle className="text-xs font-bold uppercase text-accent flex items-center gap-2 mb-6">
+                  <Beaker size={16} /> Phase 1: Local Lab
                 </CardTitle>
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span>GPT-4O</span>
-                      <span>68%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: '68%' }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span>CLAUDE SONNET</span>
-                      <span>22%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-accent" style={{ width: '22%' }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span>OTHER</span>
-                      <span>10%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-muted-foreground" style={{ width: '10%' }} />
-                    </div>
-                  </div>
+                <div className="text-sm space-y-4 text-muted-foreground leading-relaxed">
+                  <p>In Phase 1, we use <code>withSleek(fakeLLM)</code> to wrap a simulated provider.</p>
+                  <p>Click <b>"Run Phase 1 Test"</b> above to simulate a call with 1,200 input tokens and 800 output tokens.</p>
+                  <p>Sleek will calculate the exact USD cost based on your selected model's pricing table and update your runway forecast.</p>
                 </div>
               </Card>
 
@@ -211,8 +188,8 @@ export default function Usage() {
                   <Activity size={18} />
                   <p className="text-xs font-bold uppercase tracking-widest opacity-80">Ingestion Signal</p>
                 </div>
-                <p className="text-2xl font-headline font-bold">Raw Truth Active</p>
-                <p className="text-[10px] mt-2 opacity-70 leading-relaxed">Costs are now being normalized against live provider pricing tables. Discrepancies &lt; 0.1%.</p>
+                <p className="text-2xl font-headline font-bold">SDK Link Active</p>
+                <p className="text-[10px] mt-2 opacity-70 leading-relaxed">Costs are now being normalized against live provider pricing tables via the Sleek SDK wrapper.</p>
               </Card>
             </div>
           </div>
