@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Landmark, Activity, Target, Info, SlidersHorizontal, ShieldCheck } from "lucide-react"
+import { TrendingUp, ArrowRight, ShieldAlert, BarChart3, Landmark, Activity, Target, Info, SlidersHorizontal, ShieldCheck } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
@@ -73,9 +72,9 @@ export default function Home() {
   const { data: subscriptions } = useCollection(subscriptionsQuery);
 
   const metrics = useMemo(() => {
-    const s = parseFloat(spend) || 5000;
+    const s = parseFloat(spend) || (subscriptions?.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0) || 5000);
     const u = parseFloat(usersCount) || 500;
-    const daysElapsed = 10; 
+    const daysElapsed = 14; // Default to P90 14-day window
     const cashBuffer = s * 6; // Assume 6 months reserve for demo
     
     const forecasts = calculateMonthEndForecast(
@@ -105,7 +104,7 @@ export default function Home() {
       forecasts,
       marginInfo,
     };
-  }, [spend, usersCount, forecastMode, simulationGrowthRate, simulationVolatility]);
+  }, [spend, usersCount, forecastMode, simulationGrowthRate, simulationVolatility, subscriptions]);
 
   const handleStartAnalysis = () => setStep(1);
   const handleAnalyze = () => {
@@ -190,7 +189,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 max-w-xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
         <div className="w-full space-y-2 text-center">
-          <Badge className="bg-primary/10 text-primary border-none mb-2 uppercase tracking-widest text-[10px] font-bold">Step 1 — Forensic Burn Snapshot</Badge>
+          <Badge className="bg-primary/10 text-primary border-none mb-2 uppercase tracking-widest text-[10px] font-bold">Step 1 &mdash; Forensic Burn Snapshot</Badge>
           <h2 className="text-3xl font-headline font-bold">Current Burn Metrics</h2>
           <p className="text-muted-foreground">Input your raw data for real-time runway simulation.</p>
         </div>
@@ -387,14 +386,14 @@ export default function Home() {
             <Card className="p-6 border-none shadow-sm">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Avg Daily Burn</span><Landmark size={16} className="text-primary" /></div>
               <div className="text-3xl font-headline font-bold text-primary">${metrics.dailyBurn.toFixed(2)}</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Trailing 24h normalized</p>
+              <p className="text-[10px] text-muted-foreground mt-2">Trailing 14d normalized (P90)</p>
             </Card>
             <Card className="p-6 border-none shadow-sm relative overflow-hidden">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">MTD Bill Projection</span><TrendingUp size={16} className="text-accent" /></div>
               <div className="text-3xl font-headline font-bold text-accent">${metrics.forecasts.base.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[9px] font-bold text-muted-foreground uppercase">Stress Band</span>
-                <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} — ${metrics.forecasts.p90.toFixed(0)}</span>
+                <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} &mdash; ${metrics.forecasts.p90.toFixed(0)}</span>
               </div>
               <div className="absolute bottom-0 left-0 w-full h-1 bg-muted/20">
                 <div 
@@ -413,10 +412,10 @@ export default function Home() {
             </Card>
             <Card className="p-6 border-none shadow-sm">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Breach Probability</span><ShieldAlert size={16} className={metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : "text-amber-500"} /></div>
-              <div className={`text-3xl font-headline font-bold ${metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : "text-foreground"}`}>
+              <div className={`text-3xl font-headline font-bold ${metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : metrics.forecasts.probabilityOfRunwayBreach > 0.1 ? "text-amber-500" : "text-green-600"}`}>
                 {(metrics.forecasts.probabilityOfRunwayBreach * 100).toFixed(0)}%
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2">P90 Risk Intensity</p>
+              <p className="text-[10px] text-muted-foreground mt-2">Monte Carlo Risk Intensity</p>
             </Card>
           </div>
 

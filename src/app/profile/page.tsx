@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -9,12 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key, Database, Activity, Clock, Server, ShieldAlert, Target, Zap } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -23,13 +23,65 @@ export default function ProfilePage() {
   const [threshold, setThreshold] = useState("80");
   const [saving, setSaving] = useState(false);
 
+  // Fetch User Profile to get organizationId
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "organizations", `org_${user.uid}`, "users", user.uid);
+  }, [firestore, user]);
+  const { data: profile } = useDoc(userProfileRef);
+
+  // Fetch Organization for budget
+  const orgRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.organizationId) return null;
+    return doc(firestore, "organizations", profile.organizationId);
+  }, [firestore, profile]);
+  const { data: organization } = useDoc(orgRef);
+
+  // Fetch subscriptions for live burn
+  const subQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, "users", user.uid, "aiSubscriptions"));
+  }, [firestore, user]);
+  const { data: subscriptions } = useCollection(subQuery);
+
+  // Fetch budget settings
   const budgetQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "users", user.uid, "userBudgets"));
   }, [firestore, user]);
-
   const { data: budgets } = useCollection(budgetQuery);
   const currentBudget = budgets?.[0];
+
+  // Calculate Real Decision Engine Metrics
+  const engineMetrics = useMemo(() => {
+    if (!subscriptions) return null;
+    
+    const monthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
+    const dailyBurn = monthlyBurn / 30;
+    const cashReserve = organization?.apiBudgetUsd || parseFloat(budgetCap) || 10000;
+    
+    // Simulate forecast (simplified distribution for profile)
+    const forecasts = calculateMonthEndForecast(
+      monthlyBurn,
+      14, // P90 window
+      30,
+      'FLAT',
+      0.05,
+      cashReserve,
+      0.08
+    );
+    
+    const runway = calculateRunway(dailyBurn, cashReserve);
+    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, 42); // Hardcoded margin for now
+
+    return {
+      runway: (runway / 30).toFixed(1),
+      breachProb: (forecasts.probabilityOfRunwayBreach * 100).toFixed(0),
+      status: marginInfo.label,
+      statusColor: marginInfo.color,
+      statusBg: marginInfo.bg,
+    };
+  }, [subscriptions, organization, budgetCap]);
 
   useEffect(() => {
     if (currentBudget) {
@@ -140,18 +192,18 @@ export default function ProfilePage() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Projected Runway</p>
-                      <p className="text-2xl font-headline font-bold">14.2 Mo</p>
+                      <p className="text-2xl font-headline font-bold">{engineMetrics?.runway || "0.0"} Mo</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Breach Prob (P90)</p>
-                      <p className="text-xl font-headline font-bold text-amber-300">17%</p>
+                      <p className="text-xl font-headline font-bold text-amber-300">{engineMetrics?.breachProb || "0"}%</p>
                     </div>
                   </div>
                   <Separator className="bg-white/10" />
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Margin Status</p>
-                      <p className="text-sm font-bold text-green-300">Sustainable (58%)</p>
+                      <p className={`text-sm font-bold ${engineMetrics?.statusColor || 'text-green-300'}`}>{engineMetrics?.status || 'STABLE'}</p>
                     </div>
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-white hover:bg-white/10" asChild>
                       <a href="/">View Live Audit</a>
@@ -168,7 +220,7 @@ export default function ProfilePage() {
                   <CardTitle className="flex items-center gap-2 font-headline">
                     <Wallet className="text-primary" size={20} /> Budget Guardrails
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Establish hard and soft limits for monthly forensic burn monitoring. These thresholds trigger the stress alerts in the main dashboard.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Establish hard and soft limits for monthly forensic burn monitoring. These thresholds trigger the institutional alerts in the main dashboard.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">

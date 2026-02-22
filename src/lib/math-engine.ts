@@ -1,6 +1,6 @@
 /**
- * Sleek Math Engine - Production v2.1
- * Probabilistic Decision Core with Runway Extension Logic.
+ * Sleek Math Engine - Production v2.2
+ * Probabilistic Decision Core with Institutional Risk Tiers.
  */
 
 import { runMonteCarloSimulation, type SimulationInput } from './probabilistic-engine';
@@ -56,56 +56,44 @@ export function calculateMonthEndForecast(
 }
 
 /**
- * Calculates how many extra days of runway an optimization buys the founder.
+ * Institutionalized Risk Engine
+ * Fuses statistical probability with operational status.
  */
-export function calculateRunwayExtension(
-  currentDailyBurn: number,
-  monthlySavings: number,
-  currentCash: number
-): number {
-  if (currentDailyBurn <= 0) return 0;
-  
-  const dailySavings = monthlySavings / 30;
-  const optimizedBurn = Math.max(0.1, currentDailyBurn - dailySavings);
-  
-  const originalRunway = currentCash / currentDailyBurn;
-  const optimizedRunway = currentCash / optimizedBurn;
-  
-  return Math.floor(optimizedRunway - originalRunway);
-}
-
 export function getMarginStatus(breachProbability: number, margin: number) {
   if (breachProbability > 0.25 || margin < 30) {
     return {
-      label: "RISK",
+      label: "CRITICAL",
       color: "text-destructive",
       bg: "bg-destructive/10",
-      description: `Critical runway risk. Your spend is currently burning through capital at a rate that yields a ${(breachProbability * 100).toFixed(0)}% probability of total budget exhaustion.`,
-      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
+      description: `Critical Exposure. Your current burn trajectory has a high statistical probability of exceeding capital reserves. Historically, this risk intensity correlates with immediate operational solvency risks.`,
+      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
     };
   } else if (breachProbability >= 0.10 || margin < 50) {
     return {
       label: "WATCH",
       color: "text-amber-600",
       bg: "bg-amber-100",
-      description: `Margin under stress. Volatility simulation detected a ${(breachProbability * 100).toFixed(0)}% chance of breach. This usually precedes a pivot or a fundraising emergency.`,
-      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
+      description: `Institutional Watch. Monte Carlo simulation identifies a ${(breachProbability * 100).toFixed(0)}% variance. Historically, sustained breach probability at this level correlates with early-stage runway compression events.`,
+      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
     };
   } else {
     return {
-      label: "SAFE",
+      label: "STABLE",
       color: "text-green-600",
       bg: "bg-green-100",
-      description: "Low volatility risk. Your burn trajectory is sustainable within current cash reserves with 90%+ confidence.",
-      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
+      description: "Stable Configuration. Low volatility risk detected. Historical analysis indicates that sustained breach probability below 10% correlates with high runway predictability.",
+      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
     };
   }
 }
 
 export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 0): number {
-  if (dailySpend <= 0) return 365;
+  if (dailySpend <= 0) return 365 * 2; // Cap at 2 years
   if (growthRate === 0) return Math.floor(currentCash / dailySpend);
-  const val = 1 - (currentCash * (0 - growthRate) / dailySpend);
+  
+  // N = log(1 - (Cash * -Growth / Daily)) / log(1 + Growth)
+  // Simplified for daily resolution
+  const val = 1 - (currentCash * (0 - growthRate/30) / dailySpend);
   if (val <= 0) return 0;
   const days = Math.log(val) / Math.log(1 + growthRate/30);
   return Math.max(0, Math.floor(days));
