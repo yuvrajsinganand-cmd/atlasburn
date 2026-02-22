@@ -1,62 +1,63 @@
 /**
- * Sleek Math Engine - Production v1
- * Implementation of Scenario Bands, Multi-mode Forecasting, and P90 Risk.
+ * Sleek Math Engine - Production v2
+ * Probabilistic Decision Core.
  */
+
+import { runMonteCarloSimulation, type SimulationInput } from './probabilistic-engine';
 
 export type ForecastMode = 'FLAT' | 'LINEAR' | 'GEOMETRIC';
 
 export interface ForecastScenarios {
-  p25: number; // Best case (Low usage/Efficiency)
-  base: number; // Expected case
-  p90: number; // Stress case (High usage/Spikes)
+  p25: number;
+  base: number;
+  p90: number;
+  probabilityOfRunwayBreach: number;
 }
 
 /**
- * Calculates projected month-end bill based on trajectory and mode.
+ * Calculates projected month-end bill using Monte Carlo simulation.
  */
 export function calculateMonthEndForecast(
   currentSpend: number,
   daysElapsed: number,
   totalDaysInMonth: number = 30,
   mode: ForecastMode = 'FLAT',
-  growthRate: number = 0.05 // e.g., 5% monthly growth
+  growthRate: number = 0.05,
+  cashReserve: number = 10000 // Total monthly budget or reserve
 ): ForecastScenarios {
   const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : currentSpend;
   const remainingDays = Math.max(0, totalDaysInMonth - daysElapsed);
 
-  let projectedRemaining: number;
+  // Convert monthly growth expectation to daily for the simulation
+  const dailyGrowthRate = mode === 'FLAT' ? 0 : 
+                          mode === 'GEOMETRIC' ? Math.pow(1 + growthRate, 1/30) - 1 :
+                          growthRate / 30;
 
-  switch (mode) {
-    case 'LINEAR':
-      // Adds a fixed % of daily avg as growth per day
-      const dailyGrowth = (dailyAvg * growthRate) / 30;
-      projectedRemaining = 0;
-      for (let i = 1; i <= remainingDays; i++) {
-        projectedRemaining += dailyAvg + (dailyGrowth * i);
-      }
-      break;
-    case 'GEOMETRIC':
-      // Compound growth
-      const dailyRate = Math.pow(1 + growthRate, 1/30);
-      projectedRemaining = dailyAvg * (Math.pow(dailyRate, remainingDays + 1) - 1) / (dailyRate - 1) - dailyAvg;
-      break;
-    case 'FLAT':
-    default:
-      projectedRemaining = dailyAvg * remainingDays;
-      break;
-  }
+  // Run the Monte Carlo Simulation (1000 paths)
+  const simInput: SimulationInput = {
+    baseDailyCost: dailyAvg,
+    dailyGrowthRate,
+    retryStormProbability: 0.08, // 8% daily chance of anomaly
+    retryStormMultiplier: 1.4,   // 40% spike in burn
+    priceShockProbability: 0.03,  // 3% daily chance of provider price hike
+    priceShockMultiplier: 1.2,    // 20% cost increase
+    simulationDays: remainingDays,
+    runs: 1000,
+    startingCashReserve: Math.max(0, cashReserve - currentSpend), // Remaining budget
+  };
 
-  const base = currentSpend + projectedRemaining;
+  const simResult = runMonteCarloSimulation(simInput);
 
   return {
-    p25: base * 0.85, // Assumes 15% efficiency gain or low traffic
-    base: base,
-    p90: base * 1.4, // Assumes 40% spike/retry storm
+    p25: currentSpend + simResult.p25,
+    base: currentSpend + simResult.p50,
+    p90: currentSpend + simResult.p90,
+    probabilityOfRunwayBreach: simResult.probabilityOfRunwayBreach,
   };
 }
 
 /**
- * Calculates P90 Daily Spend (90th percentile of daily spend over trailing window).
+ * Calculates P90 Daily Spend (90th percentile of daily spend over trailing 14 days).
  */
 export function calculateP90DailySpend(dailyCosts: number[]): number {
   if (dailyCosts.length === 0) return 0;
@@ -66,41 +67,42 @@ export function calculateP90DailySpend(dailyCosts: number[]): number {
 }
 
 /**
- * Enhanced Margin Status with Explainability.
+ * Probabilistic Margin Status.
  */
-export function getMarginStatus(margin: number) {
-  if (margin >= 50) {
-    return {
-      label: "SAFE",
-      color: "text-green-600",
-      bg: "bg-green-100",
-      description: "Margin buffer exceeds 50%. Unit economics are healthy.",
-      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
-    };
-  } else if (margin >= 30) {
-    return {
-      label: "WATCH",
-      color: "text-amber-600",
-      bg: "bg-amber-100",
-      description: "Margin dropping. Model cost density is high relative to revenue.",
-      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
-    };
-  } else {
+export function getMarginStatus(breachProbability: number, margin: number) {
+  // Primary trigger: Probabilistic Risk
+  if (breachProbability > 0.25 || margin < 30) {
     return {
       label: "RISK",
       color: "text-destructive",
       bg: "bg-destructive/10",
-      description: "Critical margin erosion. AI costs are consuming product value.",
-      thresholds: "SAFE > 50% | WATCH < 50% | RISK < 30%"
+      description: `Critical runway risk. There is a ${(breachProbability * 100).toFixed(0)}% probability of exceeding your budget buffer under current volatility.`,
+      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
+    };
+  } else if (breachProbability >= 0.10 || margin < 50) {
+    return {
+      label: "WATCH",
+      color: "text-amber-600",
+      bg: "bg-amber-100",
+      description: `Margin under stress. Volatility simulation detected a ${(breachProbability * 100).toFixed(0)}% chance of breach.`,
+      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
+    };
+  } else {
+    return {
+      label: "SAFE",
+      color: "text-green-600",
+      bg: "bg-green-100",
+      description: "Low volatility risk. Projections suggest 90%+ confidence in staying within budget.",
+      thresholds: "SAFE: Breach < 10% | WATCH: Breach 10-25% | RISK: Breach > 25%"
     };
   }
 }
 
 /**
- * Runway Projection with Forecast Scenarios.
+ * Runway Projection.
  */
 export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 0): number {
-  if (dailySpend <= 0) return 365; // Default to 1 year for zero burn
+  if (dailySpend <= 0) return 365;
   
   if (growthRate === 0) {
     return Math.floor(currentCash / dailySpend);

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield, Info } from "lucide-react"
+import { TrendingUp, AlertTriangle, ArrowRight, Zap, ShieldAlert, BarChart3, Cpu, Wallet, ShieldCheck, Mail, Lock, Landmark, Activity, Target, Shield, Info, Loader2 } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
@@ -75,13 +75,13 @@ export default function Home() {
     const u = parseFloat(usersCount) || 500;
     const daysElapsed = 10; 
     
-    // FORECAST: Now supports scenario bands (P25/Base/P90)
-    const forecasts = calculateMonthEndForecast(s, daysElapsed, 30, forecastMode, 0.15);
+    // FORECAST: Now utilizes probabilistic Monte Carlo simulation
+    const forecasts = calculateMonthEndForecast(s, daysElapsed, 30, forecastMode, 0.15, s * 1.5);
+    
     const unitMargin = 42; 
-    const marginInfo = getMarginStatus(unitMargin);
+    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, unitMargin);
     const dailyBurn = s / daysElapsed;
     
-    // RUNWAY: Now sensitivized to growth
     const runway = calculateRunway(dailyBurn, s * 5);
 
     return { 
@@ -352,9 +352,11 @@ export default function Home() {
               <p className="text-[10px] text-muted-foreground mt-2">Assuming current cash buffer</p>
             </Card>
             <Card className="p-6 border-none shadow-sm">
-              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">P90 Daily Spend</span><ShieldAlert size={16} className="text-destructive" /></div>
-              <div className="text-3xl font-headline font-bold text-destructive">${metrics.p90DailySpend.toFixed(2)}</div>
-              <p className="text-[10px] text-muted-foreground mt-2">Stress threshold (Last 14 days)</p>
+              <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Runway Breach Risk</span><ShieldAlert size={16} className={metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : "text-amber-500"} /></div>
+              <div className={`text-3xl font-headline font-bold ${metrics.forecasts.probabilityOfRunwayBreach > 0.25 ? "text-destructive" : "text-foreground"}`}>
+                {(metrics.forecasts.probabilityOfRunwayBreach * 100).toFixed(0)}%
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Probability of budget exhaustion</p>
             </Card>
           </div>
 
