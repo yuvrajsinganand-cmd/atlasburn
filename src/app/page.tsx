@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -9,9 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, ArrowRight, ShieldAlert, BarChart3, Landmark, Activity, Target, Info, SlidersHorizontal, ShieldCheck } from "lucide-react"
+import { TrendingUp, ArrowRight, ShieldAlert, BarChart3, Landmark, Activity, Target, Info, SlidersHorizontal, ShieldCheck, Zap } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from "@/firebase"
-import { collection, query, doc } from "firebase/firestore"
+import { collection, query, doc, orderBy, limit } from "firebase/firestore"
 import { initiateGoogleSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -37,6 +38,7 @@ export default function Home() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [step, setStep] = useState<number | null>(null);
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
 
   // Form State
   const [spend, setSpend] = useState("");
@@ -71,11 +73,23 @@ export default function Home() {
 
   const { data: subscriptions } = useCollection(subscriptionsQuery);
 
+  // Real-time Forensic Data Query
+  const usageQuery = useMemoFirebase(() => {
+    if (!firestore || !user || !selectedSubId) return null;
+    return query(
+      collection(firestore, 'users', user.uid, 'aiSubscriptions', selectedSubId, 'apiUsageRecords'),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
+  }, [firestore, user, selectedSubId]);
+
+  const { data: usageRecords } = useCollection(usageQuery);
+
   const metrics = useMemo(() => {
     const s = parseFloat(spend) || (subscriptions?.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0) || 5000);
     const u = parseFloat(usersCount) || 500;
-    const daysElapsed = 14; // Default to P90 14-day window
-    const cashBuffer = s * 6; // Assume 6 months reserve for demo
+    const daysElapsed = 14; 
+    const cashBuffer = s * 6; 
     
     const forecasts = calculateMonthEndForecast(
       s, 
@@ -93,6 +107,37 @@ export default function Home() {
     
     const runway = calculateRunway(dailyBurn, cashBuffer, simulationGrowthRate);
 
+    // Calculate Dynamic Risk Drivers from Ingested Data
+    let drivers = [
+      { title: "GPT-4o Traffic", share: "42.1%", cost: "$2,105", type: 'static' },
+      { title: "Unnecessary Retries", share: "18.3%", cost: "$915", type: 'static' },
+      { title: "Verbose Output", share: "12.4%", cost: "$620", type: 'static' },
+      { title: "Context Over-send", share: "9.2%", cost: "$461", type: 'static' }
+    ];
+
+    if (usageRecords && usageRecords.length > 0) {
+      const modelCosts: Record<string, number> = {};
+      let totalUsageCost = 0;
+      
+      usageRecords.forEach(rec => {
+        const modelKey = rec.model || 'Unknown';
+        modelCosts[modelKey] = (modelCosts[modelKey] || 0) + (rec.cost || 0);
+        totalUsageCost += (rec.cost || 0);
+      });
+
+      if (totalUsageCost > 0) {
+        drivers = Object.entries(modelCosts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([modelName, cost]) => ({
+            title: `${modelName} Traffic`,
+            share: `${((cost / totalUsageCost) * 100).toFixed(1)}%`,
+            cost: `$${cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+            type: 'forensic'
+          }))
+          .slice(0, 4);
+      }
+    }
+
     return { 
       costPerUser: s / u, 
       growth2x: s * 2.4, 
@@ -103,8 +148,9 @@ export default function Home() {
       dailyBurn,
       forecasts,
       marginInfo,
+      drivers
     };
-  }, [spend, usersCount, forecastMode, simulationGrowthRate, simulationVolatility, subscriptions]);
+  }, [spend, usersCount, forecastMode, simulationGrowthRate, simulationVolatility, subscriptions, usageRecords]);
 
   const handleStartAnalysis = () => setStep(1);
   const handleAnalyze = () => {
@@ -304,13 +350,21 @@ export default function Home() {
       <AppSidebar />
       <SidebarInset className="bg-background/50">
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
-          <div className="flex items-center gap-2"><SidebarTrigger className="-ml-1" /><h1 className="font-headline text-xl font-bold">Survival Dashboard</h1></div>
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <h1 className="font-headline text-xl font-bold">Survival Dashboard</h1>
+          </div>
           <div className="flex items-center gap-4">
-            {!subscriptions?.length && (
-               <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 animate-pulse">
-                <Info size={12} /> Sandbox Mode
-               </Badge>
-            )}
+            <Select value={selectedSubId || ''} onValueChange={setSelectedSubId}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue placeholder="Attribution Target" />
+              </SelectTrigger>
+              <SelectContent>
+                {subscriptions?.map(sub => (
+                  <SelectItem key={sub.id} value={sub.id}>{sub.customName || sub.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 h-8 text-xs font-headline font-bold">
@@ -348,18 +402,6 @@ export default function Home() {
                       step={1} 
                     />
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-bold uppercase">
-                      <span>Monthly Growth</span>
-                      <span>{(simulationGrowthRate * 100).toFixed(0)}%</span>
-                    </div>
-                    <Slider 
-                      value={[simulationGrowthRate * 100]} 
-                      onValueChange={([v]) => setSimulationGrowthRate(v / 100)} 
-                      max={100} 
-                      step={5} 
-                    />
-                  </div>
                 </div>
               </PopoverContent>
             </Popover>
@@ -393,16 +435,7 @@ export default function Home() {
               <div className="text-3xl font-headline font-bold text-accent">${metrics.forecasts.base.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[9px] font-bold text-muted-foreground uppercase">Stress Band</span>
-                <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} &mdash; ${metrics.forecasts.p90.toFixed(0)}</span>
-              </div>
-              <div className="absolute bottom-0 left-0 w-full h-1 bg-muted/20">
-                <div 
-                  className="h-full bg-accent/30" 
-                  style={{ 
-                    left: `${(metrics.forecasts.p25 / metrics.forecasts.p90) * 100}%`,
-                    width: `${((metrics.forecasts.p90 - metrics.forecasts.p25) / metrics.forecasts.p90) * 100}%`
-                  }} 
-                />
+                <span className="text-[9px] font-mono font-bold">${metrics.forecasts.p25.toFixed(0)} — ${metrics.forecasts.p90.toFixed(0)}</span>
               </div>
             </Card>
             <Card className="p-6 border-none shadow-sm">
@@ -421,7 +454,19 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-              <CardHeader className="px-0 pt-0"><CardTitle className="text-lg font-headline">Burn Trajectory</CardTitle><CardDescription>Real-time spend forecast (Confidence: 94%)</CardDescription></CardHeader>
+              <CardHeader className="px-0 pt-0">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg font-headline">Burn Trajectory</CardTitle>
+                    <CardDescription>Real-time spend forecast (Confidence: 94%)</CardDescription>
+                  </div>
+                  {usageRecords && usageRecords.length > 0 && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <Activity size={12} className="mr-1" /> Live Ingestion
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
               <div className="h-[300px] w-full mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[{ name: 'Oct', cost: 12432 }, { name: 'Nov', cost: 15681 }, { name: 'Dec', cost: 22104 }]}>
@@ -440,20 +485,26 @@ export default function Home() {
                 <CardDescription>Highest impact burn segments.</CardDescription>
               </CardHeader>
               <div className="space-y-4 mt-4">
-                {[
-                  { title: "GPT-4o Traffic", share: "42.1%", cost: "$2,105" },
-                  { title: "Unnecessary Retries", share: "18.3%", cost: "$915" },
-                  { title: "Verbose Output", share: "12.4%", cost: "$620" },
-                  { title: "Context Over-send", share: "9.2%", cost: "$461" }
-                ].map((item, i) => (
-                  <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center hover:bg-secondary/50 transition-colors">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.share} total share</p>
+                {metrics.drivers.map((item, i) => (
+                  <div key={i} className="p-4 bg-secondary/30 rounded-xl flex justify-between items-center hover:bg-secondary/50 transition-colors group">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${item.type === 'forensic' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {item.type === 'forensic' ? <Zap size={14} /> : <BarChart3 size={14} />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">{item.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{item.share} total share</p>
+                      </div>
                     </div>
                     <p className="text-sm font-bold text-foreground">{item.cost}</p>
                   </div>
                 ))}
+                {!usageRecords?.length && (
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-3">
+                    <Info size={16} className="text-amber-600" />
+                    <p className="text-[10px] text-amber-700 font-medium">Connect SDK to replace simulated baseline with real forensic drivers.</p>
+                  </div>
+                )}
               </div>
             </Card>
           </div>
