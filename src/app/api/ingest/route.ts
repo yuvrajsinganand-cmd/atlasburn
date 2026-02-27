@@ -11,23 +11,26 @@ const db = getFirestore(app);
 
 const MAX_EVENTS_PER_BATCH = 50;
 
+/**
+ * AtlasBurn Ingestion API
+ * Captures request-level tokens and attributes them to Features and User Tiers.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { apiKey, projectId, events, event } = body;
 
     if (!apiKey || !projectId) {
-      return NextResponse.json({ error: 'Missing identity.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
-    // 1. Auth: Verify Hashed Key
+    // 1. Auth: Verify Hashed Key against the Organization path
     const hashedKey = hashIngestKey(apiKey);
     const keysQuery = query(
       collection(db, 'users', projectId, 'aiSubscriptions'),
-      limit(10) // Search across subscriptions
+      limit(10)
     );
     
-    // For MVP, we search across all sub paths. In production, mapping subId in SDK is better.
     const subSnap = await getDocs(keysQuery);
     let targetSubId = null;
     let targetKeyId = null;
@@ -48,8 +51,6 @@ export async function POST(request: Request) {
     }
 
     if (!targetSubId) {
-      // Log failed attempt
-      console.warn(`Unauthorized ingest attempt for project ${projectId}`);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -60,15 +61,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Batch too large' }, { status: 413 });
     }
 
-    // 3. Batched Atomic Ingestion
+    // 3. Batched Atomic Ingestion with Economic Attribution
     const batch = writeBatch(db);
-    const usagePath = `users/${projectId}/aiSubscriptions/${targetSubId}/apiUsageRecords`;
-    const dedupePath = `users/${projectId}/aiSubscriptions/${targetSubId}/deduplicatedEvents`;
+    const usagePath = `organizations/org_${projectId}/usageRecords`;
+    const dedupePath = `organizations/org_${projectId}/deduplicatedEvents`;
 
     for (const evt of rawEvents) {
       if (!evt.model || !evt.usage || !evt.eventId) continue;
 
-      // Replay Protection Check
+      // Replay Protection
       const dedupeRef = doc(db, dedupePath, evt.eventId);
       const dedupeSnap = await getDoc(dedupeRef);
       if (dedupeSnap.exists()) continue;
@@ -83,15 +84,16 @@ export async function POST(request: Request) {
         cost: normalized.costUsd,
         model: normalized.model,
         provider: normalized.provider,
+        featureId: evt.featureId || 'default_feature',
+        userTier: evt.userTier || 'pro', // Default to pro for attribution
         eventId: evt.eventId,
         apiCallType: 'production_sdk_call'
       });
 
-      // Mark as processed
       batch.set(dedupeRef, { createdAt: serverTimestamp() });
     }
 
-    // Update Key Usage
+    // Update Key Metadata
     const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
     batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: 'success', count: rawEvents.length });
   } catch (err: any) {
-    console.error('Ingest API Failure:', err);
+    console.error('Atlas Ingest Failure:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

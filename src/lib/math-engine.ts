@@ -1,6 +1,7 @@
+
 /**
- * Sleek Math Engine - Production v2.2
- * Probabilistic Decision Core with Institutional Risk Tiers.
+ * AtlasBurn Probabilistic Engine
+ * Implementation of Monte Carlo simulation for API spend risk analysis.
  */
 
 import { runMonteCarloSimulation, type SimulationInput } from './probabilistic-engine';
@@ -57,44 +58,29 @@ export function calculateMonthEndForecast(
 
 /**
  * Institutionalized Risk Engine
- * Fuses statistical probability with operational status.
+ * Standardized risk tiers for the AtlasBurn economic system.
  */
-export function getMarginStatus(breachProbability: number, margin: number) {
-  if (breachProbability > 0.25 || margin < 30) {
+export function getMarginStatus(breachProbability: number, marginPercentage: number) {
+  if (breachProbability > 0.25 || marginPercentage < 20) {
     return {
-      label: "CRITICAL",
+      label: "CRITICAL RISK",
       color: "text-destructive",
       bg: "bg-destructive/10",
-      description: `Critical Exposure. Your current burn trajectory has a high statistical probability of exceeding capital reserves. Historically, this risk intensity correlates with immediate operational solvency risks.`,
-      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
+      description: "Critical Exposure detected. Unit margins are insufficient to support volatility. High probability of capital breach within 30 days.",
     };
-  } else if (breachProbability >= 0.10 || margin < 50) {
+  } else if (breachProbability >= 0.10 || marginPercentage < 50) {
     return {
-      label: "WATCH",
+      label: "MARGIN WATCH",
       color: "text-amber-600",
       bg: "bg-amber-100",
-      description: `Institutional Watch. Monte Carlo simulation identifies a ${(breachProbability * 100).toFixed(0)}% variance. Historically, sustained breach probability at this level correlates with early-stage runway compression events.`,
-      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
+      description: "Institutional Watch. Margin compression is accelerating. Forecast variance exceeds safety thresholds.",
     };
   } else {
     return {
-      label: "STABLE",
+      label: "SOLVENT",
       color: "text-green-600",
       bg: "bg-green-100",
-      description: "Stable Configuration. Low volatility risk detected. Historical analysis indicates that sustained breach probability below 10% correlates with high runway predictability.",
-      thresholds: "STABLE: < 10% | WATCH: 10-25% | CRITICAL: > 25%"
+      description: "Stable configuration. Burn trajectory remains safely within revenue and capital buffers.",
     };
   }
-}
-
-export function calculateRunway(dailySpend: number, currentCash: number, growthRate: number = 0): number {
-  if (dailySpend <= 0) return 365 * 2; // Cap at 2 years
-  if (growthRate === 0) return Math.floor(currentCash / dailySpend);
-  
-  // N = log(1 - (Cash * -Growth / Daily)) / log(1 + Growth)
-  // Simplified for daily resolution
-  const val = 1 - (currentCash * (0 - growthRate/30) / dailySpend);
-  if (val <= 0) return 0;
-  const days = Math.log(val) / Math.log(1 + growthRate/30);
-  return Math.max(0, Math.floor(days));
 }

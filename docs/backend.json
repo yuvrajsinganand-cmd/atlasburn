@@ -4,68 +4,54 @@
     "UserProfile": {
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user, linked to an Organization for RBAC.",
+      "description": "Represents a user, linked to an Organization and a User Tier for margin analysis.",
       "properties": {
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
         "organizationId": { "type": "string" },
+        "userTier": { "type": "string", "enum": ["free", "pro", "enterprise"], "description": "Used to calculate revenue-vs-burn per user." },
         "role": { "type": "string", "enum": ["owner", "admin", "finance", "engineer"] },
-        "isEmailVerified": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "email", "organizationId", "role"]
+      "required": ["id", "email", "organizationId", "role", "userTier"]
     },
     "Organization": {
       "title": "Organization",
       "type": "object",
-      "description": "B2B Org container for teams and billing.",
+      "description": "The Economic Container. Stores capital, revenue targets, and budget guardrails.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "revenueStage": { "type": "string" },
-        "apiBudgetUsd": { "type": "number" },
+        "capitalReserves": { "type": "number", "description": "Total cash available for API burn." },
+        "monthlyRevenue": { "type": "number", "description": "Current monthly recurring revenue (MRR)." },
+        "targetMargin": { "type": "number", "description": "Desired gross margin percentage (e.g. 0.7 for 70%)." },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name"]
     },
-    "AISubscription": {
-      "title": "AISubscription",
+    "Feature": {
+      "title": "Feature",
       "type": "object",
-      "description": "Stores provider metadata and connection status.",
+      "description": "A product capability that consumes AI resources.",
       "properties": {
         "id": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "providerName": { "type": "string" },
-        "customName": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "error", "pending"] },
-        "monthlyFixedCost": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "expectedTokensPerCall": { "type": "number" }
       },
-      "required": ["id", "organizationId", "providerName"]
-    },
-    "IngestKey": {
-      "title": "IngestKey",
-      "type": "object",
-      "description": "Hashed ingest key for SDK authentication.",
-      "properties": {
-        "id": { "type": "string" },
-        "hash": { "type": "string" },
-        "prefix": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "revoked"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "lastUsedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "hash", "status"]
+      "required": ["id", "name"]
     },
     "UsageRecord": {
       "title": "UsageRecord",
       "type": "object",
-      "description": "Request-level token usage record.",
+      "description": "Atomic economic event: token consumption attributed to a feature and user.",
       "properties": {
         "timestamp": { "type": "string", "format": "date-time" },
         "model": { "type": "string" },
         "provider": { "type": "string" },
+        "featureId": { "type": "string" },
+        "userTier": { "type": "string" },
         "inputTokens": { "type": "number" },
         "outputTokens": { "type": "number" },
         "cost": { "type": "number" },
@@ -79,23 +65,19 @@
   "firestore": {
     "/organizations/{orgId}": {
       "schema": "#/backend/entities/Organization",
-      "description": "Root org document."
+      "description": "Economic root."
     },
     "/organizations/{orgId}/users/{userId}": {
       "schema": "#/backend/entities/UserProfile",
-      "description": "Users within the org."
+      "description": "Attribution identities."
     },
-    "/users/{userId}/aiSubscriptions/{subId}": {
-      "schema": "#/backend/entities/AISubscription",
-      "description": "API connections for the user."
+    "/organizations/{orgId}/features/{featureId}": {
+      "schema": "#/backend/entities/Feature",
+      "description": "Product catalog."
     },
-    "/users/{userId}/aiSubscriptions/{subId}/ingestKeys/{keyId}": {
-      "schema": "#/backend/entities/IngestKey",
-      "description": "Scoped, hashed keys for this subscription."
-    },
-    "/users/{userId}/aiSubscriptions/{subId}/apiUsageRecords/{recordId}": {
+    "/organizations/{orgId}/usageRecords/{recordId}": {
       "schema": "#/backend/entities/UsageRecord",
-      "description": "Ingested forensic data."
+      "description": "Forensic ledger."
     }
   }
 }
