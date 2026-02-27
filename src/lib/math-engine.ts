@@ -1,3 +1,4 @@
+'use client';
 
 /**
  * AtlasBurn Probabilistic Engine
@@ -54,6 +55,14 @@ export function calculateMonthEndForecast(
     p90: currentSpend + simResult.p90,
     probabilityOfRunwayBreach: simResult.probabilityOfRunwayBreach,
   };
+}
+
+/**
+ * Calculates survival runway in days based on burn and capital.
+ */
+export function calculateRunway(dailyBurn: number, capital: number): number {
+  if (dailyBurn <= 0) return 3650; // Effectively infinite (10 years)
+  return capital / dailyBurn;
 }
 
 /**

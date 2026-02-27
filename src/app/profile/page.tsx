@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { User, Wallet, Save, Loader2, Mail, ShieldCheck, Key, Database, Activity, Clock, Server, ShieldAlert, Target, Zap } from "lucide-react"
+import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
@@ -30,27 +30,19 @@ export default function ProfilePage() {
   }, [firestore, user]);
   const { data: profile } = useDoc(userProfileRef);
 
-  // Fetch Organization for budget
+  // Fetch Organization for capital reserves
   const orgRef = useMemoFirebase(() => {
-    if (!firestore || !profile?.organizationId) return null;
-    return doc(firestore, "organizations", profile.organizationId);
-  }, [firestore, profile]);
+    if (!firestore || !user) return null;
+    return doc(firestore, "organizations", `org_${user.uid}`);
+  }, [firestore, user]);
   const { data: organization } = useDoc(orgRef);
 
-  // Fetch subscriptions for live burn
+  // Fetch subscriptions for live fixed burn
   const subQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "users", user.uid, "aiSubscriptions"));
   }, [firestore, user]);
   const { data: subscriptions } = useCollection(subQuery);
-
-  // Fetch budget settings
-  const budgetQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "users", user.uid, "userBudgets"));
-  }, [firestore, user]);
-  const { data: budgets } = useCollection(budgetQuery);
-  const currentBudget = budgets?.[0];
 
   // Calculate Real Decision Engine Metrics
   const engineMetrics = useMemo(() => {
@@ -58,24 +50,24 @@ export default function ProfilePage() {
     
     const monthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
     const dailyBurn = monthlyBurn / 30;
-    const cashReserve = organization?.apiBudgetUsd || parseFloat(budgetCap) || 10000;
+    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 10000;
     
-    // Simulate forecast (simplified distribution for profile)
+    // Simulate forecast based on fixed subscription burn + volatility
     const forecasts = calculateMonthEndForecast(
       monthlyBurn,
-      14, // P90 window
+      14, // Mid-month snapshot
       30,
       'FLAT',
       0.05,
-      cashReserve,
+      capital,
       0.08
     );
     
-    const runway = calculateRunway(dailyBurn, cashReserve);
-    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, 42); // Hardcoded margin for now
+    const runwayDays = calculateRunway(dailyBurn, capital);
+    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, 42); 
 
     return {
-      runway: (runway / 30).toFixed(1),
+      runwayMonths: (runwayDays / 30).toFixed(1),
       breachProb: (forecasts.probabilityOfRunwayBreach * 100).toFixed(0),
       status: marginInfo.label,
       statusColor: marginInfo.color,
@@ -83,25 +75,15 @@ export default function ProfilePage() {
     };
   }, [subscriptions, organization, budgetCap]);
 
-  useEffect(() => {
-    if (currentBudget) {
-      setBudgetCap(currentBudget.monthlyBudgetCap?.toString() || "5000");
-      setThreshold(currentBudget.alertThresholdPercentage?.toString() || "80");
-    }
-  }, [currentBudget]);
-
   const handleSaveBudget = () => {
     if (!user || !firestore) return;
     setSaving(true);
     
-    const budgetId = currentBudget?.id || "default";
-    const docRef = doc(firestore, "users", user.uid, "userBudgets", budgetId);
+    const orgRef = doc(firestore, "organizations", `org_${user.uid}`);
     
-    setDocumentNonBlocking(docRef, {
-      userProfileId: user.uid,
-      monthlyBudgetCap: parseFloat(budgetCap) || 0,
-      alertThresholdPercentage: parseFloat(threshold) || 80,
-      lastUpdatedAt: new Date().toISOString(),
+    setDocumentNonBlocking(orgRef, {
+      capitalReserves: parseFloat(budgetCap) || 0,
+      updatedAt: new Date().toISOString(),
     }, { merge: true });
 
     setTimeout(() => {
@@ -125,13 +107,12 @@ export default function ProfilePage() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
-              <Server size={10} /> v1.0.4-PROD
+              <Server size={10} /> v2.0-CORE
             </Badge>
           </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-5xl mx-auto w-full">
-          {/* System Status Banner */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Database size={20} /></div>
@@ -157,7 +138,6 @@ export default function ProfilePage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column: Identity & Health */}
             <div className="lg:col-span-1 space-y-6">
               <Card className="border-none shadow-sm overflow-hidden bg-white">
                 <CardHeader className="text-center pb-2">
@@ -192,7 +172,7 @@ export default function ProfilePage() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Projected Runway</p>
-                      <p className="text-2xl font-headline font-bold">{engineMetrics?.runway || "0.0"} Mo</p>
+                      <p className="text-2xl font-headline font-bold">{engineMetrics?.runwayMonths || "0.0"} Mo</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Breach Prob (P90)</p>
@@ -213,7 +193,6 @@ export default function ProfilePage() {
               </Card>
             </div>
 
-            {/* Right Column: Settings */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
