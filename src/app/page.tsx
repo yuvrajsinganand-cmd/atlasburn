@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -22,7 +23,7 @@ export default function AtlasBurnDashboard() {
   
   const [volatilityAdj, setVolatilityAdj] = useState<number | null>(null);
   const [growthAdj, setGrowthAdj] = useState<number | null>(null);
-  const [horizon, setHorizon] = useState<number>(90); // Default to 3 months
+  const [horizon, setHorizon] = useState<number>(90); // Default to 3 months (90 days)
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -69,7 +70,8 @@ export default function AtlasBurnDashboard() {
     if (horizon === 90) return "Quarterly Outlook";
     if (horizon === 180) return "6 Month Projection";
     if (horizon === 365) return "1 Year Forecast";
-    return "Full Runaway Horizon";
+    if (horizon >= 1095) return "Survival Horizon (Full)";
+    return `${Math.round(horizon / 30)} Month Outlook`;
   }, [horizon]);
 
   if (orgLoading || usageLoading || !mounted) {
@@ -166,7 +168,7 @@ export default function AtlasBurnDashboard() {
                   <div className="text-2xl font-headline font-bold text-destructive">
                     ${riskProfile!.simulation.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">P95 Monthly Deviation</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Period Surprise Stress</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Projected Runway</span><Target size={16} className="text-primary" /></div>
