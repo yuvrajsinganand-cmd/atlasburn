@@ -43,7 +43,11 @@ export default function Usage() {
       return acc;
     }, {});
 
-    return Object.values(grouped);
+    const sortedData = Object.values(grouped);
+    
+    // If we only have one point, AreaChart is invisible. 
+    // We add a dummy start point or ensure the UI reflects data exists.
+    return sortedData;
   }, [usageRecords]);
 
   const modelDistribution = useMemo(() => {
@@ -60,35 +64,45 @@ export default function Usage() {
     if (!user || !firestore) return;
     setTesting(true);
     try {
-      // Choose random model for diversity in test data
-      const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
-      const model = models[Math.floor(Math.random() * models.length)];
-      
-      // Generate stochastic usage
-      const prompt_tokens = Math.floor(Math.random() * 4000) + 500;
-      const completion_tokens = Math.floor(Math.random() * 2000) + 200;
-      
-      const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
-      
-      // Perform client-side mutation to ensure proper authentication context
       const usagePath = collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords');
       
-      await addDocumentNonBlocking(usagePath, {
-        timestamp: new Date().toISOString(),
-        inputTokens: prompt_tokens,
-        outputTokens: completion_tokens,
-        cost: normalized.costUsd,
-        model: normalized.model,
-        provider: normalized.provider,
-        featureId: 'sandbox_test_lab',
-        userTier: 'pro',
-        eventId: crypto.randomUUID(),
-        apiCallType: 'sandbox_ingestion'
-      });
+      // We generate a 5-day history to prime the graph and risk engine
+      const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
+      const promises = [];
+
+      for (let i = 4; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        
+        // Add 2-3 calls per day for better variance
+        const callsPerDay = Math.floor(Math.random() * 2) + 2;
+        
+        for (let j = 0; j < callsPerDay; j++) {
+          const model = models[Math.floor(Math.random() * models.length)];
+          const prompt_tokens = Math.floor(Math.random() * 4000) + 500;
+          const completion_tokens = Math.floor(Math.random() * 2000) + 200;
+          const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
+          
+          promises.push(addDocumentNonBlocking(usagePath, {
+            timestamp: date.toISOString(),
+            inputTokens: prompt_tokens,
+            outputTokens: completion_tokens,
+            cost: normalized.costUsd,
+            model: normalized.model,
+            provider: normalized.provider,
+            featureId: 'sandbox_test_lab',
+            userTier: 'pro',
+            eventId: crypto.randomUUID(),
+            apiCallType: 'sandbox_ingestion'
+          }));
+        }
+      }
+
+      await Promise.all(promises);
 
       toast({ 
-        title: "Forensic Call Ingested", 
-        description: `Call attributed to ${model}. Dashboard will now recalculate.` 
+        title: "Forensic Feed Primed", 
+        description: "5-day burn trajectory generated. Risk engine is now calculating volatility." 
       });
     } catch (e: any) {
       console.error(e);
@@ -119,7 +133,7 @@ export default function Usage() {
             onClick={handlePhase1Test}
           >
             {testing ? <Loader2 className="animate-spin" size={14} /> : <Beaker size={14} />}
-            Inject Forensic Test
+            Inject Forensic Feed
           </Button>
         </header>
 
@@ -163,7 +177,7 @@ export default function Usage() {
                     </div>
                     <div className="space-y-1">
                       <p className="font-bold">No Forensic Data</p>
-                      <p className="text-sm text-muted-foreground px-12">Click "Inject Forensic Test" above to seed your ledger and see the dashboard update.</p>
+                      <p className="text-sm text-muted-foreground px-12">Click "Inject Forensic Feed" above to prime your ledger with a 5-day historical burn trajectory.</p>
                     </div>
                   </div>
                 )}
