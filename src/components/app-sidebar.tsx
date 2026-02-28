@@ -1,7 +1,6 @@
-
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck } from "lucide-react"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
@@ -24,6 +23,7 @@ const items = [
   { title: "Forensic Ledger", url: "/usage", icon: BarChart3 },
   { title: "Model Intelligence", url: "/catalog", icon: Database },
   { title: "Audit & Optimize", url: "/optimizer", icon: Zap },
+  { title: "Quality Sentry", url: "/quality", icon: ShieldAlert },
   { title: "System Controls", url: "/settings", icon: Settings },
 ]
 
@@ -50,7 +50,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
                 <Link href={item.url}>
-                  <item.icon className={pathname === item.url ? "text-primary" : ""} />
+                  <item.icon className={pathname === item.url ? "text-primary" : ""} size={18} />
                   <span className="font-medium">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
