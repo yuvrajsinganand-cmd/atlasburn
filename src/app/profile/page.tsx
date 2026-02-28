@@ -153,7 +153,7 @@ export default function ProfilePage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-bold uppercase tracking-widest opacity-80 flex items-center gap-2">
                     <Target size={14} /> Health Snapshot
-                  </Target>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-end">
