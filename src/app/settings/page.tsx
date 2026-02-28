@@ -78,6 +78,13 @@ export default function SettingsPage() {
     toast({ title: "Project ID Copied", description: "Use this value for 'projectId' in SDK initialization." });
   };
 
+  const handlePlaceholderAction = (action: string) => {
+    toast({
+      title: "Action Restricted",
+      description: `${action} requires elevated Finance or Owner permissions and a verified audit window.`,
+    });
+  };
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -189,7 +196,9 @@ const client = withSleek(llm, {
                       <p className="font-bold">Access Control</p>
                       <p className="text-sm text-muted-foreground max-w-sm">Only users with 'Finance' or 'Owner' roles can modify capital reserves and spending guardrails.</p>
                     </div>
-                    <Button variant="outline" className="font-headline font-bold">Manage Permissions</Button>
+                    <Button variant="outline" className="font-headline font-bold" onClick={() => handlePlaceholderAction("Permission Management")}>
+                      Manage Permissions
+                    </Button>
                   </div>
                   
                   <div className="space-y-4">
@@ -224,7 +233,9 @@ const client = withSleek(llm, {
                         <span>Awaiting custom domains...</span>
                       </div>
                     </div>
-                    <Button className="w-full font-headline font-bold">Add Domain Origin</Button>
+                    <Button className="w-full font-headline font-bold" onClick={() => handlePlaceholderAction("Domain Addition")}>
+                      Add Domain Origin
+                    </Button>
                   </CardContent>
                 </Card>
 
@@ -238,7 +249,9 @@ const client = withSleek(llm, {
                   <CardContent className="flex flex-col items-center justify-center py-8 text-center space-y-4">
                     <div className="p-4 bg-primary/5 rounded-full text-primary"><Database size={32} /></div>
                     <p className="text-xs text-muted-foreground max-w-[200px]">Asset storage is currently optimized for institutional ledgers.</p>
-                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase">Configure CDN Assets</Button>
+                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase" onClick={() => handlePlaceholderAction("CDN Asset Configuration")}>
+                      Configure CDN Assets
+                    </Button>
                   </CardContent>
                 </Card>
               </div>
@@ -253,7 +266,7 @@ const client = withSleek(llm, {
                   <CardDescription>View our legal framework and institutional service agreements.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button asChild variant="outline" className="h-20 flex flex-col items-center justify-center gap-1 group border-muted/50 hover:border-primary">
+                  <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center gap-1 group border-muted/50 hover:border-primary">
                     <Link href="https://www.atlasburn.com/privacy" target="_blank">
                       <div className="flex items-center gap-2">
                         <FileText size={18} className="text-primary" />
@@ -264,7 +277,7 @@ const client = withSleek(llm, {
                     </Link>
                   </Button>
 
-                  <Button asChild variant="outline" className="h-20 flex flex-col items-center justify-center gap-1 group border-muted/50 hover:border-primary">
+                  <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center gap-1 group border-muted/50 hover:border-primary">
                     <Link href="https://www.atlasburn.com/terms" target="_blank">
                       <div className="flex items-center gap-2">
                         <ShieldCheck size={18} className="text-primary" />

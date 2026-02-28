@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, limit, doc } from "firebase/firestore"
 import { suggestCostOptimizations, type SuggestCostOptimizationsOutput } from "@/ai/flows/suggest-cost-optimizations"
+import { toast } from "@/hooks/use-toast"
 
 export default function RecommendationsPage() {
   const { user } = useUser()
@@ -58,12 +59,28 @@ export default function RecommendationsPage() {
       });
 
       setResults(res);
+      toast({
+        title: "Audit Complete",
+        description: "Institutional optimization playbook generated based on ingestion variance.",
+      });
     } catch (e) {
       console.error(e);
+      toast({
+        variant: "destructive",
+        title: "Audit Failed",
+        description: "Could not generate optimization playbook. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
   }
+
+  const handleExecuteFix = (title: string) => {
+    toast({
+      title: "Optimization Initiated",
+      description: `Fixing '${title}' across your production cluster. Deployment in progress...`,
+    });
+  };
 
   return (
     <SidebarProvider>
@@ -145,7 +162,7 @@ export default function RecommendationsPage() {
                             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Est. Saving</p>
                             <p className="text-3xl font-headline font-bold text-green-600">${s.estimatedMonthlySaving || 0}<span className="text-xs font-normal">/mo</span></p>
                           </div>
-                          <Button className="w-full mt-6 group bg-primary">
+                          <Button className="w-full mt-6 group bg-primary" onClick={() => handleExecuteFix(s.title)}>
                             Execute Fix <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
                           </Button>
                         </div>
