@@ -41,7 +41,7 @@ function gaussianRandom() {
 }
 
 /**
- * Runs a high-fidelity Monte Carlo simulation (Surgical Fix).
+ * Runs a high-fidelity Monte Carlo simulation.
  */
 export function runInstitutionalSimulation(input: InstitutionalSimInput): InstitutionalSimResult {
   const {
@@ -61,8 +61,8 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   let insolvencyCount = 0;
 
   // Step 2: Correct Log-Normal Parameter Transformation
-  const cv = Math.max(0.01, burnVolatility);
   // sigma = sqrt(ln(1 + CV^2))
+  const cv = Math.max(0.01, burnVolatility);
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
   // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
