@@ -40,7 +40,6 @@ export default function Usage() {
     if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
     
     const grouped = usageRecords.reduce((acc: any, rec) => {
-      // Use fixed locale to prevent hydration mismatches
       const date = new Date(rec.timestamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       if (!acc[date]) acc[date] = { date, cost: 0, tokens: 0 };
       acc[date].cost += rec.cost || 0;
@@ -70,17 +69,19 @@ export default function Usage() {
       const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
       const promises = [];
 
+      // Generate a 5-day historical trajectory
       for (let i = 4; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         
-        const callsPerDay = Math.floor(Math.random() * 2) + 2;
+        // Institutional scale: Multiple calls per day with millions of tokens
+        const callsPerDay = Math.floor(Math.random() * 3) + 3;
         
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
-          // Institutional Scale: Randomly generate between 10k and 100k tokens
-          const prompt_tokens = Math.floor(Math.random() * 100000) + 10000;
-          const completion_tokens = Math.floor(Math.random() * 50000) + 5000;
+          // Institutional Scale: Generate millions of tokens per call to reach $100s/day spend
+          const prompt_tokens = Math.floor(Math.random() * 5000000) + 1000000;
+          const completion_tokens = Math.floor(Math.random() * 2000000) + 500000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
           
           promises.push(addDocumentNonBlocking(usagePath, {
@@ -90,7 +91,7 @@ export default function Usage() {
             cost: normalized.costUsd,
             model: normalized.model,
             provider: normalized.provider,
-            featureId: 'sandbox_test_lab',
+            featureId: 'institutional_test_lab',
             userTier: 'pro',
             eventId: crypto.randomUUID(),
             apiCallType: 'sandbox_ingestion'
@@ -179,7 +180,7 @@ export default function Usage() {
                     </div>
                     <div className="space-y-1">
                       <p className="font-bold">No Forensic Data</p>
-                      <p className="text-sm text-muted-foreground px-12">Click "Inject Forensic Feed" above to prime your ledger with a 5-day historical burn trajectory.</p>
+                      <p className="text-sm text-muted-foreground px-12">Click "Inject Forensic Feed" above to prime your ledger with an Institutional burn trajectory.</p>
                     </div>
                   </div>
                 )}
@@ -219,7 +220,7 @@ export default function Usage() {
                 <p className="text-2xl font-headline font-bold">Forensic Pipeline: Active</p>
                 <div className="mt-4 flex items-start gap-2 bg-white/10 p-3 rounded-xl text-[10px] leading-relaxed">
                   <Info size={14} className="shrink-0" />
-                  <p>Every event is authenticated via HMAC-SHA256 and verified server-side. Your economic baseline is derived from this cryptographically-signed ledger.</p>
+                  <p>Institutional forensic ingestion is authenticated via HMAC-SHA256. Volatility is derived from the cryptographically-signed ledger.</p>
                 </div>
               </Card>
             </div>

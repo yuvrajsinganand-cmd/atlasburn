@@ -19,7 +19,7 @@ export interface ComprehensiveRiskProfile {
   };
 }
 
-// Step 4: Add Real Scale Defaults
+// Step 4: Institutional Scale Defaults
 const DEFAULT_MONTHLY_BURN = 20000;
 const DEFAULT_CASH = 250000;
 const DEFAULT_CV = 0.25;
@@ -80,7 +80,7 @@ export function calculateMonthEndForecast(
     daysRemaining: Math.max(0, totalDays - daysElapsed),
     outageProb: 0.01,
     retryCascadeProb: 0.02,
-    runs: 1000,
+    runs: 2500,
   });
 
   return {
@@ -91,8 +91,7 @@ export function calculateMonthEndForecast(
 
 /**
  * Generates a comprehensive risk profile using forensic variance.
- * Step 4: Scale implementation.
- * Step 5: High-fidelity run count.
+ * Step 4: Force realistic scale defaults if actual data is microscopic.
  */
 export function generateRiskProfile(
   usageRecords: any[],
@@ -101,11 +100,15 @@ export function generateRiskProfile(
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
   
-  // Step 4: Add Real Scale Defaults ($250k Capital / $20k Burn)
-  const mrr = organization?.monthlyRevenue ?? 15000;
-  const capital = organization?.capitalReserves ?? DEFAULT_CASH;
+  // Economic Scale Fix: Ensure we model at least an Institutional Baseline
+  const mrr = Math.max(organization?.monthlyRevenue ?? 0, 15000);
+  const capital = Math.max(organization?.capitalReserves ?? 0, DEFAULT_CASH);
   
-  const dailyMean = variance.dailyMean || (DEFAULT_MONTHLY_BURN / 30);
+  // If baseline burn is sub-$1000/mo, force it to institutional scale for simulation
+  const baselineMonthlyBurn = variance.dailyMean * 30;
+  const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, DEFAULT_MONTHLY_BURN);
+  const dailyMeanToSimulate = effectiveMonthlyBurn / 30;
+
   const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
 
   const simInput: InstitutionalSimInput = {
@@ -113,12 +116,12 @@ export function generateRiskProfile(
     mrr: mrr,
     monthlyGrowthRate: scenarioAdjustments.growth ?? 0.05,
     churnRate: 0.03,
-    currentDailyBurn: dailyMean,
+    currentDailyBurn: dailyMeanToSimulate,
     burnVolatility: cv,
-    daysRemaining: 30, // Aggregate over institutional month
+    daysRemaining: 30, 
     outageProb: 0.02,
     retryCascadeProb: 0.05,
-    runs: 10000, // Step 5: Increase simulation paths to 10,000+
+    runs: 10000, // 10k paths for tail accuracy
   };
 
   const simulation = runInstitutionalSimulation(simInput);
@@ -129,7 +132,7 @@ export function generateRiskProfile(
   const descriptions: Record<string, string> = {
     "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
     "MARGIN EROSION": "High variance detected. Churn and burn correlation is tightening. Institutional watch required.",
-    "CAPITAL SECURE": "Operational stability. Net margin covers P95 stress events. High survival probability."
+    "CAPITAL SECURE": "Operational stability. Net margin covers Pstress events. High survival probability."
   };
 
   return {

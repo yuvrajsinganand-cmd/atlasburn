@@ -3,7 +3,7 @@
 /**
  * AtlasBurn Institutional Probabilistic Engine
  * Advanced Monte Carlo simulation modeling systemic AI risks and churn-sensitive revenue.
- * Uses a Log-Normal distribution for burn stochasticity (standard for non-negative financial variables).
+ * Uses a Log-Normal distribution for burn stochasticity.
  */
 
 export interface InstitutionalSimInput {
@@ -41,9 +41,7 @@ function gaussianRandom() {
 }
 
 /**
- * Runs a high-fidelity Monte Carlo simulation.
- * Step 2: Fixes Log-Normal conversion (sigma and mu derivation).
- * Step 3: Fixes Monthly Aggregation (Daily simulation -> Period total).
+ * Runs a high-fidelity Monte Carlo simulation (Surgical Fix).
  */
 export function runInstitutionalSimulation(input: InstitutionalSimInput): InstitutionalSimResult {
   const {
@@ -62,29 +60,31 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const results: number[] = [];
   let insolvencyCount = 0;
 
-  // Step 2: Fix Log-Normal Conversion Properly
-  // sigma = sqrt(ln(1 + CV^2))
+  // Step 2: Correct Log-Normal Parameter Transformation
   const cv = Math.max(0.01, burnVolatility);
+  // sigma = sqrt(ln(1 + CV^2))
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
-  // mu = ln(mean) - 0.5 * sigma^2
+  // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
+  // Step 5: High-fidelity run count (10,000 paths)
   for (let r = 0; r < runs; r++) {
     let periodTotalBurn = 0;
     
     // Step 3: Fix Monthly Aggregation
-    // Simulate each day individually and sum them to get a period (month) total
+    // Simulate each day individually and sum them to get the period total
     for (let d = 0; d < daysRemaining; d++) {
       const z = gaussianRandom();
-      // X = exp(mu + sigma * z)
+      // Stochastic Daily Cost = exp(mu + sigma * z)
       let dailyCost = Math.exp(mu + sigma * z);
 
-      // Tail Risk Injections (Stochastic multipliers)
+      // Tail Risk Injections
       if (Math.random() < outageProb) {
-        dailyCost *= 0.1; // Burn collapses during outage
+        dailyCost *= 0.1; // Outage collapse
       }
       
       if (Math.random() < retryCascadeProb) {
+        // Retry storm multiplier (2.5x to 4.5x)
         dailyCost *= (2.5 + Math.random() * 2); 
       }
 
@@ -104,7 +104,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
     results.push(periodTotalBurn);
   }
 
-  // Distribution Analysis
+  // Distribution Analysis on AGGREGATED MONTHLY TOTALS
   results.sort((a, b) => a - b);
   const getP = (p: number) => results[Math.floor(results.length * (p / 100))];
 
@@ -112,7 +112,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const p50 = getP(50);
   const p95 = getP(95);
 
-  // VaR = Surprise delta at 95% confidence (P95 - Median)
+  // VaR = Surprise delta at 95% confidence (Stress Case - Median Case)
   const var95 = Math.max(0, p95 - p50);
 
   // CVaR = Expected shortfall in the worst 5% cases
@@ -121,7 +121,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
   let survivalProbability = (runs - insolvencyCount) / runs;
   
-  // Step 5: Remove Fake Certainty
+  // Step 5: Remove Fake Certainty if volatility is significant
   if (cv > 0.1 && survivalProbability === 1) {
     survivalProbability = 0.9999;
   }
