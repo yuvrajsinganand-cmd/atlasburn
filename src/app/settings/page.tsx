@@ -1,4 +1,3 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -6,7 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, Terminal, Code, Info, ShieldAlert, CheckCircle2 } from "lucide-react"
+import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, Terminal, Code, Info, ShieldAlert, CheckCircle2, Zap } from "lucide-react"
 import { useState } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query } from "firebase/firestore"
@@ -59,15 +58,15 @@ export default function SettingsPage() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Forensic Connectors</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Connectors</h1>
           </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-5xl mx-auto w-full">
           <Tabs defaultValue="sdk" className="space-y-6">
             <TabsList className="bg-muted/50 p-1">
-              <TabsTrigger value="sdk" className="gap-2"><Terminal size={14} /> SDK Setup</TabsTrigger>
-              <TabsTrigger value="connectors" className="gap-2"><Database size={14} /> Billing Sync</TabsTrigger>
+              <TabsTrigger value="sdk" className="gap-2"><Terminal size={14} /> SDK Implementation</TabsTrigger>
+              <TabsTrigger value="connectors" className="gap-2"><Database size={14} /> Provider Sync</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sdk" className="space-y-6">
@@ -76,14 +75,14 @@ export default function SettingsPage() {
                   <Card className="border-none shadow-sm bg-white overflow-hidden">
                     <CardHeader className="bg-primary/5 border-b">
                       <CardTitle className="text-xl font-headline flex items-center gap-2 text-primary">
-                        <Code size={20} /> Implementation Wizard
+                        <Zap size={20} /> Zero-Latency Implementation
                       </CardTitle>
-                      <CardDescription>Zero-latency token tracking via server-side forensic wrapper.</CardDescription>
+                      <CardDescription>Attribute AI burn to features and tiers with the forensic wrapper.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Your Project Identity</p>
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Environment Constants</p>
                           <Button variant="ghost" size="sm" onClick={copyProjectId} className="h-6 gap-1 text-[10px] font-bold uppercase">
                             {copiedId ? <CheckCircle2 size={12} className="text-green-600" /> : <Copy size={12} />}
                             {copiedId ? "Copied" : "Copy Project ID"}
@@ -96,26 +95,27 @@ export default function SettingsPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">1. Initialize Client</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">1. Wrapper Initialization</p>
                         <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed border-l-4 border-primary">
-{`import { withSleek } from "@sleek/sdk";
+{`import { withSleek } from "@/lib/sleek-sdk";
 import OpenAI from "openai";
 
-// Wraps any LLM client for forensic attribution
+// Intercepts and attributes LLM traffic for forensic audit
 const client = withSleek(new OpenAI({ ... }), {
   apiKey: process.env.SLEEK_INGEST_KEY,
-  projectId: "${user?.uid || 'USER_ID'}"
+  projectId: "${user?.uid || 'PROJECT_ID'}",
+  batchSize: 5 // Optimal for production throughput
 });`}
                         </pre>
                       </div>
 
                       <div className="space-y-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">2. Attribute usage</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">2. Behavioral Attribution</p>
                         <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed">
-{`// Attributed to Feature & User Tier automatically
+{`// Automatically attributes burn to feature and tier
 const response = await client.chat({
   model: "gpt-4o",
-  featureId: "search_module",
+  featureId: "billing_summarizer",
   userTier: "enterprise",
   messages: [...]
 });`}
@@ -126,7 +126,7 @@ const response = await client.chat({
 
                   <div className="space-y-4">
                     <h3 className="text-sm font-bold font-headline px-2 flex items-center gap-2">
-                      <Key size={14} className="text-primary" /> Active Ingest Keys
+                      <Key size={14} className="text-primary" /> Active HMAC-SHA256 Keys
                     </h3>
                     {subscriptions?.map(sub => (
                        <Card key={sub.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
@@ -134,8 +134,8 @@ const response = await client.chat({
                           <div className="space-y-1">
                             <p className="text-xs font-bold uppercase text-primary">{sub.customName || sub.name}</p>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[9px] font-bold bg-muted/50 border-none">HMAC-SHA256</Badge>
-                              <span className="text-[10px] text-muted-foreground">Verification active</span>
+                              <Badge variant="outline" className="text-[9px] font-bold bg-muted/50 border-none">PEPPERED-HASH</Badge>
+                              <span className="text-[10px] text-muted-foreground">Encryption v3.1-LIVE</span>
                             </div>
                           </div>
                           <Button 
@@ -146,36 +146,32 @@ const response = await client.chat({
                             onClick={() => handleRotate(sub.id)}
                           >
                             {rotating === sub.id ? <Loader2 className="animate-spin mr-2" size={12} /> : <RefreshCw size={12} className="mr-2" />}
-                            ROTATE SECRET
+                            ROTATE INGEST KEY
                           </Button>
                         </CardContent>
                       </Card>
                     ))}
-                    {!subscriptions?.length && (
-                      <p className="text-xs text-muted-foreground italic px-2">No active subscriptions found. Add a tool to generate ingest keys.</p>
-                    )}
                   </div>
                 </div>
 
                 <div className="space-y-6">
                   <Card className="border-none shadow-sm bg-primary text-primary-foreground p-6 space-y-4">
                     <div className="p-3 bg-white/10 rounded-2xl text-white w-fit"><ShieldCheck size={24} /></div>
-                    <h3 className="font-headline font-bold text-lg">Zero-Knowledge</h3>
+                    <h3 className="font-headline font-bold text-lg">Zero-Knowledge API</h3>
                     <div className="text-sm space-y-4 opacity-90 leading-relaxed italic">
-                      <p>Sleek only stores peppered <b>HMAC hashes</b>. Your raw keys never touch our logs or database.</p>
+                      <p>Sleek only stores **HMAC-SHA256 peppered hashes**. Your raw keys never touch our database or transit logs.</p>
                       <p className="text-xs text-amber-300 flex gap-2 font-bold not-italic">
                         <ShieldAlert size={14} className="shrink-0" />
-                        Keys are visible once. Store them in your ENV immediately.
+                        Raw keys are shown once. Loss requires rotation.
                       </p>
                     </div>
                   </Card>
                   
                   <Card className="border-none shadow-sm p-6 bg-white space-y-4">
                     <div className="p-3 bg-secondary rounded-2xl text-primary w-fit"><Info size={24} /></div>
-                    <h3 className="font-headline font-bold text-sm">Deployment Check</h3>
+                    <h3 className="font-headline font-bold text-sm">Forensic Reliability</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Ensure your production environment has the <code className="bg-muted px-1 py-0.5 rounded font-bold">SLEEK_INGEST_KEY</code> set. 
-                      Failures in ingestion will be logged to your internal developer console without affecting user latency.
+                      The SDK handles network retries and batching automatically. If the ingest endpoint is unavailable, usage events are dropped gracefully to ensure **Zero Impact** on your user's experience.
                     </p>
                   </Card>
                 </div>
@@ -187,11 +183,11 @@ const response = await client.chat({
                 <div className="bg-muted/30 p-8 rounded-full w-fit mx-auto mb-6">
                   <Database className="text-muted-foreground" size={48} />
                 </div>
-                <h3 className="text-2xl font-headline font-bold mb-2">Billing Truth Sync</h3>
+                <h3 className="text-2xl font-headline font-bold mb-2">Direct Provider Sync</h3>
                 <p className="text-muted-foreground max-w-sm mx-auto mb-8 text-sm">
-                  Connect direct provider APIs (OpenAI/Anthropic) to verify SDK forensic data against provider ledgers. This is recommended for monthly reconciliation.
+                  Connect direct provider endpoints (OpenAI/Anthropic) to verify forensic burn against provider-side billing truth.
                 </p>
-                <Button variant="outline" size="lg" className="rounded-full font-headline font-bold">Connect Provider API</Button>
+                <Button variant="outline" size="lg" className="rounded-full font-headline font-bold">Connect Ledger API</Button>
               </Card>
             </TabsContent>
           </Tabs>
