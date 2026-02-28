@@ -38,10 +38,11 @@ export default function RecommendationsPage() {
     
     try {
       // Map Firestore data to Genkit Flow Input
+      const totalBurn = usageRecords.reduce((acc, r) => acc + (r.cost || 0), 0);
       const subscriptions = [{
         name: "Primary API Cluster",
         provider: "Multi-Provider",
-        monthlyCost: usageRecords.reduce((acc, r) => acc + (r.cost || 0), 0) * 30, // Rough estimate
+        monthlyCost: totalBurn * 30, // Rough estimate based on extrapolation
         renewalDate: new Date().toISOString().split('T')[0],
       }];
 
@@ -52,10 +53,16 @@ export default function RecommendationsPage() {
         trendAnalysis: "Analyzed via forensic ingestion"
       }));
 
+      // Ensure overallMonthlyBudget is a number or undefined (Zod optional() doesn't like null)
+      const rawRevenue = organization.monthlyRevenue;
+      const budget = (typeof rawRevenue === 'number' && !isNaN(rawRevenue)) 
+        ? rawRevenue * 0.4 
+        : undefined;
+
       const res = await suggestCostOptimizations({
         subscriptions,
         usagePatterns,
-        overallMonthlyBudget: organization.monthlyRevenue * 0.4 // Soft target 40% burn
+        overallMonthlyBudget: budget
       });
 
       setResults(res);
@@ -120,10 +127,12 @@ export default function RecommendationsPage() {
                 <Button variant="outline" onClick={() => setResults(null)}>Re-Run Audit</Button>
               </div>
 
-              <Card className="p-8 bg-primary text-primary-foreground border-none shadow-2xl">
-                <p className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2">Institutional Summary</p>
-                <p className="text-lg leading-relaxed font-medium italic">"{results.overallSummary}"</p>
-              </Card>
+              {results.overallSummary && (
+                <Card className="p-8 bg-primary text-primary-foreground border-none shadow-2xl">
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2">Institutional Summary</p>
+                  <p className="text-lg leading-relaxed font-medium italic">"{results.overallSummary}"</p>
+                </Card>
+              )}
 
               <div className="space-y-6">
                 <div className="space-y-4">
@@ -143,7 +152,7 @@ export default function RecommendationsPage() {
                               <CardDescription className="mt-1">{s.description}</CardDescription>
                             </div>
                           </div>
-                          {s.actionableSteps && (
+                          {s.actionableSteps && s.actionableSteps.length > 0 && (
                             <div className="space-y-3 pt-4">
                               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Implementation Roadmap</p>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
