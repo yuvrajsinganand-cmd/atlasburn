@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -21,6 +21,11 @@ export default function AtlasBurnDashboard() {
   
   const [volatilityAdj, setVolatilityAdj] = useState<number | null>(null);
   const [growthAdj, setGrowthAdj] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const orgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -39,25 +44,26 @@ export default function AtlasBurnDashboard() {
   const { data: usageRecords, isLoading: usageLoading } = useCollection(usageQuery);
 
   const riskProfile = useMemo(() => {
-    if (!usageRecords) return null;
+    if (!usageRecords || !mounted) return null;
     return generateRiskProfile(usageRecords, organization, {
       volatility: volatilityAdj ?? undefined,
       growth: growthAdj ?? undefined
     });
-  }, [usageRecords, organization, growthAdj, volatilityAdj]);
+  }, [usageRecords, organization, growthAdj, volatilityAdj, mounted]);
 
   const chartData = useMemo(() => {
-    if (!usageRecords || usageRecords.length === 0) return [];
+    if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
     const grouped = usageRecords.reduce((acc: any, rec) => {
-      const date = new Date(rec.timestamp).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+      // Use fixed locale to prevent hydration mismatches
+      const date = new Date(rec.timestamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       if (!acc[date]) acc[date] = { date, burn: 0 };
       acc[date].burn += rec.cost || 0;
       return acc;
     }, {});
     return Object.values(grouped).reverse();
-  }, [usageRecords]);
+  }, [usageRecords, mounted]);
 
-  if (orgLoading || usageLoading) {
+  if (orgLoading || usageLoading || !mounted) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="animate-spin text-primary" size={32} />

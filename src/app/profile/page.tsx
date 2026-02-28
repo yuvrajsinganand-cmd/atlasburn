@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -21,6 +21,11 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const [budgetCap, setBudgetCap] = useState("10000");
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const orgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -35,7 +40,7 @@ export default function ProfilePage() {
   const { data: subscriptions } = useCollection(subQuery);
 
   const engineMetrics = useMemo(() => {
-    if (!subscriptions) return null;
+    if (!subscriptions || !mounted) return null;
     
     const monthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
     const dailyBurn = monthlyBurn / 30;
@@ -60,7 +65,7 @@ export default function ProfilePage() {
       statusColor: marginInfo.color,
       statusBg: marginInfo.bg,
     };
-  }, [subscriptions, organization, budgetCap]);
+  }, [subscriptions, organization, budgetCap, mounted]);
 
   const handleSaveBudget = () => {
     if (!user || !firestore) return;
@@ -79,7 +84,7 @@ export default function ProfilePage() {
     }, 500);
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || !mounted) {
     return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" /></div>;
   }
 

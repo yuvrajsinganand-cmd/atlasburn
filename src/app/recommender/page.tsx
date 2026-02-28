@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { recommendAiTools, type RecommendAiToolsOutput } from "@/ai/flows/recommend-ai-tools-flow"
-import { Sparkles, CheckCircle2, Star, Loader2, Zap } from "lucide-react"
+import { Sparkles, CheckCircle2, Star, Loader2, Zap, Lightbulb } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default function Recommender() {
@@ -18,6 +18,11 @@ export default function Recommender() {
   const [perf, setPerf] = useState<"high" | "medium" | "balanced">("balanced")
   const [results, setResults] = useState<RecommendAiToolsOutput | null>(null)
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleRecommend = async () => {
     if (!task) return
@@ -35,6 +40,8 @@ export default function Recommender() {
       setLoading(false)
     }
   }
+
+  if (!mounted) return null;
 
   return (
     <SidebarProvider>

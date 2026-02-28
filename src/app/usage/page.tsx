@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Activity, Loader2, Beaker, Zap, BarChart3, PieChart, Info } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -18,6 +18,11 @@ export default function Usage() {
   const { user } = useUser()
   const firestore = useFirestore()
   const [testing, setTesting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Fetch Real Forensic Ledger
   const usageQuery = useMemoFirebase(() => {
@@ -32,33 +37,29 @@ export default function Usage() {
   const { data: usageRecords, isLoading: usageLoading } = useCollection(usageQuery);
 
   const chartData = useMemo(() => {
-    if (!usageRecords || usageRecords.length === 0) return [];
+    if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
     
-    // Group real forensic records by day
     const grouped = usageRecords.reduce((acc: any, rec) => {
-      const date = new Date(rec.timestamp).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+      // Use fixed locale to prevent hydration mismatches
+      const date = new Date(rec.timestamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       if (!acc[date]) acc[date] = { date, cost: 0, tokens: 0 };
       acc[date].cost += rec.cost || 0;
       acc[date].tokens += (rec.inputTokens || 0) + (rec.outputTokens || 0);
       return acc;
     }, {});
 
-    const sortedData = Object.values(grouped);
-    
-    // If we only have one point, AreaChart is invisible. 
-    // We add a dummy start point or ensure the UI reflects data exists.
-    return sortedData;
-  }, [usageRecords]);
+    return Object.values(grouped);
+  }, [usageRecords, mounted]);
 
   const modelDistribution = useMemo(() => {
-    if (!usageRecords || usageRecords.length === 0) return [];
+    if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
     const dist = usageRecords.reduce((acc: any, rec) => {
       const model = rec.model || 'Unknown';
       acc[model] = (acc[model] || 0) + (rec.cost || 0);
       return acc;
     }, {});
     return Object.entries(dist).map(([name, value]) => ({ name, value }));
-  }, [usageRecords]);
+  }, [usageRecords, mounted]);
 
   const handlePhase1Test = async () => {
     if (!user || !firestore) return;
@@ -66,7 +67,6 @@ export default function Usage() {
     try {
       const usagePath = collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords');
       
-      // We generate a 5-day history to prime the graph and risk engine
       const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
       const promises = [];
 
@@ -74,7 +74,6 @@ export default function Usage() {
         const date = new Date();
         date.setDate(date.getDate() - i);
         
-        // Add 2-3 calls per day for better variance
         const callsPerDay = Math.floor(Math.random() * 2) + 2;
         
         for (let j = 0; j < callsPerDay; j++) {
@@ -115,6 +114,8 @@ export default function Usage() {
       setTesting(false);
     }
   };
+
+  if (!mounted) return null;
 
   return (
     <SidebarProvider>
