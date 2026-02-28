@@ -48,25 +48,23 @@ export function getMarginStatus(breachProb: number, margin: number) {
  * Simple linear runway calculation in days.
  */
 export function calculateRunway(dailyBurn: number, capital: number): number {
-  if (dailyBurn <= 0) return 3650; // 10 years (effectively infinite)
+  if (dailyBurn <= 0) return 3650; 
   return capital / dailyBurn;
 }
 
 /**
- * Simplified forecast for profile health snapshots using the Institutional engine.
+ * Simplified forecast for profile snapshots.
  */
 export function calculateMonthEndForecast(
   monthlyBurn: number,
   daysElapsed: number,
   totalDays: number,
-  mode: 'FLAT' | 'GROWTH',
   growth: number,
   capital: number,
   volatility: number
 ) {
   const dailyMean = monthlyBurn / (daysElapsed || 1);
   
-  // Use the institutional simulation for a quick check
   const sim = runInstitutionalSimulation({
     startingCapital: capital,
     mrr: 0, 
@@ -77,7 +75,7 @@ export function calculateMonthEndForecast(
     daysRemaining: Math.max(0, totalDays - daysElapsed),
     outageProb: 0.01,
     retryCascadeProb: 0.02,
-    runs: 500,
+    runs: 1000,
   });
 
   return {
@@ -102,10 +100,10 @@ export function generateRiskProfile(
     churnRate: 0.03,
     currentDailyBurn: variance.dailyMean || 100,
     burnVolatility: scenarioAdjustments.volatility ?? variance.cv,
-    daysRemaining: 15,
+    daysRemaining: 20,
     outageProb: 0.02,
     retryCascadeProb: 0.05,
-    runs: 2000,
+    runs: 2500,
   };
 
   const simulation = runInstitutionalSimulation(simInput);
@@ -114,7 +112,7 @@ export function generateRiskProfile(
   const status = getMarginStatus(1 - simulation.survivalProbability, marginPercentage);
   
   const descriptions: Record<string, string> = {
-    "INSOLVENCY RISK": "Critical capital exposure. Volatility exceeds cash reserves. CVaR indicates deep insolvency in stress scenarios.",
+    "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
     "MARGIN EROSION": "High variance detected. Churn and burn correlation is tightening. Institutional watch required.",
     "CAPITAL SECURE": "Operational stability. Net margin covers P95 stress events. High survival probability."
   };

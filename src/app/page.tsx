@@ -72,7 +72,7 @@ export default function AtlasBurnDashboard() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold tracking-tighter">ATLAS BURN <span className="text-primary/50 text-xs font-mono ml-2">v3.0-INSTITUTIONAL</span></h1>
+            <h1 className="font-headline text-xl font-bold tracking-tighter">ATLAS BURN <span className="text-primary/50 text-xs font-mono ml-2">v3.1-QUANT</span></h1>
           </div>
           <div className="flex items-center gap-4">
             <Popover>
@@ -129,28 +129,28 @@ export default function AtlasBurnDashboard() {
                   <div className="text-3xl font-headline font-bold text-green-600">
                     {(riskProfile!.simulation.survivalProbability * 100).toFixed(1)}%
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">P95 Confidence Level</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Institutional Confidence Level</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Value at Risk (VaR)</span><TrendingUp size={16} className="text-destructive" /></div>
                   <div className="text-3xl font-headline font-bold text-destructive">
                     ${riskProfile!.simulation.var95.toFixed(2)}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Potential 95% Monthly Spike</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Potential P95 Monthly Spike</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Projected Runway</span><Target size={16} className="text-primary" /></div>
                   <div className="text-3xl font-headline font-bold text-primary">
                     {riskProfile!.simulation.expectedRunwayMonths.toFixed(1)} <span className="text-lg font-normal opacity-70">Mo</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Horizon</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Institutional CV</span><Activity size={16} className="text-accent" /></div>
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forensic Volatility</span><Activity size={16} className="text-accent" /></div>
                   <div className="text-3xl font-headline font-bold text-accent">
                     {(riskProfile!.volatility * 100).toFixed(1)}%
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Real Usage Volatility</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Derived from Ingestion Variance</p>
                 </Card>
               </div>
 
@@ -158,7 +158,7 @@ export default function AtlasBurnDashboard() {
                 <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
                   <CardHeader className="px-0 pt-0">
                     <CardTitle className="text-lg font-headline">Forensic Burn Trajectory</CardTitle>
-                    <CardDescription>Rolling daily burn derived from SDK ingestion stream.</CardDescription>
+                    <CardDescription>Rolling daily burn derived from real SDK ingestion stream.</CardDescription>
                   </CardHeader>
                   <div className="h-[300px] w-full mt-4">
                     <ResponsiveContainer width="100%" height="100%">
@@ -181,20 +181,20 @@ export default function AtlasBurnDashboard() {
                 
                 <Card className="border-none shadow-sm bg-primary text-primary-foreground p-6">
                   <CardHeader className="px-0 pt-0">
-                    <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Risk Intelligence</CardTitle>
+                    <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Quantitative Analysis</CardTitle>
                   </CardHeader>
                   <div className="space-y-6">
                     <div className="p-4 bg-white/10 rounded-2xl">
                       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Conditional VaR (CVaR)</p>
                       <p className="text-2xl font-headline font-bold">${riskProfile!.simulation.cvar95.toFixed(2)}</p>
-                      <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Average cost in worst 5% scenarios</p>
+                      <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Average burn in worst 5% scenarios</p>
                     </div>
                     <div className="space-y-4">
                       <p className="text-sm leading-relaxed opacity-90 italic">
                         "{riskProfile!.marginStatus.description}"
                       </p>
                       <Button variant="outline" className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold" asChild>
-                        <Link href="/optimizer">Execute Optimization Action</Link>
+                        <Link href="/optimizer">Execute Optimization Playbook</Link>
                       </Button>
                     </div>
                   </div>

@@ -13,10 +13,11 @@ export interface UsageVariance {
 
 export function calculateUsageVariance(records: any[]): UsageVariance {
   if (!records || records.length < 3) {
-    return { dailyMean: 0, stdDev: 0, cv: 0.1, sampleSize: records.length, isStatisticallySignificant: false };
+    // Default fallback for low-data scenarios
+    return { dailyMean: 0, stdDev: 0, cv: 0.15, sampleSize: records.length, isStatisticallySignificant: false };
   }
 
-  // 1. Group by day
+  // 1. Group by day to normalize forensic event spikes
   const dailyTotals: Record<string, number> = {};
   records.forEach(rec => {
     const date = new Date(rec.timestamp).toISOString().split('T')[0];
@@ -35,13 +36,14 @@ export function calculateUsageVariance(records: any[]): UsageVariance {
   const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
   const stdDev = Math.sqrt(variance);
 
-  // 4. Compute CV (Volatility measure)
+  // 4. Compute CV (Volatility measure for Monte Carlo)
+  // Higher CV = Higher uncertainty in burn
   const cv = mean > 0 ? stdDev / mean : 0.1;
 
   return {
     dailyMean: mean,
     stdDev,
-    cv: Math.max(0.01, cv), // Floor at 1% for simulation sanity
+    cv: Math.max(0.05, cv), // Floor at 5% for simulation sanity
     sampleSize: n,
     isStatisticallySignificant: n >= 7,
   };
