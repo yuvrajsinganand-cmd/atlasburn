@@ -69,7 +69,7 @@ export default function Usage() {
       const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
       const promises = [];
 
-      // Generate a 5-day historical trajectory
+      // Surgical Fix: Generate a 5-day trajectory with INSTITUTIONAL SCALE (Millions of tokens)
       for (let i = 4; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -80,8 +80,8 @@ export default function Usage() {
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
           // Institutional Scale: Generate millions of tokens per call to reach $1000s/day spend
-          const prompt_tokens = Math.floor(Math.random() * 100000000) + 20000000;
-          const completion_tokens = Math.floor(Math.random() * 50000000) + 10000000;
+          const prompt_tokens = Math.floor(Math.random() * 10000000) + 2000000;
+          const completion_tokens = Math.floor(Math.random() * 5000000) + 1000000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
           
           promises.push(addDocumentNonBlocking(usagePath, {

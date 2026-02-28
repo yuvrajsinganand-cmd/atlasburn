@@ -3,7 +3,7 @@
 /**
  * AtlasBurn Institutional Probabilistic Engine
  * Advanced Monte Carlo simulation modeling systemic AI risks and churn-sensitive revenue.
- * Uses a Log-Normal distribution for burn stochasticity.
+ * Uses a Log-Normal distribution for burn stochasticity with proper Sigma/Mu transformations.
  */
 
 export interface InstitutionalSimInput {
@@ -60,19 +60,21 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const results: number[] = [];
   let insolvencyCount = 0;
 
-  // Step 2: Correct Log-Normal Parameter Transformation
+  // Surgical Step 2: Correct Log-Normal Parameter Transformation
   // sigma = sqrt(ln(1 + CV^2))
   const cv = Math.max(0.01, burnVolatility);
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
   // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
-  // Step 5: High-fidelity run count (10,000+ paths)
+  // Surgical Step 5: High-fidelity run count (10,000+ paths)
   for (let r = 0; r < runs; r++) {
     let periodTotalBurn = 0;
+    let pathCapital = startingCapital;
+    let pathBroken = false;
     
-    // Step 3: Monthly Aggregation Loop
-    // Simulate each day individually and sum them to get the period total
+    // Surgical Step 3: Monthly Aggregation Loop
+    // Simulate each day individually and track path-dependent breach
     for (let d = 0; d < daysRemaining; d++) {
       const z = gaussianRandom();
       // Stochastic Daily Cost = exp(mu + sigma * z)
@@ -80,7 +82,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
       // Tail Risk Injections
       if (Math.random() < outageProb) {
-        dailyCost *= 0.1; // Outage collapse
+        dailyCost *= 0.1; // Outage collapse (less burn but potential downtime cost)
       }
       
       if (Math.random() < retryCascadeProb) {
@@ -88,17 +90,17 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
         dailyCost *= (2.5 + Math.random() * 2); 
       }
 
-      periodTotalBurn += Math.max(0, dailyCost);
-    }
+      const cost = Math.max(0, dailyCost);
+      periodTotalBurn += cost;
 
-    // Model Revenue Stochastic Outcome for the period
-    const netGrowthMultiplier = (1 + monthlyGrowthRate - churnRate);
-    const realizedRevenue = mrr * netGrowthMultiplier;
-    
-    const endCapital = startingCapital + realizedRevenue - periodTotalBurn;
-    
-    if (endCapital <= 0) {
-      insolvencyCount++;
+      // Daily cash flow
+      const dailyRevenue = (mrr * (1 + monthlyGrowthRate - churnRate)) / 30;
+      pathCapital += (dailyRevenue - cost);
+
+      if (pathCapital <= 0 && !pathBroken) {
+        pathBroken = true;
+        insolvencyCount++;
+      }
     }
 
     results.push(periodTotalBurn);
@@ -121,12 +123,13 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
   let survivalProbability = (runs - insolvencyCount) / runs;
   
-  // Step 5: Remove Fake Certainty if volatility is significant
+  // Surgical Step 5: Remove Fake Certainty if volatility is significant
   if (cv > 0.1 && survivalProbability === 1) {
-    survivalProbability = 0.9999;
+    survivalProbability = 0.999;
   }
 
-  const netMonthlyBurn = (p50 / (daysRemaining / 30)) - mrr;
+  const periodDays = Math.max(1, daysRemaining);
+  const netMonthlyBurn = (p50 / (periodDays / 30)) - mrr;
   const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
 
   return {

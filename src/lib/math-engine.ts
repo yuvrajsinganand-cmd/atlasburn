@@ -20,7 +20,7 @@ export interface ComprehensiveRiskProfile {
   };
 }
 
-// Step 4: Institutional Scale Defaults
+// Surgical Step 4: Institutional Scale Defaults
 const DEFAULT_MONTHLY_BURN = 20000;
 const DEFAULT_CASH = 250000;
 const DEFAULT_CV = 0.25;
@@ -56,38 +56,6 @@ export function getMarginStatus(breachProb: number, margin: number) {
 export function calculateRunway(dailyBurn: number, capital: number): number {
   if (dailyBurn <= 0) return 3650; 
   return capital / dailyBurn;
-}
-
-/**
- * Simplified forecast for profile snapshots.
- */
-export function calculateMonthEndForecast(
-  monthlyBurn: number,
-  daysElapsed: number,
-  totalDays: number,
-  growth: number,
-  capital: number,
-  volatility: number
-) {
-  const dailyMean = monthlyBurn / (daysElapsed || 1);
-  
-  const sim = runInstitutionalSimulation({
-    startingCapital: capital,
-    mrr: 0, 
-    monthlyGrowthRate: growth,
-    churnRate: 0,
-    currentDailyBurn: dailyMean,
-    burnVolatility: volatility,
-    daysRemaining: Math.max(0, totalDays - daysElapsed),
-    outageProb: 0.01,
-    retryCascadeProb: 0.02,
-    runs: 10000,
-  });
-
-  return {
-    probabilityOfRunwayBreach: 1 - sim.survivalProbability,
-    projectedMonthEndBurn: sim.p50,
-  };
 }
 
 /**
