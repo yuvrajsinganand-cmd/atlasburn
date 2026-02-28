@@ -24,7 +24,6 @@ export default function Usage() {
     setMounted(true)
   }, [])
 
-  // Fetch Real Forensic Ledger
   const usageQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -69,19 +68,18 @@ export default function Usage() {
       const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
       const promises = [];
 
-      // Surgical Fix: Generate a 5-day trajectory with INSTITUTIONAL SCALE (Millions of tokens)
-      for (let i = 4; i >= 0; i--) {
+      // Surgical Fix: Generate institutional scale trajectory (Millions of tokens)
+      for (let i = 5; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         
-        // Institutional scale: Multiple calls per day with millions of tokens
-        const callsPerDay = Math.floor(Math.random() * 3) + 3;
+        const callsPerDay = Math.floor(Math.random() * 5) + 5;
         
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
-          // Institutional Scale: Generate millions of tokens per call to reach $1000s/day spend
-          const prompt_tokens = Math.floor(Math.random() * 10000000) + 2000000;
-          const completion_tokens = Math.floor(Math.random() * 5000000) + 1000000;
+          // Institutional Scale: Generate millions of tokens per call
+          const prompt_tokens = Math.floor(Math.random() * 20000000) + 5000000;
+          const completion_tokens = Math.floor(Math.random() * 10000000) + 2000000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
           
           promises.push(addDocumentNonBlocking(usagePath, {
@@ -219,7 +217,6 @@ export default function Usage() {
                 </div>
                 <p className="text-2xl font-headline font-bold">Forensic Pipeline: Active</p>
                 <div className="mt-4 flex items-start gap-2 bg-white/10 p-3 rounded-xl text-[10px] leading-relaxed">
-                  <Info size={14} className="shrink-0" />
                   <p>Institutional forensic ingestion is authenticated via HMAC-SHA256. Volatility is derived from the cryptographically-signed ledger.</p>
                 </div>
               </Card>

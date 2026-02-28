@@ -67,8 +67,10 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
-  // Surgical Step 5: High-fidelity run count (10,000+ paths)
-  for (let r = 0; r < runs; r++) {
+  // Surgical Step 5: High-fidelity run count
+  const actualRuns = Math.max(runs, 10000);
+
+  for (let r = 0; r < actualRuns; r++) {
     let periodTotalBurn = 0;
     let pathCapital = startingCapital;
     let pathBroken = false;
@@ -82,18 +84,18 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
       // Tail Risk Injections
       if (Math.random() < outageProb) {
-        dailyCost *= 0.1; // Outage collapse (less burn but potential downtime cost)
+        dailyCost *= 0.1; // Outage collapse
       }
       
       if (Math.random() < retryCascadeProb) {
-        // Retry storm multiplier (2.5x to 4.5x)
+        // Retry storm multiplier
         dailyCost *= (2.5 + Math.random() * 2); 
       }
 
       const cost = Math.max(0, dailyCost);
       periodTotalBurn += cost;
 
-      // Daily cash flow
+      // Daily cash flow (scaled MRR)
       const dailyRevenue = (mrr * (1 + monthlyGrowthRate - churnRate)) / 30;
       pathCapital += (dailyRevenue - cost);
 
@@ -121,9 +123,9 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const worstTail = results.slice(Math.floor(results.length * 0.95));
   const cvar95 = worstTail.reduce((a, b) => a + b, 0) / (worstTail.length || 1);
 
-  let survivalProbability = (runs - insolvencyCount) / runs;
+  let survivalProbability = (actualRuns - insolvencyCount) / actualRuns;
   
-  // Surgical Step 5: Remove Fake Certainty if volatility is significant
+  // Surgical Step 5: Remove Fake Certainty
   if (cv > 0.1 && survivalProbability === 1) {
     survivalProbability = 0.999;
   }

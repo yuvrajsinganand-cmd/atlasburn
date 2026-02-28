@@ -59,8 +59,41 @@ export function calculateRunway(dailyBurn: number, capital: number): number {
 }
 
 /**
+ * Generates a health forecast for specific windows.
+ */
+export function calculateMonthEndForecast(
+  currentBurn: number,
+  daysElapsed: number,
+  totalDays: number,
+  growth: number,
+  capital: number,
+  volatility: number
+) {
+  const daysRemaining = Math.max(1, totalDays - daysElapsed);
+  const dailyMean = currentBurn / (daysElapsed || 1);
+  
+  const sim = runInstitutionalSimulation({
+    startingCapital: capital,
+    mrr: 0,
+    monthlyGrowthRate: growth,
+    churnRate: 0,
+    currentDailyBurn: dailyMean,
+    burnVolatility: volatility,
+    daysRemaining: daysRemaining,
+    outageProb: 0.01,
+    retryCascadeProb: 0.02,
+    runs: 5000,
+  });
+
+  return {
+    probabilityOfRunwayBreach: 1 - sim.survivalProbability,
+    p50TotalBurn: sim.p50,
+  };
+}
+
+/**
  * Generates a comprehensive risk profile using forensic variance.
- * Step 4: Force realistic scale defaults if actual data is microscopic.
+ * Force realistic scale defaults if actual data is microscopic.
  */
 export function generateRiskProfile(
   usageRecords: any[],
@@ -87,15 +120,15 @@ export function generateRiskProfile(
     churnRate: 0.03,
     currentDailyBurn: dailyMeanToSimulate,
     burnVolatility: cv,
-    daysRemaining: 90, // Quarterly survival outlook
+    daysRemaining: 90, 
     outageProb: 0.02,
     retryCascadeProb: 0.05,
-    runs: 10000, // 10k paths for tail accuracy
+    runs: 10000, 
   };
 
   const simulation = runInstitutionalSimulation(simInput);
   
-  // Normalize 90-day simulation results back to 30-day "Monthly" metrics for display
+  // Normalize metrics for display
   const monthlyP50 = simulation.p50 / 3;
   const monthlyP95 = simulation.p95 / 3;
   const monthlyVar95 = monthlyP95 - monthlyP50;
