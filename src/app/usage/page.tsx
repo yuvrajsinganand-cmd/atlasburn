@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { Badge } from "@/components/ui/badge"
-import { Activity, Loader2, Beaker, Zap, BarChart3, PieChart } from "lucide-react"
+import { Activity, Loader2, Beaker, Zap, BarChart3, PieChart, Info } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { useState, useMemo } from "react"
@@ -19,7 +19,7 @@ export default function Usage() {
   const firestore = useFirestore()
   const [testing, setTesting] = useState(false)
 
-  // Fetch Forensic Ledger
+  // Fetch Real Forensic Ledger
   const usageQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -34,7 +34,7 @@ export default function Usage() {
   const chartData = useMemo(() => {
     if (!usageRecords || usageRecords.length === 0) return [];
     
-    // Group by Day
+    // Group real forensic records by day
     const grouped = usageRecords.reduce((acc: any, rec) => {
       const date = new Date(rec.timestamp).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
       if (!acc[date]) acc[date] = { date, cost: 0, tokens: 0 };
@@ -60,14 +60,18 @@ export default function Usage() {
     if (!user) return;
     setTesting(true);
     try {
-      const result = await runSleekSandboxTest(user.uid, 'manual-test', 'gpt-4o');
+      // Choose random model for diversity in test data
+      const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
+      const model = models[Math.floor(Math.random() * models.length)];
+      
+      const result = await runSleekSandboxTest(user.uid, 'manual-test', model);
       if (result.success) {
-        toast({ title: "Sandbox Call Intercepted", description: "Secure Server-Side SDK call verified. Forensic data synced." });
+        toast({ title: "Forensic Call Ingested", description: `Call attributed to ${model}. Dashboard will now recalculate.` });
       } else {
         throw new Error(result.error);
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Test Failed", description: e.message || "Failed to execute server-side sandbox call." });
+      toast({ variant: "destructive", title: "Ingestion Failed", description: e.message || "Failed to execute forensic test." });
     } finally {
       setTesting(false);
     }
@@ -85,7 +89,7 @@ export default function Usage() {
           <Button 
             size="sm" 
             variant="outline" 
-            className="gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+            className="gap-2 border-primary/20 hover:bg-primary/5 text-primary rounded-full px-4"
             disabled={testing}
             onClick={handlePhase1Test}
           >
@@ -96,21 +100,21 @@ export default function Usage() {
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border-none shadow-sm bg-white">
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20">
                 <div>
                   <CardTitle className="text-xl font-headline">Forensic Time-Series</CardTitle>
-                  <CardDescription>Visualizing unit burn density across the ingestion window.</CardDescription>
+                  <CardDescription>Live unit burn density from SDK ingestion.</CardDescription>
                 </div>
-                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 uppercase tracking-tighter text-[10px]">
-                  Real-Time SDK
+                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 uppercase tracking-tighter text-[10px] font-bold">
+                  LIVE FEED
                 </Badge>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {usageLoading ? (
-                  <div className="h-[350px] flex items-center justify-center"><Loader2 className="animate-spin" /></div>
+                  <div className="h-[350px] flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
                 ) : chartData.length > 0 ? (
-                  <div className="h-[350px] w-full mt-4">
+                  <div className="h-[350px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData}>
                         <defs>
@@ -121,16 +125,21 @@ export default function Usage() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                         <XAxis dataKey="date" axisLine={false} tickLine={false} />
-                        <YAxis axisLine={false} tickLine={false} />
+                        <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
                         <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
                         <Area type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorTokens)" strokeWidth={3} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[350px] flex flex-col items-center justify-center text-center space-y-4">
-                    <BarChart3 size={48} className="text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground italic">Awaiting forensic ingestion stream...</p>
+                  <div className="h-[350px] flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed rounded-2xl">
+                    <div className="bg-muted p-4 rounded-full">
+                      <BarChart3 size={32} className="text-muted-foreground/60" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-bold">No Forensic Data</p>
+                      <p className="text-sm text-muted-foreground px-12">Click "Inject Forensic Test" above to seed your ledger and see the dashboard update.</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -138,30 +147,39 @@ export default function Usage() {
 
             <div className="space-y-6">
               <Card className="border-none shadow-sm p-6 bg-white">
-                <CardHeader className="p-0 mb-4">
+                <CardHeader className="p-0 mb-4 border-b pb-4">
                   <CardTitle className="text-xs font-bold uppercase text-primary flex items-center gap-2">
-                    <PieChart size={16} /> Model Distribution
+                    <PieChart size={16} /> Burn Distribution
                   </CardTitle>
                 </CardHeader>
                 <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={modelDistribution} layout="vertical">
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} fontSize={10} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {modelDistribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={modelDistribution} layout="vertical" margin={{ left: -20, right: 20 }}>
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} fontSize={10} fontWeight="bold" />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground italic">
+                      Awaiting model breakdown...
+                    </div>
+                  )}
                 </div>
               </Card>
 
               <Card className="border-none shadow-sm p-6 bg-primary text-primary-foreground">
                 <div className="flex items-center gap-2 mb-2">
-                  <Activity size={18} />
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-80">Attribution Core</p>
+                  <Zap size={18} />
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-80">System Health</p>
                 </div>
-                <p className="text-2xl font-headline font-bold">Closed-Loop Active</p>
-                <p className="text-[10px] mt-2 opacity-70 leading-relaxed">Every point on this chart represents an authenticated SDK event. Replay protection and server-side verification are active.</p>
+                <p className="text-2xl font-headline font-bold">Forensic Pipeline: Active</p>
+                <div className="mt-4 flex items-start gap-2 bg-white/10 p-3 rounded-xl text-[10px] leading-relaxed">
+                  <Info size={14} className="shrink-0" />
+                  <p>Every event is authenticated via HMAC-SHA256 and verified server-side. Your economic baseline is derived from this cryptographically-signed ledger.</p>
+                </div>
               </Card>
             </div>
           </div>
