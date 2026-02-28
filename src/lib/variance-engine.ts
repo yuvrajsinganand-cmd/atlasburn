@@ -11,6 +11,9 @@ export interface UsageVariance {
   isStatisticallySignificant: boolean;
 }
 
+/**
+ * Derives statistical volatility (CV) from a series of usage records.
+ */
 export function calculateUsageVariance(records: any[]): UsageVariance {
   if (!records || records.length < 3) {
     // Default fallback for low-data scenarios

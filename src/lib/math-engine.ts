@@ -84,6 +84,9 @@ export function calculateMonthEndForecast(
   };
 }
 
+/**
+ * Generates a comprehensive risk profile using forensic variance.
+ */
 export function generateRiskProfile(
   usageRecords: any[],
   organization: any,

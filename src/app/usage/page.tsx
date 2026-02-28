@@ -1,9 +1,7 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Activity, Loader2, Beaker, Zap, BarChart3, PieChart, Info } from "lucide-react"
@@ -12,7 +10,8 @@ import { collection, query, orderBy, limit } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { runSleekSandboxTest } from "./actions"
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { normalizeUsage } from "@/lib/normalization-engine"
 
 export default function Usage() {
   const { user } = useUser()
@@ -57,21 +56,46 @@ export default function Usage() {
   }, [usageRecords]);
 
   const handlePhase1Test = async () => {
-    if (!user) return;
+    if (!user || !firestore) return;
     setTesting(true);
     try {
       // Choose random model for diversity in test data
       const models = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'];
       const model = models[Math.floor(Math.random() * models.length)];
       
-      const result = await runSleekSandboxTest(user.uid, 'manual-test', model);
-      if (result.success) {
-        toast({ title: "Forensic Call Ingested", description: `Call attributed to ${model}. Dashboard will now recalculate.` });
-      } else {
-        throw new Error(result.error);
-      }
+      // Generate stochastic usage
+      const prompt_tokens = Math.floor(Math.random() * 4000) + 500;
+      const completion_tokens = Math.floor(Math.random() * 2000) + 200;
+      
+      const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
+      
+      // Perform client-side mutation to ensure proper authentication context
+      const usagePath = collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords');
+      
+      await addDocumentNonBlocking(usagePath, {
+        timestamp: new Date().toISOString(),
+        inputTokens: prompt_tokens,
+        outputTokens: completion_tokens,
+        cost: normalized.costUsd,
+        model: normalized.model,
+        provider: normalized.provider,
+        featureId: 'sandbox_test_lab',
+        userTier: 'pro',
+        eventId: crypto.randomUUID(),
+        apiCallType: 'sandbox_ingestion'
+      });
+
+      toast({ 
+        title: "Forensic Call Ingested", 
+        description: `Call attributed to ${model}. Dashboard will now recalculate.` 
+      });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Ingestion Failed", description: e.message || "Failed to execute forensic test." });
+      console.error(e);
+      toast({ 
+        variant: "destructive", 
+        title: "Ingestion Failed", 
+        description: e.message || "Check your connectivity and permissions." 
+      });
     } finally {
       setTesting(false);
     }
