@@ -67,7 +67,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
-  // Surgical Step 5: High-fidelity run count
+  // Surgical Step 5: High-fidelity run count (10,000 paths)
   const actualRuns = Math.max(runs, 10000);
 
   for (let r = 0; r < actualRuns; r++) {
@@ -88,7 +88,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
       }
       
       if (Math.random() < retryCascadeProb) {
-        // Retry storm multiplier
+        // Retry storm multiplier (2.5x to 4.5x spike)
         dailyCost *= (2.5 + Math.random() * 2); 
       }
 
@@ -125,7 +125,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
   let survivalProbability = (actualRuns - insolvencyCount) / actualRuns;
   
-  // Surgical Step 5: Remove Fake Certainty
+  // Surgical Step 5: Remove Fake Certainty (Illusion of 100% safety)
   if (cv > 0.1 && survivalProbability === 1) {
     survivalProbability = 0.999;
   }

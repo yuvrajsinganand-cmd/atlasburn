@@ -20,7 +20,7 @@ export interface ComprehensiveRiskProfile {
   };
 }
 
-// Institutional Scale Defaults
+// Institutional Scale Defaults (Enterprise Grade)
 const DEFAULT_MONTHLY_BURN = 20000;
 const DEFAULT_CASH = 250000;
 const DEFAULT_CV = 0.25;
@@ -106,14 +106,14 @@ export function generateRiskProfile(
   const mrr = Math.max(organization?.monthlyRevenue ?? 0, 15000);
   const capital = Math.max(organization?.capitalReserves ?? 0, DEFAULT_CASH);
   
-  // If baseline burn is sub-$1000/mo, force it to institutional scale for simulation
+  // If baseline burn is sub-$1000/mo, force it to institutional scale ($20k floor) for simulation
   const baselineMonthlyBurn = variance.dailyMean * 30;
   const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, DEFAULT_MONTHLY_BURN);
   const dailyMeanToSimulate = effectiveMonthlyBurn / 30;
 
   const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
 
-  // Time Horizon Logic
+  // Time Horizon Logic (Default to 90 days / Quarterly)
   const daysToSimulate = scenarioAdjustments.daysRemaining ?? 90;
 
   const simInput: InstitutionalSimInput = {
@@ -131,7 +131,7 @@ export function generateRiskProfile(
 
   const simulation = runInstitutionalSimulation(simInput);
   
-  // Normalize metrics for display (assuming results are for the simulated window)
+  // Normalize metrics for display (per window simulation)
   const windowMonths = daysToSimulate / 30;
   const monthlyP50 = simulation.p50 / windowMonths;
   const monthlyP95 = simulation.p95 / windowMonths;

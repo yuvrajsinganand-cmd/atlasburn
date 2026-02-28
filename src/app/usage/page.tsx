@@ -77,7 +77,7 @@ export default function Usage() {
         
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
-          // Institutional Scale: Generate millions of tokens per call
+          // Institutional Scale: Generate millions of tokens per call to trigger real risk
           const prompt_tokens = Math.floor(Math.random() * 20000000) + 5000000;
           const completion_tokens = Math.floor(Math.random() * 10000000) + 2000000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);

@@ -24,13 +24,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    if (organization?.capitalReserves) {
-      setBudgetCap(organization.capitalReserves.toString());
-    }
-  }, [organization?.capitalReserves]);
-
+  // Hook declarations FIRST
   const orgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "organizations", `org_${user.uid}`);
@@ -52,6 +46,17 @@ export default function ProfilePage() {
   }, [firestore, user]);
   const { data: usageRecords } = useCollection(usageQuery);
 
+  // Effects AFTER hook declarations
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (organization?.capitalReserves) {
+      setBudgetCap(organization.capitalReserves.toString());
+    }
+  }, [organization?.capitalReserves]);
+
   const engineMetrics = useMemo(() => {
     if (!subscriptions || !mounted) return null;
     
@@ -62,7 +67,7 @@ export default function ProfilePage() {
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
     const capital = organization?.capitalReserves || parseFloat(budgetCap) || 250000;
     
-    // Institutional Floor
+    // Institutional Floor Applied to modeling
     const effectiveDailyMean = Math.max(compositeDailyMean, 20000 / 30);
     
     // Model month-end forecast based on composite baseline
@@ -96,9 +101,9 @@ export default function ProfilePage() {
     if (!user || !firestore) return;
     setSaving(true);
     
-    const orgRef = doc(firestore, "organizations", `org_${user.uid}`);
+    const orgRefToUpdate = doc(firestore, "organizations", `org_${user.uid}`);
     
-    setDocumentNonBlocking(orgRef, {
+    setDocumentNonBlocking(orgRefToUpdate, {
       capitalReserves: parseFloat(budgetCap) || 0,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
