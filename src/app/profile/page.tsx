@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, doc, limit } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert } from "lucide-react"
+import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert, TrendingUp } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
@@ -20,7 +20,9 @@ import { calculateUsageVariance } from "@/lib/variance-engine"
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [budgetCap, setBudgetCap] = useState("250000"); // Standard Institutional Default
+  
+  const [budgetCap, setBudgetCap] = useState("250000"); 
+  const [mrrInput, setMrrInput] = useState("15000");
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -29,6 +31,7 @@ export default function ProfilePage() {
     if (!firestore || !user) return null;
     return doc(firestore, "organizations", `org_${user.uid}`);
   }, [firestore, user]);
+  
   const { data: organization } = useDoc(orgRef);
 
   const subQuery = useMemoFirebase(() => {
@@ -52,10 +55,15 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (organization?.capitalReserves) {
-      setBudgetCap(organization.capitalReserves.toString());
+    if (organization) {
+      if (organization.capitalReserves !== undefined) {
+        setBudgetCap(organization.capitalReserves.toString());
+      }
+      if (organization.monthlyRevenue !== undefined) {
+        setMrrInput(organization.monthlyRevenue.toString());
+      }
     }
-  }, [organization?.capitalReserves]);
+  }, [organization]);
 
   const engineMetrics = useMemo(() => {
     if (!subscriptions || !mounted) return null;
@@ -66,6 +74,7 @@ export default function ProfilePage() {
     
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
     const capital = organization?.capitalReserves || parseFloat(budgetCap) || 250000;
+    const revenue = organization?.monthlyRevenue || parseFloat(mrrInput) || 15000;
     
     // Institutional Floor Applied to modeling
     const effectiveDailyMean = Math.max(compositeDailyMean, 20000 / 30);
@@ -81,9 +90,8 @@ export default function ProfilePage() {
     );
     
     const runwayDays = calculateRunway(effectiveDailyMean, capital);
-    const mrr = Math.max(organization?.monthlyRevenue || 0, 15000);
     const projectedMonthlyBurn = effectiveDailyMean * 30;
-    const currentMargin = mrr > 0 ? ((mrr - projectedMonthlyBurn) / mrr) * 100 : 0;
+    const currentMargin = revenue > 0 ? ((revenue - projectedMonthlyBurn) / revenue) * 100 : 0;
     
     const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, currentMargin); 
 
@@ -95,9 +103,9 @@ export default function ProfilePage() {
       statusBg: marginInfo.bg,
       baselineMonthly: projectedMonthlyBurn.toFixed(2)
     };
-  }, [subscriptions, usageRecords, organization, budgetCap, mounted]);
+  }, [subscriptions, usageRecords, organization, budgetCap, mrrInput, mounted]);
 
-  const handleSaveBudget = () => {
+  const handleSaveSettings = () => {
     if (!user || !firestore) return;
     setSaving(true);
     
@@ -105,12 +113,13 @@ export default function ProfilePage() {
     
     setDocumentNonBlocking(orgRefToUpdate, {
       capitalReserves: parseFloat(budgetCap) || 0,
+      monthlyRevenue: parseFloat(mrrInput) || 0,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
     setTimeout(() => {
       setSaving(false);
-      toast({ title: "Guardrails Updated", description: "Operational capital persisted to control plane." });
+      toast({ title: "Economic Guardrails Synced", description: "Institutional parameters updated in control plane." });
     }, 500);
   };
 
@@ -216,20 +225,32 @@ export default function ProfilePage() {
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 font-headline">
-                    <Wallet className="text-primary" size={20} /> Capital Reserves
+                    <Wallet className="text-primary" size={20} /> Economic Parameters
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Manage your institution's survival capital. These reserves are used by the Log-Normal engine to calculate survival probability and VaR.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Adjust your institution's financial baseline. These values drive the risk engine's composite survival modeling.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-1">
+                  <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="budget-cap" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Capital Reserves ($)</Label>
+                      <Label htmlFor="budget-cap" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Capital Reserves ($)</Label>
                       <Input id="budget-cap" type="number" value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} className="h-10 bg-muted/20" />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mrr-input" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Monthly Revenue (MRR) ($)</Label>
+                      <Input id="mrr-input" type="number" value={mrrInput} onChange={(e) => setMrrInput(e.target.value)} className="h-10 bg-muted/20" />
+                    </div>
                   </div>
-                  <Button onClick={handleSaveBudget} disabled={saving} className="w-full h-12 font-headline font-bold shadow-sm">
+                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-primary">
+                      <TrendingUp size={12} /> Institutional Impact
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Adjusting your MRR acts as a "burn offset" in the Monte Carlo engine. A higher MRR reduces net monthly burn, effectively extending survival probability even during high-volatility events.
+                    </p>
+                  </div>
+                  <Button onClick={handleSaveSettings} disabled={saving} className="w-full h-12 font-headline font-bold shadow-sm">
                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={18} />}
-                    Sync Capital Reserves
+                    Update Economic Guardrails
                   </Button>
                 </CardContent>
               </Card>
