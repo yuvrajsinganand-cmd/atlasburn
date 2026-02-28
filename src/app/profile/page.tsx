@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, doc, limit } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert, TrendingUp } from "lucide-react"
+import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert, TrendingUp, Flame } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
@@ -23,6 +23,7 @@ export default function ProfilePage() {
   
   const [budgetCap, setBudgetCap] = useState("250000"); 
   const [mrrInput, setMrrInput] = useState("15000");
+  const [fixedBurnInput, setFixedBurnInput] = useState("20000");
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -62,6 +63,9 @@ export default function ProfilePage() {
       if (organization.monthlyRevenue !== undefined) {
         setMrrInput(organization.monthlyRevenue.toString());
       }
+      if (organization.fixedMonthlyBurn !== undefined) {
+        setFixedBurnInput(organization.fixedMonthlyBurn.toString());
+      }
     }
   }, [organization]);
 
@@ -73,11 +77,12 @@ export default function ProfilePage() {
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
-    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 250000;
-    const revenue = organization?.monthlyRevenue || parseFloat(mrrInput) || 15000;
+    const capital = parseFloat(budgetCap) || 250000;
+    const revenue = parseFloat(mrrInput) || 15000;
+    const manualBurnFloor = parseFloat(fixedBurnInput) || 20000;
     
     // Institutional Floor Applied to modeling
-    const effectiveDailyMean = Math.max(compositeDailyMean, 20000 / 30);
+    const effectiveDailyMean = Math.max(compositeDailyMean, manualBurnFloor / 30);
     
     // Model month-end forecast based on composite baseline
     const forecasts = calculateMonthEndForecast(
@@ -103,7 +108,7 @@ export default function ProfilePage() {
       statusBg: marginInfo.bg,
       baselineMonthly: projectedMonthlyBurn.toFixed(2)
     };
-  }, [subscriptions, usageRecords, organization, budgetCap, mrrInput, mounted]);
+  }, [subscriptions, usageRecords, budgetCap, mrrInput, fixedBurnInput, mounted]);
 
   const handleSaveSettings = () => {
     if (!user || !firestore) return;
@@ -114,6 +119,7 @@ export default function ProfilePage() {
     setDocumentNonBlocking(orgRefToUpdate, {
       capitalReserves: parseFloat(budgetCap) || 0,
       monthlyRevenue: parseFloat(mrrInput) || 0,
+      fixedMonthlyBurn: parseFloat(fixedBurnInput) || 0,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
 
@@ -239,13 +245,20 @@ export default function ProfilePage() {
                       <Label htmlFor="mrr-input" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Monthly Revenue (MRR) ($)</Label>
                       <Input id="mrr-input" type="number" value={mrrInput} onChange={(e) => setMrrInput(e.target.value)} className="h-10 bg-muted/20" />
                     </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="fixed-burn" className="text-[10px] font-bold uppercase text-primary tracking-widest flex items-center gap-2">
+                        <Flame size={12} /> Institutional Burn Baseline ($)
+                      </Label>
+                      <Input id="fixed-burn" type="number" value={fixedBurnInput} onChange={(e) => setFixedBurnInput(e.target.value)} className="h-10 bg-primary/5 border-primary/20" />
+                      <p className="text-[10px] text-muted-foreground">Manual override to simulate risk at a specific institutional scale (e.g. $25k/mo).</p>
+                    </div>
                   </div>
                   <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-primary">
                       <TrendingUp size={12} /> Institutional Impact
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Adjusting your MRR acts as a "burn offset" in the Monte Carlo engine. A higher MRR reduces net monthly burn, effectively extending survival probability even during high-volatility events.
+                      Adjusting your parameters acts as a "burn offset" in the Monte Carlo engine. A higher MRR reduces net monthly burn, effectively extending survival probability even during high-volatility events.
                     </p>
                   </div>
                   <Button onClick={handleSaveSettings} disabled={saving} className="w-full h-12 font-headline font-bold shadow-sm">

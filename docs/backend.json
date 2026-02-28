@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -25,6 +24,7 @@
         "name": { "type": "string" },
         "capitalReserves": { "type": "number", "description": "Total cash available for API burn." },
         "monthlyRevenue": { "type": "number", "description": "Current monthly recurring revenue (MRR)." },
+        "fixedMonthlyBurn": { "type": "number", "description": "Manual override for institutional baseline burn." },
         "targetMargin": { "type": "number", "description": "Desired gross margin percentage (e.g. 0.7 for 70%)." },
         "createdAt": { "type": "string", "format": "date-time" }
       },

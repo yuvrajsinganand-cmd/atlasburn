@@ -106,9 +106,10 @@ export function generateRiskProfile(
   const mrr = Math.max(organization?.monthlyRevenue ?? 0, 15000);
   const capital = Math.max(organization?.capitalReserves ?? 0, DEFAULT_CASH);
   
-  // If baseline burn is sub-$1000/mo, force it to institutional scale ($20k floor) for simulation
+  // Priority: 1. Manual Override 2. Derived from Records 3. Default Institutional Floor
   const baselineMonthlyBurn = variance.dailyMean * 30;
-  const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, DEFAULT_MONTHLY_BURN);
+  const fixedBurnFloor = organization?.fixedMonthlyBurn ?? DEFAULT_MONTHLY_BURN;
+  const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, fixedBurnFloor);
   const dailyMeanToSimulate = effectiveMonthlyBurn / 30;
 
   const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
