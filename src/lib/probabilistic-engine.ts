@@ -1,99 +1,120 @@
 'use client';
 
 /**
- * Sleek Probabilistic Engine - v1
- * Implementation of Monte Carlo simulation for API spend risk analysis.
+ * AtlasBurn Institutional Probabilistic Engine
+ * Advanced Monte Carlo simulation modeling systemic AI risks and churn-sensitive revenue.
  */
 
-export interface SimulationInput {
-  baseDailyCost: number;            // Current average daily API cost
-  dailyGrowthRate: number;          // e.g., 0.002 = 0.2% daily growth
-  retryStormProbability: number;    // e.g., 0.08 = 8% chance per day
-  retryStormMultiplier: number;     // e.g., 1.4 = 40% cost spike
-  priceShockProbability: number;    // e.g., 0.03 = 3% chance per day
-  priceShockMultiplier: number;     // e.g., 1.2 = 20% model cost increase
-  simulationDays: number;           // Usually remaining days in month
-  runs: number;                     // e.g., 1000 simulations
-  startingCashReserve: number;      // Founder’s available API budget buffer
+export interface InstitutionalSimInput {
+  startingCapital: number;
+  mrr: number;
+  monthlyGrowthRate: number; // e.g. 0.05 for 5%
+  churnRate: number;         // e.g. 0.02 for 2%
+  currentDailyBurn: number;
+  burnVolatility: number;    // From variance engine
+  daysRemaining: number;
+  
+  // Systemic Risk Factors
+  outageProb: number;        // Probability of daily provider outage
+  retryCascadeProb: number;  // Probability of a cost-amplifying retry loop
+  runs: number;
 }
 
-export interface SimulationResult {
-  p25: number;                      // 25th percentile (Best Case)
-  p50: number;                      // Median (Base Case)
-  p90: number;                      // 90th percentile (Stress Case)
-  worstCase: number;                // Maximum simulated cost
-  average: number;                  // Mean cost
-  probabilityOfRunwayBreach: number; // Percentage of runs that exceed cash reserve
+export interface InstitutionalSimResult {
+  p5: number;   // Best case (95th percentile cost reduction)
+  p50: number;  // Median
+  p95: number;  // Stress case (95th percentile cost spike)
+  var95: number; // Value at Risk: The cost spike at 95% confidence
+  cvar95: number; // Conditional VaR: The average cost in the worst 5% of cases
+  survivalProbability: number;
+  expectedRunwayMonths: number;
 }
 
-/**
- * Runs a Monte Carlo simulation to forecast spend volatility.
- */
-export function runMonteCarloSimulation(input: SimulationInput): SimulationResult {
+export function runInstitutionalSimulation(input: InstitutionalSimInput): InstitutionalSimResult {
   const {
-    baseDailyCost,
-    dailyGrowthRate,
-    retryStormProbability,
-    retryStormMultiplier,
-    priceShockProbability,
-    priceShockMultiplier,
-    simulationDays,
-    runs,
-    startingCashReserve,
+    startingCapital,
+    mrr,
+    monthlyGrowthRate,
+    churnRate,
+    currentDailyBurn,
+    burnVolatility,
+    daysRemaining,
+    outageProb,
+    retryCascadeProb,
+    runs
   } = input;
 
-  const totalCosts: number[] = [];
-  let breachCount = 0;
+  const results: number[] = [];
+  let insolvencyCount = 0;
 
   for (let r = 0; r < runs; r++) {
-    let dailyCost = baseDailyCost;
-    let cumulativeCost = 0;
-    let breached = false;
+    let simCapital = startingCapital;
+    let simDailyBurn = currentDailyBurn;
+    let totalMonthBurn = 0;
+    
+    // Model Daily Burn Progression
+    for (let d = 0; d < daysRemaining; d++) {
+      // 1. Brownian Motion Burn (Volatility)
+      // cost = cost * (1 + volatility * Z) where Z is normal random
+      const drift = 0; // Simple drift-less for now
+      const shock = (Math.random() * 2 - 1) * burnVolatility;
+      let dailyCost = simDailyBurn * (1 + shock);
 
-    for (let d = 0; d < simulationDays; d++) {
-      // 1. Apply compounded daily growth
-      dailyCost *= (1 + dailyGrowthRate);
-
-      // 2. Random retry storm check
-      if (Math.random() < retryStormProbability) {
-        dailyCost *= retryStormMultiplier;
+      // 2. Systemic Risk Shocks
+      if (Math.random() < outageProb) {
+        // Outages actually reduce burn but kill revenue (revenue hit is monthly so we model burn hit here)
+        dailyCost *= 0.1; 
+      }
+      
+      if (Math.random() < retryCascadeProb) {
+        // Retry loops amplify cost without providing user value
+        dailyCost *= (1.5 + Math.random());
       }
 
-      // 3. Random provider price shock check
-      if (Math.random() < priceShockProbability) {
-        dailyCost *= priceShockMultiplier;
-      }
-
-      cumulativeCost += dailyCost;
-
-      // Track if this specific simulation path ever hits a breach
-      if (cumulativeCost > startingCashReserve) {
-        breached = true;
-      }
+      totalMonthBurn += dailyCost;
     }
 
-    totalCosts.push(cumulativeCost);
-    if (breached) {
-      breachCount++;
+    // Model Monthly Revenue Outcome (Churn + Growth)
+    const netRevenueMultiplier = (1 + monthlyGrowthRate - churnRate);
+    const realizedMonthlyRevenue = mrr * netRevenueMultiplier;
+    
+    const monthEndCapital = simCapital + realizedMonthlyRevenue - totalMonthBurn;
+    
+    if (monthEndCapital <= 0) {
+      insolvencyCount++;
     }
+
+    results.push(totalMonthBurn);
   }
 
-  // Sort to find percentiles
-  totalCosts.sort((a, b) => a - b);
-  
-  const getPercentile = (p: number) => {
-    const idx = Math.floor(totalCosts.length * (p / 100));
-    return totalCosts[Math.min(idx, totalCosts.length - 1)];
-  };
+  // Calculate Percentiles
+  results.sort((a, b) => a - b);
+  const getP = (p: number) => results[Math.floor(results.length * (p / 100))];
 
-  const sum = totalCosts.reduce((a, b) => a + b, 0);
+  const p5 = getP(5);
+  const p50 = getP(50);
+  const p95 = getP(95);
+
+  // VaR = p95 - p50 (The surprise delta at 95% confidence)
+  const var95 = p95 - p50;
+
+  // CVaR = Average of top 5% of results
+  const worstFivePercent = results.slice(Math.floor(results.length * 0.95));
+  const cvar95 = worstFivePercent.reduce((a, b) => a + b, 0) / worstFivePercent.length;
+
+  const survivalProbability = (runs - insolvencyCount) / runs;
+  
+  // Simple runway heuristic: Capital / (Monthly Burn - Monthly Revenue)
+  const netMonthlyBurn = p50 - mrr;
+  const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
 
   return {
-    p25: getPercentile(25),
-    p50: getPercentile(50),
-    p90: getPercentile(90),
-    worstCase: totalCosts[totalCosts.length - 1],
-    average: sum / runs,
-    probabilityOfRunwayBreach: breachCount / runs,
+    p5,
+    p50,
+    p95,
+    var95,
+    cvar95,
+    survivalProbability,
+    expectedRunwayMonths
   };
 }

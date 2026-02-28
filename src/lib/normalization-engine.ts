@@ -1,9 +1,9 @@
 /**
- * Sleek Normalization Engine
- * Converts raw provider usage into canonical cost events.
+ * AtlasBurn Normalization Engine
+ * Converts raw provider usage into canonical forensic cost events using the Registry.
  */
 
-import { PROVIDER_PRICING, type ModelPricing } from './pricing-data';
+import { getModelEconomics, type ModelEconomics } from './provider-registry';
 
 export interface SleekEvent {
   model: string;
@@ -11,34 +11,24 @@ export interface SleekEvent {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  isFallback: boolean;
 }
 
 /**
- * Calculates real-world cost based on model-specific pricing distribution.
+ * Calculates real-world cost based on Institutional Registry rates.
  */
 export function normalizeUsage(modelId: string, inputTokens: number, outputTokens: number): SleekEvent {
-  const pricing: ModelPricing | undefined = PROVIDER_PRICING[modelId];
+  const economics = getModelEconomics(modelId);
 
-  if (!pricing) {
-    // Fallback to a generic high-tier rate if model is unknown
-    const fallbackCost = (inputTokens + outputTokens) * 0.00001; 
-    return {
-      model: modelId,
-      provider: 'unknown',
-      inputTokens,
-      outputTokens,
-      costUsd: fallbackCost
-    };
-  }
-
-  const inputCost = (inputTokens / 1_000_000) * pricing.inputCostPer1M;
-  const outputCost = (outputTokens / 1_000_000) * pricing.outputCostPer1M;
+  const inputCost = (inputTokens / 1_000_000) * economics.inputCostPer1M;
+  const outputCost = (outputTokens / 1_000_000) * economics.outputCostPer1M;
 
   return {
-    model: modelId,
-    provider: pricing.provider,
+    model: economics.id,
+    provider: economics.provider,
     inputTokens,
     outputTokens,
-    costUsd: inputCost + outputCost
+    costUsd: inputCost + outputCost,
+    isFallback: !!economics.isFallback
   };
 }
