@@ -1,15 +1,18 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.5
+ * AtlasBurn Forensic SDK - Institutional v1.6
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
  * forensic metadata to the AtlasBurn control plane.
+ * 
+ * PORTABILITY: This file can be copied into other products to enable 
+ * cross-product burn attribution.
  */
 
 export interface SleekSDKOptions {
   apiKey: string;    // Raw Ingest Key (Stored in .env)
   projectId: string; // Your AtlasBurn Project ID
-  ingestUrl?: string;
+  ingestUrl?: string; // The absolute URL of your AtlasBurn deployment (e.g. https://atlasburn.com/api/ingest)
   batchSize?: number;
   maxQueueSize?: number;
 }
@@ -35,9 +38,11 @@ class SleekIngestor {
 
   constructor(options: SleekSDKOptions) {
     this.options = {
-      ingestUrl: typeof window !== 'undefined' 
+      // If no ingestUrl is provided, it defaults to the local path. 
+      // For external products, you MUST provide the absolute URL.
+      ingestUrl: options.ingestUrl || (typeof window !== 'undefined' 
         ? `${window.location.origin}/api/ingest` 
-        : '/api/ingest',
+        : '/api/ingest'),
       batchSize: 5,
       maxQueueSize: 200,
       ...options

@@ -5,8 +5,8 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, Terminal, Code, Info, ShieldAlert, CheckCircle2, Zap } from "lucide-react"
-import { useState } from "react"
+import { Key, ShieldCheck, Database, RefreshCw, Loader2, Copy, Terminal, Code, Info, ShieldAlert, CheckCircle2, Zap, Globe } from "lucide-react"
+import { useState, useEffect } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
@@ -18,6 +18,11 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const [rotating, setRotating] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const subsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -75,9 +80,9 @@ export default function SettingsPage() {
                   <Card className="border-none shadow-sm bg-white overflow-hidden">
                     <CardHeader className="bg-primary/5 border-b">
                       <CardTitle className="text-xl font-headline flex items-center gap-2 text-primary">
-                        <Zap size={20} /> Zero-Latency Implementation
+                        <Zap size={20} /> Cross-Product Attribution
                       </CardTitle>
-                      <CardDescription>Attribute AI burn to features and tiers with the forensic wrapper.</CardDescription>
+                      <CardDescription>Use the SDK in your other products to centralize all AI burn.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
                       <div className="space-y-4">
@@ -95,16 +100,17 @@ export default function SettingsPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">1. Wrapper Initialization</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">1. Cross-Product Setup</p>
+                        <p className="text-xs text-muted-foreground">To use the SDK in another app, provide the absolute ingest URL:</p>
                         <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed border-l-4 border-primary">
-{`import { withSleek } from "@/lib/sleek-sdk";
+{`import { withSleek } from "./sleek-sdk";
 import OpenAI from "openai";
 
-// Intercepts and attributes LLM traffic for forensic audit
 const client = withSleek(new OpenAI({ ... }), {
   apiKey: process.env.SLEEK_INGEST_KEY,
   projectId: "${user?.uid || 'PROJECT_ID'}",
-  batchSize: 5 // Optimal for production throughput
+  ingestUrl: "${origin}/api/ingest", // Points to this AtlasBurn instance
+  batchSize: 5
 });`}
                         </pre>
                       </div>
@@ -115,7 +121,7 @@ const client = withSleek(new OpenAI({ ... }), {
 {`// Automatically attributes burn to feature and tier
 const response = await client.chat({
   model: "gpt-4o",
-  featureId: "billing_summarizer",
+  featureId: "external_product_feature", // Tag by source app feature
   userTier: "enterprise",
   messages: [...]
 });`}
@@ -157,12 +163,12 @@ const response = await client.chat({
                 <div className="space-y-6">
                   <Card className="border-none shadow-sm bg-primary text-primary-foreground p-6 space-y-4">
                     <div className="p-3 bg-white/10 rounded-2xl text-white w-fit"><ShieldCheck size={24} /></div>
-                    <h3 className="font-headline font-bold text-lg">Zero-Knowledge API</h3>
+                    <h3 className="font-headline font-bold text-lg">Centralized Intelligence</h3>
                     <div className="text-sm space-y-4 opacity-90 leading-relaxed italic">
-                      <p>Sleek only stores **HMAC-SHA256 peppered hashes**. Your raw keys never touch our database or transit logs.</p>
+                      <p>You can use this single **AtlasBurn** instance to track the economic health of your entire portfolio.</p>
                       <p className="text-xs text-amber-300 flex gap-2 font-bold not-italic">
-                        <ShieldAlert size={14} className="shrink-0" />
-                        Raw keys are shown once. Loss requires rotation.
+                        <Globe size={14} className="shrink-0" />
+                        One Control Plane, Multiple Apps.
                       </p>
                     </div>
                   </Card>
