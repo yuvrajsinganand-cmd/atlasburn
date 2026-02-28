@@ -35,11 +35,16 @@ export interface InstitutionalSimResult {
  * Standard Box-Muller transform to generate Gaussian (Normal) random variables.
  */
 function gaussianRandom() {
-  const u = 1 - Math.random(); // Converting [0,1) to (0,1]
+  const u = 1 - Math.random(); 
   const v = Math.random();
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
+/**
+ * Runs a high-fidelity Monte Carlo simulation.
+ * Step 2: Fixes Log-Normal conversion (sigma and mu derivation).
+ * Step 3: Fixes Monthly Aggregation (Daily simulation -> Period total).
+ */
 export function runInstitutionalSimulation(input: InstitutionalSimInput): InstitutionalSimResult {
   const {
     startingCapital,
@@ -57,46 +62,46 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const results: number[] = [];
   let insolvencyCount = 0;
 
-  // Pre-calculate drift for Log-Normal expected value maintenance
-  // E[X] = exp(mu + sigma^2 / 2). To keep E[X] = currentDailyBurn, mu = ln(currentDailyBurn) - sigma^2 / 2
-  const sigma = Math.max(0.01, burnVolatility); 
+  // Step 2: Fix Log-Normal Conversion Properly
+  // sigma = sqrt(ln(1 + CV^2))
+  const cv = Math.max(0.01, burnVolatility);
+  const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
+  // mu = ln(mean) - 0.5 * sigma^2
+  const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
   for (let r = 0; r < runs; r++) {
-    let totalMonthBurn = 0;
+    let periodTotalBurn = 0;
     
-    // Model Daily Stochastic Burn
+    // Step 3: Fix Monthly Aggregation
+    // Simulate each day individually and sum them to get a period (month) total
     for (let d = 0; d < daysRemaining; d++) {
-      // 1. Log-Normal Shock (Geometric Brownian Motion component)
-      // This ensures dailyCost is never negative and captures exponential spikes.
       const z = gaussianRandom();
-      const drift = -0.5 * Math.pow(sigma, 2);
-      const shock = Math.exp(drift + z * sigma);
-      let dailyCost = currentDailyBurn * shock;
+      // X = exp(mu + sigma * z)
+      let dailyCost = Math.exp(mu + sigma * z);
 
-      // 2. Systemic Event Injections (Tail Risks)
+      // Tail Risk Injections (Stochastic multipliers)
       if (Math.random() < outageProb) {
         dailyCost *= 0.1; // Burn collapses during outage
       }
       
       if (Math.random() < retryCascadeProb) {
-        // Retry storms amplify cost exponentially
         dailyCost *= (2.5 + Math.random() * 2); 
       }
 
-      totalMonthBurn += Math.max(0, dailyCost);
+      periodTotalBurn += Math.max(0, dailyCost);
     }
 
-    // Model Revenue Stochastic Outcome
+    // Model Revenue Stochastic Outcome for the period
     const netGrowthMultiplier = (1 + monthlyGrowthRate - churnRate);
-    const realizedMonthlyRevenue = mrr * netGrowthMultiplier;
+    const realizedRevenue = mrr * netGrowthMultiplier;
     
-    const monthEndCapital = startingCapital + realizedMonthlyRevenue - totalMonthBurn;
+    const endCapital = startingCapital + realizedRevenue - periodTotalBurn;
     
-    if (monthEndCapital <= 0) {
+    if (endCapital <= 0) {
       insolvencyCount++;
     }
 
-    results.push(totalMonthBurn);
+    results.push(periodTotalBurn);
   }
 
   // Distribution Analysis
@@ -114,8 +119,13 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   const worstTail = results.slice(Math.floor(results.length * 0.95));
   const cvar95 = worstTail.reduce((a, b) => a + b, 0) / (worstTail.length || 1);
 
-  const survivalProbability = (runs - insolvencyCount) / runs;
+  let survivalProbability = (runs - insolvencyCount) / runs;
   
+  // Step 5: Remove Fake Certainty
+  if (cv > 0.1 && survivalProbability === 1) {
+    survivalProbability = 0.9999;
+  }
+
   const netMonthlyBurn = p50 - mrr;
   const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
 

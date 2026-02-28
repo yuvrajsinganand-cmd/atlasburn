@@ -19,6 +19,11 @@ export interface ComprehensiveRiskProfile {
   };
 }
 
+// Step 4: Add Real Scale Defaults
+const DEFAULT_MONTHLY_BURN = 20000;
+const DEFAULT_CASH = 250000;
+const DEFAULT_CV = 0.25;
+
 /**
  * Institutional standard for status categorization.
  */
@@ -86,6 +91,8 @@ export function calculateMonthEndForecast(
 
 /**
  * Generates a comprehensive risk profile using forensic variance.
+ * Step 4: Scale implementation.
+ * Step 5: High-fidelity run count.
  */
 export function generateRiskProfile(
   usageRecords: any[],
@@ -94,21 +101,24 @@ export function generateRiskProfile(
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
   
-  // Institutional Defaults: $15k MRR, $50k Capital
+  // Step 4: Add Real Scale Defaults ($250k Capital / $20k Burn)
   const mrr = organization?.monthlyRevenue ?? 15000;
-  const capital = organization?.capitalReserves ?? 50000;
+  const capital = organization?.capitalReserves ?? DEFAULT_CASH;
   
+  const dailyMean = variance.dailyMean || (DEFAULT_MONTHLY_BURN / 30);
+  const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
+
   const simInput: InstitutionalSimInput = {
     startingCapital: capital,
     mrr: mrr,
     monthlyGrowthRate: scenarioAdjustments.growth ?? 0.05,
     churnRate: 0.03,
-    currentDailyBurn: variance.dailyMean || 100,
-    burnVolatility: scenarioAdjustments.volatility ?? variance.cv,
-    daysRemaining: 20,
+    currentDailyBurn: dailyMean,
+    burnVolatility: cv,
+    daysRemaining: 30, // Aggregate over institutional month
     outageProb: 0.02,
     retryCascadeProb: 0.05,
-    runs: 2500,
+    runs: 10000, // Step 5: Increase simulation paths to 10,000+
   };
 
   const simulation = runInstitutionalSimulation(simInput);
@@ -124,7 +134,7 @@ export function generateRiskProfile(
 
   return {
     simulation,
-    volatility: variance.cv,
+    volatility: cv,
     marginStatus: {
       ...status,
       description: descriptions[status.label] || "Unknown risk state."
