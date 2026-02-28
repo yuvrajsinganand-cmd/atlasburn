@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -9,12 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, doc } from "firebase/firestore"
+import { collection, query, doc, limit } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { User, Wallet, Save, Loader2, Database, Activity, Server, ShieldCheck, Target, Zap, Key, ShieldAlert } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
+import { calculateUsageVariance } from "@/lib/variance-engine"
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -39,24 +41,41 @@ export default function ProfilePage() {
   }, [firestore, user]);
   const { data: subscriptions } = useCollection(subQuery);
 
+  const usageQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'),
+      limit(100)
+    );
+  }, [firestore, user]);
+  const { data: usageRecords } = useCollection(usageQuery);
+
   const engineMetrics = useMemo(() => {
     if (!subscriptions || !mounted) return null;
     
-    const monthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
-    const dailyBurn = monthlyBurn / 30;
+    // Calculate composite baseline burn
+    const fixedMonthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
+    const variableBurnInfo = calculateUsageVariance(usageRecords || []);
+    
+    const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
     const capital = organization?.capitalReserves || parseFloat(budgetCap) || 10000;
     
+    // Model month-end forecast based on composite baseline
     const forecasts = calculateMonthEndForecast(
-      monthlyBurn,
-      15, // Snapshot mid-month
+      compositeDailyMean * 15, // Simulate 15 days of burn at this mean
+      15, 
       30,
       0.05,
       capital,
-      0.15 // Institutional base volatility
+      variableBurnInfo.cv || 0.15 
     );
     
-    const runwayDays = calculateRunway(dailyBurn, capital);
-    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, 50); 
+    const runwayDays = calculateRunway(compositeDailyMean, capital);
+    const mrr = organization?.monthlyRevenue || 0;
+    const projectedMonthlyBurn = compositeDailyMean * 30;
+    const currentMargin = mrr > 0 ? ((mrr - projectedMonthlyBurn) / mrr) * 100 : 0;
+    
+    const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, currentMargin); 
 
     return {
       runwayMonths: (runwayDays / 30).toFixed(1),
@@ -64,8 +83,9 @@ export default function ProfilePage() {
       status: marginInfo.label,
       statusColor: marginInfo.color,
       statusBg: marginInfo.bg,
+      baselineMonthly: projectedMonthlyBurn.toFixed(2)
     };
-  }, [subscriptions, organization, budgetCap, mounted]);
+  }, [subscriptions, usageRecords, organization, budgetCap, mounted]);
 
   const handleSaveBudget = () => {
     if (!user || !firestore) return;
@@ -95,7 +115,7 @@ export default function ProfilePage() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Command Authority</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Command Authority</h1>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
@@ -109,8 +129,8 @@ export default function ProfilePage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Database size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Variance Engine</p>
-                <p className="text-sm font-bold">Forensic</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Composite Baseline</p>
+                <p className="text-sm font-bold">${engineMetrics?.baselineMonthly || "0.00"}/mo</p>
               </div>
             </Card>
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
@@ -124,7 +144,7 @@ export default function ProfilePage() {
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Monte Carlo</p>
-                <p className="text-sm font-bold">Simulation</p>
+                <p className="text-sm font-bold">Forensic Simulation</p>
               </div>
             </Card>
           </div>
