@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -12,21 +13,36 @@ export async function runSleekSandboxTest(userId: string, subId: string, modelNa
     throw new Error("Unauthorized: Missing identity context.");
   }
 
-  // In a real scenario, we would fetch the ingestKey from Firestore here.
-  // For the sandbox, we assume the environment is authorized.
-  const sdk = withSleek(fakeLLM, {
-    apiKey: "SANDBOX_TEST_KEY", // The API route handles sandbox validation
+  // Use a modified fakeLLM that introduces random usage variance for testing
+  const stochasticLLM = {
+    async chat(payload: { model: string }): Promise<any> {
+      // Simulate real-world variance: 500 to 5000 tokens
+      const prompt_tokens = Math.floor(Math.random() * 4000) + 500;
+      const completion_tokens = Math.floor(Math.random() * 2000) + 200;
+      
+      await new Promise(r => setTimeout(r, 100));
+      return {
+        usage: { prompt_tokens, completion_tokens },
+        output: `AtlasBurn Stochastic Sandbox Response for ${payload.model}`
+      };
+    }
+  };
+
+  const sdk = withSleek(stochasticLLM, {
+    apiKey: "SANDBOX_TEST_KEY", 
     projectId: userId,
-    batchSize: 1 // Force immediate flush for the test UI
+    batchSize: 1 // Force immediate flush for testing feedback
   });
 
   try {
     const response = await sdk.chat({
       model: modelName,
-      messages: [{ role: 'user', content: 'Sandbox Test Event' }]
+      messages: [{ role: 'user', content: 'Forensic System Stress Test' }],
+      featureId: 'sandbox_test_lab',
+      userTier: 'pro'
     });
 
-    // Explicitly flush to ensure the UI sees the result immediately
+    // Ensure the data hits Firestore immediately for the UI to react
     await sdk.flush();
 
     return { success: true, response };
