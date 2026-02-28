@@ -7,9 +7,9 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, ShieldAlert, BarChart3, Landmark, Activity, Target, SlidersHorizontal, Zap, Scale } from "lucide-react"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit } from "firebase/firestore"
+import { TrendingUp, ShieldAlert, BarChart3, Landmark, Activity, Target, SlidersHorizontal, Zap, Scale, Loader2 } from "lucide-react"
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { calculateEconomicImpact, type EconomicContext } from "@/lib/economic-engine"
 import { calculateMonthEndForecast, getMarginStatus } from "@/lib/math-engine"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -24,6 +24,14 @@ export default function AtlasBurnDashboard() {
   const [volatility, setVolatility] = useState(0.08);
   const [growthRate, setGrowthRate] = useState(0.05);
 
+  // Fetch Organizational Baseline
+  const orgRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'organizations', `org_${user.uid}`);
+  }, [firestore, user]);
+  const { data: organization, isLoading: orgLoading } = useDoc(orgRef);
+
+  // Fetch Real Forensic Ingestion Stream
   const usageQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -32,17 +40,22 @@ export default function AtlasBurnDashboard() {
       limit(100)
     );
   }, [firestore, user]);
-
-  const { data: usageRecords } = useCollection(usageQuery);
+  const { data: usageRecords, isLoading: usageLoading } = useCollection(usageQuery);
 
   const economicData = useMemo(() => {
-    // These would normally come from the 'Organization' document
-    const revenue = 15000;
-    const capital = 125000;
-    const daysElapsed = 14;
+    // Economic Root Values
+    const revenue = organization?.monthlyRevenue || 15000;
+    const capital = organization?.capitalReserves || 125000;
     
-    // Aggregate real burn from ingested records
-    const currentBurn = usageRecords?.reduce((acc, rec) => acc + (rec.cost || 0), 0) || 4200;
+    // Aggregation Logic: Calculate current month burn from ingested records
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const daysElapsed = Math.max(1, Math.floor((now.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    const currentBurn = usageRecords?.reduce((acc, rec) => {
+      const recDate = new Date(rec.timestamp);
+      return recDate >= startOfMonth ? acc + (rec.cost || 0) : acc;
+    }, 0) || 0;
 
     const ctx: EconomicContext = {
       monthlyRevenue: revenue,
@@ -66,8 +79,32 @@ export default function AtlasBurnDashboard() {
 
     const marginStatus = getMarginStatus(forecasts.probabilityOfRunwayBreach, impact.grossMargin * 100);
 
-    return { impact, forecasts, marginStatus, revenue, capital };
-  }, [usageRecords, growthRate, volatility]);
+    // Prepare Dynamic Chart Data
+    const chartData = Array.from({ length: 4 }, (_, i) => {
+      const week = i + 1;
+      const weekBurn = usageRecords?.reduce((acc, rec) => {
+        const recDate = new Date(rec.timestamp);
+        const recWeek = Math.ceil(recDate.getDate() / 7);
+        return recWeek === week ? acc + (rec.cost || 0) : acc;
+      }, 0) || (week < Math.ceil(daysElapsed / 7) ? 0 : null);
+
+      return {
+        name: `Week ${week}`,
+        burn: weekBurn,
+        revenue: revenue
+      };
+    });
+
+    return { impact, forecasts, marginStatus, revenue, capital, chartData };
+  }, [usageRecords, organization, growthRate, volatility]);
+
+  if (orgLoading || usageLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -153,12 +190,7 @@ export default function AtlasBurnDashboard() {
               </CardHeader>
               <div className="h-[300px] w-full mt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={[
-                    { name: 'Week 1', burn: 2100, revenue: 15000 },
-                    { name: 'Week 2', burn: 4200, revenue: 15000 },
-                    { name: 'Week 3 (Est)', burn: 7100, revenue: 15000 },
-                    { name: 'Week 4 (Est)', burn: 10400, revenue: 15000 },
-                  ]}>
+                  <AreaChart data={economicData.chartData}>
                     <defs>
                       <linearGradient id="colorBurn" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
@@ -187,10 +219,10 @@ export default function AtlasBurnDashboard() {
                 </div>
                 <div className="space-y-4">
                   <p className="text-sm leading-relaxed opacity-90 italic">
-                    "Your current unit margin is {(economicData.impact.grossMargin * 100).toFixed(0)}%. To reach a healthy 70% SaaS margin, you must reduce token density by 42% or transition Pro users to GPT-4o-mini for summary tasks."
+                    "Your current unit margin is {(economicData.impact.grossMargin * 100).toFixed(0)}%. {economicData.impact.grossMargin < 0.5 ? 'To stabilize runway, you must transition high-volume classification tasks to GPT-4o-mini.' : 'Your margins are healthy. Consider reinvesting efficiency gains into higher context window models.'}"
                   </p>
-                  <Button className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold">
-                    View Optimization Plan
+                  <Button variant="outline" className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold" asChild>
+                    <a href="/optimizer">View Optimization Plan</a>
                   </Button>
                 </div>
               </div>
