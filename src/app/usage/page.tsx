@@ -78,8 +78,9 @@ export default function Usage() {
         
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
-          const prompt_tokens = Math.floor(Math.random() * 4000) + 500;
-          const completion_tokens = Math.floor(Math.random() * 2000) + 200;
+          // Institutional Scale: Randomly generate between 10k and 100k tokens
+          const prompt_tokens = Math.floor(Math.random() * 100000) + 10000;
+          const completion_tokens = Math.floor(Math.random() * 50000) + 5000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
           
           promises.push(addDocumentNonBlocking(usagePath, {
@@ -101,7 +102,7 @@ export default function Usage() {
 
       toast({ 
         title: "Forensic Feed Primed", 
-        description: "5-day burn trajectory generated. Risk engine is now calculating volatility." 
+        description: "Institutional burn trajectory generated. Risk engine is now calculating volatility." 
       });
     } catch (e: any) {
       console.error(e);
