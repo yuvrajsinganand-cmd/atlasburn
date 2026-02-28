@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, BarChart3, Activity, Target, SlidersHorizontal, Zap, Loader2, Beaker, ShieldCheck } from "lucide-react"
+import { TrendingUp, BarChart3, Activity, Target, SlidersHorizontal, Zap, Loader2, Beaker, ShieldCheck, Flame } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { generateRiskProfile } from "@/lib/math-engine"
@@ -77,7 +77,7 @@ export default function AtlasBurnDashboard() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold tracking-tighter">ATLAS BURN <span className="text-primary/50 text-xs font-mono ml-2">v3.1-QUANT</span></h1>
+            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary">ATLAS BURN <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Institutional Mode</span></h1>
           </div>
           <div className="flex items-center gap-4">
             <Popover>
@@ -128,31 +128,38 @@ export default function AtlasBurnDashboard() {
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Survival Prob</span><ShieldCheck size={16} className="text-green-600" /></div>
-                  <div className="text-3xl font-headline font-bold text-green-600">
-                    {(riskProfile!.simulation.survivalProbability * 100).toFixed(1)}%
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Baseline Burn</span><Flame size={16} className="text-amber-500" /></div>
+                  <div className="text-2xl font-headline font-bold text-amber-500">
+                    ${riskProfile!.baselineMonthlyBurn.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs font-normal opacity-70">/mo</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Institutional Confidence Level</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Institutional Floor Applied</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Value at Risk (VaR)</span><TrendingUp size={16} className="text-destructive" /></div>
-                  <div className="text-3xl font-headline font-bold text-destructive">
-                    ${riskProfile!.simulation.var95.toFixed(2)}
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Survival Prob</span><ShieldCheck size={16} className="text-green-600" /></div>
+                  <div className="text-2xl font-headline font-bold text-green-600">
+                    {(riskProfile!.simulation.survivalProbability * 100).toFixed(1)}%
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Projected P95 Monthly Spike</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Quarterly Outlook Horizon</p>
+                </Card>
+                <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-destructive">
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-destructive uppercase tracking-widest">Value at Risk (VaR)</span><TrendingUp size={16} className="text-destructive" /></div>
+                  <div className="text-2xl font-headline font-bold text-destructive">
+                    ${riskProfile!.simulation.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-2">P95 Monthly Deviation</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Projected Runway</span><Target size={16} className="text-primary" /></div>
-                  <div className="text-3xl font-headline font-bold text-primary">
+                  <div className="text-2xl font-headline font-bold text-primary">
                     {riskProfile!.simulation.expectedRunwayMonths.toFixed(1)} <span className="text-lg font-normal opacity-70">Mo</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Horizon</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forensic Volatility</span><Activity size={16} className="text-accent" /></div>
-                  <div className="text-3xl font-headline font-bold text-accent">
+                  <div className="text-2xl font-headline font-bold text-accent">
                     {(riskProfile!.volatility * 100).toFixed(1)}%
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-2">Coefficient of Variation (CV)</p>
@@ -189,16 +196,16 @@ export default function AtlasBurnDashboard() {
                     <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Quantitative Analysis</CardTitle>
                   </CardHeader>
                   <div className="space-y-6">
-                    <div className="p-4 bg-white/10 rounded-2xl">
+                    <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Conditional VaR (CVaR)</p>
-                      <p className="text-2xl font-headline font-bold">${riskProfile!.simulation.cvar95.toFixed(2)}</p>
+                      <p className="text-3xl font-headline font-bold">${riskProfile!.simulation.cvar95.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                       <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Avg burn in worst 5% tail scenarios</p>
                     </div>
                     <div className="space-y-4">
                       <p className="text-sm leading-relaxed opacity-90 italic">
                         "{riskProfile!.marginStatus.description}"
                       </p>
-                      <Button variant="outline" className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold" asChild>
+                      <Button variant="outline" className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold h-12 shadow-xl" asChild>
                         <Link href="/optimizer">Execute Optimization Playbook</Link>
                       </Button>
                     </div>

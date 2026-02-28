@@ -79,9 +79,9 @@ export default function Usage() {
         
         for (let j = 0; j < callsPerDay; j++) {
           const model = models[Math.floor(Math.random() * models.length)];
-          // Institutional Scale: Generate millions of tokens per call to reach $100s/day spend
-          const prompt_tokens = Math.floor(Math.random() * 5000000) + 1000000;
-          const completion_tokens = Math.floor(Math.random() * 2000000) + 500000;
+          // Institutional Scale: Generate millions of tokens per call to reach $1000s/day spend
+          const prompt_tokens = Math.floor(Math.random() * 100000000) + 20000000;
+          const completion_tokens = Math.floor(Math.random() * 50000000) + 10000000;
           const normalized = normalizeUsage(model, prompt_tokens, completion_tokens);
           
           promises.push(addDocumentNonBlocking(usagePath, {
@@ -126,12 +126,12 @@ export default function Usage() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Burn Attribution</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Burn Attribution</h1>
           </div>
           <Button 
             size="sm" 
             variant="outline" 
-            className="gap-2 border-primary/20 hover:bg-primary/5 text-primary rounded-full px-4"
+            className="gap-2 border-primary/20 hover:bg-primary/5 text-primary rounded-full px-4 font-headline font-bold shadow-sm"
             disabled={testing}
             onClick={handlePhase1Test}
           >

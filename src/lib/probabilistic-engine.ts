@@ -67,11 +67,11 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
-  // Step 5: High-fidelity run count (10,000 paths)
+  // Step 5: High-fidelity run count (10,000+ paths)
   for (let r = 0; r < runs; r++) {
     let periodTotalBurn = 0;
     
-    // Step 3: Fix Monthly Aggregation
+    // Step 3: Monthly Aggregation Loop
     // Simulate each day individually and sum them to get the period total
     for (let d = 0; d < daysRemaining; d++) {
       const z = gaussianRandom();
@@ -104,7 +104,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
     results.push(periodTotalBurn);
   }
 
-  // Distribution Analysis on AGGREGATED MONTHLY TOTALS
+  // Distribution Analysis on AGGREGATED TOTALS
   results.sort((a, b) => a - b);
   const getP = (p: number) => results[Math.floor(results.length * (p / 100))];
 
@@ -126,7 +126,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
     survivalProbability = 0.9999;
   }
 
-  const netMonthlyBurn = p50 - mrr;
+  const netMonthlyBurn = (p50 / (daysRemaining / 30)) - mrr;
   const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
 
   return {

@@ -11,6 +11,7 @@ import { calculateUsageVariance } from './variance-engine';
 export interface ComprehensiveRiskProfile {
   simulation: InstitutionalSimResult;
   volatility: number;
+  baselineMonthlyBurn: number;
   marginStatus: {
     label: string;
     color: string;
@@ -80,7 +81,7 @@ export function calculateMonthEndForecast(
     daysRemaining: Math.max(0, totalDays - daysElapsed),
     outageProb: 0.01,
     retryCascadeProb: 0.02,
-    runs: 2500,
+    runs: 10000,
   });
 
   return {
@@ -118,26 +119,41 @@ export function generateRiskProfile(
     churnRate: 0.03,
     currentDailyBurn: dailyMeanToSimulate,
     burnVolatility: cv,
-    daysRemaining: 30, 
+    daysRemaining: 90, // Quarterly survival outlook
     outageProb: 0.02,
     retryCascadeProb: 0.05,
     runs: 10000, // 10k paths for tail accuracy
   };
 
   const simulation = runInstitutionalSimulation(simInput);
-  const marginPercentage = mrr > 0 ? ((mrr - simulation.p50) / mrr) * 100 : 0;
+  
+  // Normalize 90-day simulation results back to 30-day "Monthly" metrics for display
+  const monthlyP50 = simulation.p50 / 3;
+  const monthlyP95 = simulation.p95 / 3;
+  const monthlyVar95 = monthlyP95 - monthlyP50;
+  const monthlyCvar95 = simulation.cvar95 / 3;
+
+  const marginPercentage = mrr > 0 ? ((mrr - monthlyP50) / mrr) * 100 : 0;
   
   const status = getMarginStatus(1 - simulation.survivalProbability, marginPercentage);
   
   const descriptions: Record<string, string> = {
-    "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
-    "MARGIN EROSION": "High variance detected. Churn and burn correlation is tightening. Institutional watch required.",
-    "CAPITAL SECURE": "Operational stability. Net margin covers Pstress events. High survival probability."
+    "INSOLVENCY RISK": "Critical capital exposure. Quarterly forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
+    "MARGIN EROSION": "High variance detected. Quarterly churn and burn correlation is tightening. Institutional watch required.",
+    "CAPITAL SECURE": "Operational stability. Quarterly net margin covers Pstress events. High survival probability."
   };
 
   return {
-    simulation,
+    simulation: {
+      ...simulation,
+      p5: simulation.p5 / 3,
+      p50: monthlyP50,
+      p95: monthlyP95,
+      var95: monthlyVar95,
+      cvar95: monthlyCvar95,
+    },
     volatility: cv,
+    baselineMonthlyBurn: effectiveMonthlyBurn,
     marginStatus: {
       ...status,
       description: descriptions[status.label] || "Unknown risk state."
