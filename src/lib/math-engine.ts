@@ -93,8 +93,10 @@ export function generateRiskProfile(
   scenarioAdjustments: { growth?: number; volatility?: number } = {}
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
-  const mrr = organization?.monthlyRevenue || 15000;
-  const capital = organization?.capitalReserves || 100000;
+  
+  // Institutional Defaults: $15k MRR, $50k Capital
+  const mrr = organization?.monthlyRevenue ?? 15000;
+  const capital = organization?.capitalReserves ?? 50000;
   
   const simInput: InstitutionalSimInput = {
     startingCapital: capital,

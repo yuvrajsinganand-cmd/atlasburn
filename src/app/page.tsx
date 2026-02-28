@@ -54,7 +54,6 @@ export default function AtlasBurnDashboard() {
   const chartData = useMemo(() => {
     if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
     const grouped = usageRecords.reduce((acc: any, rec) => {
-      // Use fixed locale to prevent hydration mismatches
       const date = new Date(rec.timestamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
       if (!acc[date]) acc[date] = { date, burn: 0 };
       acc[date].burn += rec.cost || 0;
@@ -90,7 +89,7 @@ export default function AtlasBurnDashboard() {
               <PopoverContent className="w-80 space-y-4">
                 <div className="space-y-2">
                   <h4 className="font-bold font-headline text-sm text-primary">Systemic Shock Parameters</h4>
-                  <p className="text-[10px] text-muted-foreground uppercase leading-tight">Injecting variables into Monte Carlo risk engine.</p>
+                  <p className="text-[10px] text-muted-foreground uppercase leading-tight">Injecting variables into Log-Normal risk engine.</p>
                 </div>
                 <div className="space-y-4 pt-2">
                   <div className="space-y-3">
@@ -123,7 +122,7 @@ export default function AtlasBurnDashboard() {
               <div className="bg-primary/10 p-4 rounded-full text-primary"><Beaker size={48} /></div>
               <div className="space-y-2 max-w-md">
                 <h2 className="text-2xl font-headline font-bold">Awaiting Forensic Feed</h2>
-                <p className="text-muted-foreground">The Institutional Engine requires usage history to derive volatility. Inject a forensic test to prime the simulation.</p>
+                <p className="text-muted-foreground">The Log-Normal Risk Engine requires history to derive operational CV. Inject a forensic test to prime the simulation.</p>
               </div>
               <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold"><Link href="/usage">Run Ingestion Test</Link></Button>
             </Card>
@@ -142,7 +141,7 @@ export default function AtlasBurnDashboard() {
                   <div className="text-3xl font-headline font-bold text-destructive">
                     ${riskProfile!.simulation.var95.toFixed(2)}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Potential P95 Monthly Spike</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Projected P95 Monthly Spike</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Projected Runway</span><Target size={16} className="text-primary" /></div>
@@ -156,7 +155,7 @@ export default function AtlasBurnDashboard() {
                   <div className="text-3xl font-headline font-bold text-accent">
                     {(riskProfile!.volatility * 100).toFixed(1)}%
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Derived from Ingestion Variance</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Coefficient of Variation (CV)</p>
                 </Card>
               </div>
 
@@ -193,7 +192,7 @@ export default function AtlasBurnDashboard() {
                     <div className="p-4 bg-white/10 rounded-2xl">
                       <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Conditional VaR (CVaR)</p>
                       <p className="text-2xl font-headline font-bold">${riskProfile!.simulation.cvar95.toFixed(2)}</p>
-                      <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Average burn in worst 5% scenarios</p>
+                      <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Avg burn in worst 5% tail scenarios</p>
                     </div>
                     <div className="space-y-4">
                       <p className="text-sm leading-relaxed opacity-90 italic">

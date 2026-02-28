@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -21,7 +20,7 @@ import { calculateUsageVariance } from "@/lib/variance-engine"
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [budgetCap, setBudgetCap] = useState("10000");
+  const [budgetCap, setBudgetCap] = useState("50000"); // Standard Institutional Default
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -58,11 +57,11 @@ export default function ProfilePage() {
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
-    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 10000;
+    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 50000;
     
-    // Model month-end forecast based on composite baseline
+    // Model month-end forecast based on composite baseline using Log-Normal sim
     const forecasts = calculateMonthEndForecast(
-      compositeDailyMean * 15, // Simulate 15 days of burn at this mean
+      compositeDailyMean * 15, 
       15, 
       30,
       0.05,
@@ -100,7 +99,7 @@ export default function ProfilePage() {
 
     setTimeout(() => {
       setSaving(false);
-      toast({ title: "Guardrails Updated", description: "Operational limits have been persisted." });
+      toast({ title: "Guardrails Updated", description: "Operational capital persisted to control plane." });
     }, 500);
   };
 
@@ -144,7 +143,7 @@ export default function ProfilePage() {
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Monte Carlo</p>
-                <p className="text-sm font-bold">Forensic Simulation</p>
+                <p className="text-sm font-bold">Log-Normal</p>
               </div>
             </Card>
           </div>
@@ -208,7 +207,7 @@ export default function ProfilePage() {
                   <CardTitle className="flex items-center gap-2 font-headline">
                     <Wallet className="text-primary" size={20} /> Capital Reserves
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Manage your institution's survival capital. These reserves are used by the Monte Carlo engine to calculate survival probability and VaR.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Manage your institution's survival capital. These reserves are used by the Log-Normal engine to calculate survival probability and VaR.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-1">
