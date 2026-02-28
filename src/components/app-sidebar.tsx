@@ -1,7 +1,7 @@
 
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database } from "lucide-react"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
@@ -20,11 +20,11 @@ import {
 } from "@/components/ui/sidebar"
 
 const items = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Usage Drivers", url: "/usage", icon: BarChart3 },
-  { title: "Model Catalog", url: "/catalog", icon: Database },
-  { title: "Recommendations", url: "/optimizer", icon: Zap },
-  { title: "Connectors", url: "/settings", icon: Settings },
+  { title: "Economic Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Forensic Ledger", url: "/usage", icon: BarChart3 },
+  { title: "Model Intelligence", url: "/catalog", icon: Database },
+  { title: "Audit & Optimize", url: "/optimizer", icon: Zap },
+  { title: "System Controls", url: "/settings", icon: Settings },
 ]
 
 export function AppSidebar() {
@@ -68,7 +68,10 @@ export function AppSidebar() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="text-sm font-bold truncate leading-tight">Founder Mode</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-bold truncate leading-tight">Founder Mode</span>
+                  <ShieldCheck size={12} className="text-primary" />
+                </div>
                 <span className="text-[10px] text-muted-foreground truncate">{user.email}</span>
               </div>
             </Link>
@@ -79,7 +82,7 @@ export function AppSidebar() {
               onClick={() => auth && initiateSignOut(auth)}
             >
               <LogOut className="h-4 w-4 mr-2" />
-              <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
+              <span className="group-data-[collapsible=icon]:hidden">Deauthorize</span>
             </Button>
           </div>
         ) : (
