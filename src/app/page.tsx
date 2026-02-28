@@ -6,13 +6,14 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, BarChart3, Activity, Target, SlidersHorizontal, Zap, Loader2, Beaker, ShieldCheck, Flame } from "lucide-react"
+import { TrendingUp, BarChart3, Activity, Target, SlidersHorizontal, Zap, Loader2, Beaker, ShieldCheck, Flame, Clock } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { generateRiskProfile } from "@/lib/math-engine"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
 export default function AtlasBurnDashboard() {
@@ -21,6 +22,7 @@ export default function AtlasBurnDashboard() {
   
   const [volatilityAdj, setVolatilityAdj] = useState<number | null>(null);
   const [growthAdj, setGrowthAdj] = useState<number | null>(null);
+  const [horizon, setHorizon] = useState<number>(90); // Default to 3 months
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -47,9 +49,10 @@ export default function AtlasBurnDashboard() {
     if (!usageRecords || !mounted) return null;
     return generateRiskProfile(usageRecords, organization, {
       volatility: volatilityAdj ?? undefined,
-      growth: growthAdj ?? undefined
+      growth: growthAdj ?? undefined,
+      daysRemaining: horizon
     });
-  }, [usageRecords, organization, growthAdj, volatilityAdj, mounted]);
+  }, [usageRecords, organization, growthAdj, volatilityAdj, horizon, mounted]);
 
   const chartData = useMemo(() => {
     if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
@@ -61,6 +64,13 @@ export default function AtlasBurnDashboard() {
     }, {});
     return Object.values(grouped).reverse();
   }, [usageRecords, mounted]);
+
+  const horizonLabel = useMemo(() => {
+    if (horizon === 90) return "Quarterly Outlook";
+    if (horizon === 180) return "6 Month Projection";
+    if (horizon === 365) return "1 Year Forecast";
+    return "Full Runaway Horizon";
+  }, [horizon]);
 
   if (orgLoading || usageLoading || !mounted) {
     return (
@@ -77,9 +87,17 @@ export default function AtlasBurnDashboard() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary">ATLAS BURN <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Institutional Mode</span></h1>
+            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary uppercase">Atlas Burn <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Institutional Mode</span></h1>
           </div>
           <div className="flex items-center gap-4">
+            <Tabs value={horizon.toString()} onValueChange={(v) => setHorizon(parseInt(v))} className="hidden md:block">
+              <TabsList className="bg-muted/50">
+                <TabsTrigger value="90" className="text-[10px] font-bold">3M</TabsTrigger>
+                <TabsTrigger value="180" className="text-[10px] font-bold">6M</TabsTrigger>
+                <TabsTrigger value="365" className="text-[10px] font-bold">12M</TabsTrigger>
+                <TabsTrigger value="1095" className="text-[10px] font-bold">FULL</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 h-8 text-xs font-headline font-bold">
@@ -124,7 +142,7 @@ export default function AtlasBurnDashboard() {
                 <h2 className="text-2xl font-headline font-bold">Awaiting Forensic Feed</h2>
                 <p className="text-muted-foreground">The Log-Normal Risk Engine requires history to derive operational CV. Inject a forensic test to prime the simulation.</p>
               </div>
-              <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold"><Link href="/usage">Run Ingestion Test</Link></Button>
+              <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold shadow-xl"><Link href="/usage">Run Ingestion Test</Link></Button>
             </Card>
           ) : (
             <>
@@ -136,12 +154,12 @@ export default function AtlasBurnDashboard() {
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-2">Institutional Floor Applied</p>
                 </Card>
-                <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Survival Prob</span><ShieldCheck size={16} className="text-green-600" /></div>
+                <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-green-600">
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Survival Prob</span><ShieldCheck size={16} className="text-green-600" /></div>
                   <div className="text-2xl font-headline font-bold text-green-600">
                     {(riskProfile!.simulation.survivalProbability * 100).toFixed(1)}%
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Quarterly Outlook Horizon</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">{horizonLabel}</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-destructive">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-destructive uppercase tracking-widest">Value at Risk (VaR)</span><TrendingUp size={16} className="text-destructive" /></div>

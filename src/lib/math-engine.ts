@@ -20,7 +20,7 @@ export interface ComprehensiveRiskProfile {
   };
 }
 
-// Surgical Step 4: Institutional Scale Defaults
+// Institutional Scale Defaults
 const DEFAULT_MONTHLY_BURN = 20000;
 const DEFAULT_CASH = 250000;
 const DEFAULT_CV = 0.25;
@@ -98,7 +98,7 @@ export function calculateMonthEndForecast(
 export function generateRiskProfile(
   usageRecords: any[],
   organization: any,
-  scenarioAdjustments: { growth?: number; volatility?: number } = {}
+  scenarioAdjustments: { growth?: number; volatility?: number; daysRemaining?: number } = {}
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
   
@@ -113,6 +113,9 @@ export function generateRiskProfile(
 
   const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
 
+  // Time Horizon Logic
+  const daysToSimulate = scenarioAdjustments.daysRemaining ?? 90;
+
   const simInput: InstitutionalSimInput = {
     startingCapital: capital,
     mrr: mrr,
@@ -120,7 +123,7 @@ export function generateRiskProfile(
     churnRate: 0.03,
     currentDailyBurn: dailyMeanToSimulate,
     burnVolatility: cv,
-    daysRemaining: 90, 
+    daysRemaining: daysToSimulate, 
     outageProb: 0.02,
     retryCascadeProb: 0.05,
     runs: 10000, 
@@ -128,26 +131,27 @@ export function generateRiskProfile(
 
   const simulation = runInstitutionalSimulation(simInput);
   
-  // Normalize metrics for display
-  const monthlyP50 = simulation.p50 / 3;
-  const monthlyP95 = simulation.p95 / 3;
+  // Normalize metrics for display (assuming results are for the simulated window)
+  const windowMonths = daysToSimulate / 30;
+  const monthlyP50 = simulation.p50 / windowMonths;
+  const monthlyP95 = simulation.p95 / windowMonths;
   const monthlyVar95 = monthlyP95 - monthlyP50;
-  const monthlyCvar95 = simulation.cvar95 / 3;
+  const monthlyCvar95 = simulation.cvar95 / windowMonths;
 
   const marginPercentage = mrr > 0 ? ((mrr - monthlyP50) / mrr) * 100 : 0;
   
   const status = getMarginStatus(1 - simulation.survivalProbability, marginPercentage);
   
   const descriptions: Record<string, string> = {
-    "INSOLVENCY RISK": "Critical capital exposure. Quarterly forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
+    "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
     "MARGIN EROSION": "High variance detected. Quarterly churn and burn correlation is tightening. Institutional watch required.",
-    "CAPITAL SECURE": "Operational stability. Quarterly net margin covers Pstress events. High survival probability."
+    "CAPITAL SECURE": "Operational stability. Net margin covers stress events. High survival probability."
   };
 
   return {
     simulation: {
       ...simulation,
-      p5: simulation.p5 / 3,
+      p5: simulation.p5 / windowMonths,
       p50: monthlyP50,
       p95: monthlyP95,
       var95: monthlyVar95,

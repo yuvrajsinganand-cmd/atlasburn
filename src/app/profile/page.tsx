@@ -20,13 +20,16 @@ import { calculateUsageVariance } from "@/lib/variance-engine"
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [budgetCap, setBudgetCap] = useState("50000"); // Standard Institutional Default
+  const [budgetCap, setBudgetCap] = useState("250000"); // Standard Institutional Default
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (organization?.capitalReserves) {
+      setBudgetCap(organization.capitalReserves.toString());
+    }
+  }, [organization?.capitalReserves]);
 
   const orgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -57,21 +60,24 @@ export default function ProfilePage() {
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
-    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 50000;
+    const capital = organization?.capitalReserves || parseFloat(budgetCap) || 250000;
     
-    // Model month-end forecast based on composite baseline using Log-Normal sim
+    // Institutional Floor
+    const effectiveDailyMean = Math.max(compositeDailyMean, 20000 / 30);
+    
+    // Model month-end forecast based on composite baseline
     const forecasts = calculateMonthEndForecast(
-      compositeDailyMean * 15, 
+      effectiveDailyMean * 15, 
       15, 
       30,
       0.05,
       capital,
-      variableBurnInfo.cv || 0.15 
+      variableBurnInfo.cv || 0.25 
     );
     
-    const runwayDays = calculateRunway(compositeDailyMean, capital);
-    const mrr = organization?.monthlyRevenue || 0;
-    const projectedMonthlyBurn = compositeDailyMean * 30;
+    const runwayDays = calculateRunway(effectiveDailyMean, capital);
+    const mrr = Math.max(organization?.monthlyRevenue || 0, 15000);
+    const projectedMonthlyBurn = effectiveDailyMean * 30;
     const currentMargin = mrr > 0 ? ((mrr - projectedMonthlyBurn) / mrr) * 100 : 0;
     
     const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, currentMargin); 
