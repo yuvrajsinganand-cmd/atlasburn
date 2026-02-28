@@ -1,6 +1,7 @@
+
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, ShieldAlert, BarChart3 } from "lucide-react"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
@@ -21,6 +22,7 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Usage Drivers", url: "/usage", icon: BarChart3 },
+  { title: "Model Catalog", url: "/catalog", icon: Database },
   { title: "Recommendations", url: "/optimizer", icon: Zap },
   { title: "Connectors", url: "/settings", icon: Settings },
 ]
@@ -37,8 +39,8 @@ export function AppSidebar() {
           <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg">
             <BrainCircuit size={20} />
           </div>
-          <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden">
-            SLEEK
+          <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden text-primary">
+            ATLAS BURN
           </span>
         </div>
       </SidebarHeader>
@@ -48,7 +50,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
                 <Link href={item.url}>
-                  <item.icon />
+                  <item.icon className={pathname === item.url ? "text-primary" : ""} />
                   <span className="font-medium">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
@@ -82,7 +84,7 @@ export function AppSidebar() {
           </div>
         ) : (
           <Button variant="outline" size="sm" className="w-full" asChild>
-            <Link href="/"><LogIn className="h-4 w-4 mr-2" /><span>Enter Sleek</span></Link>
+            <Link href="/login"><LogIn className="h-4 w-4 mr-2" /><span>Enter Atlas</span></Link>
           </Button>
         )}
       </SidebarFooter>
