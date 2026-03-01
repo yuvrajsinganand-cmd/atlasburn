@@ -32,12 +32,15 @@ import {
   Save,
   Trash2,
   Clock,
-  Info
+  Info,
+  ShieldAlert,
+  Search,
+  UserPlus
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth } from "@/firebase"
-import { doc } from "firebase/firestore"
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
+import { doc, collection, query } from "firebase/firestore"
+import { setDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { updateProfile } from "firebase/auth"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -46,6 +49,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { type SdkProjectSnapshot } from "@/types/sdk"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { verifyDomainDns } from "./actions"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -69,6 +74,12 @@ export default function SettingsPage() {
   const [addingDomain, setAddingDomain] = useState(false);
   const [verifyingDomain, setVerifyingDomain] = useState<string | null>(null);
 
+  // Invite State
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("engineer");
+  const [sendingInvite, setSendingInvite] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -88,6 +99,13 @@ export default function SettingsPage() {
   }, [firestore, user]);
   
   const { data: organization } = useDoc(orgRef);
+
+  // Fetch Members
+  const membersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
+  }, [firestore, user]);
+  const { data: members, isLoading: loadingMembers } = useCollection(membersQuery);
 
   useEffect(() => {
     if (organization) {
@@ -159,7 +177,6 @@ export default function SettingsPage() {
       return;
     }
 
-    // Generate a cryptographically strong unique verification token
     const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     const newEntry = {
@@ -219,6 +236,29 @@ export default function SettingsPage() {
       updatedAt: new Date().toISOString()
     });
     toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
+  };
+
+  const handleInvite = () => {
+    if (!firestore || !user || !inviteEmail.trim()) return;
+    setSendingInvite(true);
+
+    const memberCol = collection(firestore, "organizations", `org_${user.uid}`, "users");
+    addDocumentNonBlocking(memberCol, {
+      email: inviteEmail.trim(),
+      role: inviteRole,
+      status: "pending",
+      invitedBy: user.email,
+      createdAt: new Date().toISOString(),
+      organizationId: `org_${user.uid}`,
+      userTier: "pro"
+    });
+
+    setTimeout(() => {
+      setSendingInvite(false);
+      setIsInviteOpen(false);
+      setInviteEmail("");
+      toast({ title: "Member Invited", description: `Forensic access granted to ${inviteEmail} with ${inviteRole} authority.` });
+    }, 600);
   };
 
   if (!mounted) return null;
@@ -396,11 +436,66 @@ const client = withAtlasBurn(llm, {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <Card className="border-none shadow-sm bg-white">
-                    <CardHeader>
-                      <CardTitle className="text-lg font-headline flex items-center gap-2">
-                        <Users size={18} className="text-primary" /> Institutional Permissions
-                      </CardTitle>
-                      <CardDescription>Manage user access and roles for this organization.</CardDescription>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg font-headline flex items-center gap-2">
+                          <Users size={18} className="text-primary" /> Institutional Permissions
+                        </CardTitle>
+                        <CardDescription>Manage user access and roles for this organization.</CardDescription>
+                      </div>
+                      <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" className="gap-2 font-headline font-bold">
+                            <UserPlus size={14} /> Invite Member
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="font-headline text-xl">Delegate Forensic Access</DialogTitle>
+                            <DialogDescription>Assign a team member to this organization with specific operational authority.</DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-6 py-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Email Address</Label>
+                              <Input 
+                                placeholder="name@acme.ai" 
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                className="bg-muted/20"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Access Role</Label>
+                              <Select value={inviteRole} onValueChange={setInviteRole}>
+                                <SelectTrigger className="bg-muted/20">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                                  <SelectItem value="finance">Finance (Economic Forensics)</SelectItem>
+                                  <SelectItem value="engineer">Engineer (SDK & Technical)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
+                                <p className="text-[10px] font-bold text-primary uppercase mb-1 flex items-center gap-1">
+                                  <Shield size={10} /> Role Authority
+                                </p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                  {inviteRole === 'admin' && "Full management of organization metadata, billing, and member delegation."}
+                                  {inviteRole === 'finance' && "Optimized for margin analysis, burn forecasting, and capital optimization. No SDK management."}
+                                  {inviteRole === 'engineer' && "Scoped to SDK cluster configuration, model quality sentry, and usage forensics. No economic access."}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button className="w-full font-headline font-bold" onClick={handleInvite} disabled={sendingInvite || !inviteEmail.trim()}>
+                              {sendingInvite ? <Loader2 className="animate-spin mr-2" /> : <UserPlus className="mr-2" />}
+                              Send Institutional Invitation
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </CardHeader>
                     <CardContent className="p-0">
                       <Table>
@@ -409,29 +504,55 @@ const client = withAtlasBurn(llm, {
                             <TableHead className="text-[10px] font-bold uppercase tracking-widest">User</TableHead>
                             <TableHead className="text-[10px] font-bold uppercase tracking-widest">Role</TableHead>
                             <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Actions</TableHead>
+                            <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Added</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
+                          {/* Always show owner first */}
                           <TableRow>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="text-sm font-bold">{user?.displayName || "Lead User"}</span>
+                                <span className="text-sm font-bold">{user?.displayName || "Lead Founder"}</span>
                                 <span className="text-[10px] text-muted-foreground">{user?.email}</span>
                               </div>
                             </TableCell>
                             <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] font-bold">OWNER</Badge></TableCell>
                             <TableCell><Badge className="bg-green-100 text-green-700 text-[10px] border-none font-bold">ACTIVE</Badge></TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-[10px] font-bold"
-                              >
-                                MANAGE
-                              </Button>
-                            </TableCell>
+                            <TableCell className="text-right text-[10px] font-mono text-muted-foreground">ROOT</TableCell>
                           </TableRow>
+                          
+                          {/* Invited members */}
+                          {members?.map((member) => (
+                            <TableRow key={member.id} className="group transition-colors">
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-bold">{member.name || member.email.split('@')[0]}</span>
+                                  <span className="text-[10px] text-muted-foreground">{member.email}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px] font-bold uppercase border-muted-foreground/30">
+                                  {member.role}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={member.status === 'active' ? 'bg-green-100 text-green-700 font-bold text-[9px]' : 'bg-amber-100 text-amber-700 font-bold text-[9px]'}>
+                                  {member.status?.toUpperCase() || 'ACTIVE'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right text-[10px] font-mono text-muted-foreground">
+                                {new Date(member.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+
+                          {loadingMembers && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-8">
+                                <Loader2 className="animate-spin mx-auto text-muted-foreground" size={20} />
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
                     </CardContent>

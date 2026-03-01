@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -11,6 +12,7 @@
         "organizationId": { "type": "string" },
         "userTier": { "type": "string", "enum": ["free", "pro", "enterprise"], "description": "Used to calculate revenue-vs-burn per user." },
         "role": { "type": "string", "enum": ["owner", "admin", "finance", "engineer"] },
+        "status": { "type": "string", "enum": ["active", "pending", "disabled"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "email", "organizationId", "role", "userTier"]
