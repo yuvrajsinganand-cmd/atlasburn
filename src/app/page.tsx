@@ -90,7 +90,7 @@ export default function AtlasBurnDashboard() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary uppercase">Atlas Burn <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Institutional Mode</span></h1>
+            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary uppercase">Atlas Burn <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Bloomberg Institutional</span></h1>
           </div>
           <div className="flex items-center gap-4">
             <Tabs value={horizon.toString()} onValueChange={(v) => setHorizon(parseInt(v))} className="hidden md:block">
@@ -176,21 +176,21 @@ export default function AtlasBurnDashboard() {
                   <div className="text-2xl font-headline font-bold text-destructive">
                     ${riskProfile!.simulation.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Capital Cushion Required</p>
+                  <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-tight opacity-70 font-bold">Capital Cushion Required</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stress Burn (P95)</span><Activity size={16} className="text-destructive" /></div>
                   <div className="text-2xl font-headline font-bold text-destructive">
-                    ${riskProfile!.simulation.p95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ${riskProfile!.simulation.p95Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-2">Absolute Worst-Case Burn</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Survival Horizon</span><Target size={16} className="text-primary" /></div>
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forecast Runway</span><Target size={16} className="text-primary" /></div>
                   <div className="text-2xl font-headline font-bold text-primary">
                     {riskProfile!.simulation.expectedRunwayMonths.toFixed(1)} <span className="text-lg font-normal opacity-70">Mo</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Runway</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Horizon</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forensic Volatility</span><Activity size={16} className="text-accent" /></div>
@@ -228,7 +228,7 @@ export default function AtlasBurnDashboard() {
                 
                 <Card className="border-none shadow-sm bg-primary text-primary-foreground p-6">
                   <CardHeader className="px-0 pt-0">
-                    <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Quantitative Analysis</CardTitle>
+                    <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Institutional Analysis</CardTitle>
                   </CardHeader>
                   <div className="space-y-6">
                     <div className="p-4 bg-white/10 rounded-2xl border border-white/10">

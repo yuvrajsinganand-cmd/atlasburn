@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * AtlasBurn Institutional Probabilistic Engine
- * Advanced Monte Carlo simulation modeling systemic AI risks and churn-sensitive revenue.
- * Uses a Log-Normal distribution for burn stochasticity with proper Sigma/Mu transformations.
+ * AtlasBurn Institutional Probabilistic Engine v2
+ * Advanced Monte Carlo simulation modeling systemic AI risks, stochastic revenue, 
+ * and path-dependent insolvency.
  */
 
 export interface InstitutionalSimInput {
@@ -22,13 +22,14 @@ export interface InstitutionalSimInput {
 }
 
 export interface InstitutionalSimResult {
-  p5: number;   // Efficiency case
-  p50: number;  // Median forecast
-  p95: number;  // Stress case
-  var95: number; // Value at Risk (95% confidence)
-  cvar95: number; // Conditional VaR (Expected Shortfall)
+  p5Burn: number;       // Optimistic case
+  p50Burn: number;      // Median forecast
+  p95Burn: number;      // Stress case (Absolute)
+  var95: number;        // Surprise Delta (P95 - P50)
+  cvar95: number;       // Expected Shortfall (Worst 5% tail avg)
   survivalProbability: number;
-  expectedRunwayMonths: number;
+  expectedRunwayMonths: number; // Median (P50) Runway
+  stressRunwayMonths: number;   // Stress (P5) Runway
 }
 
 /**
@@ -41,7 +42,7 @@ function gaussianRandom() {
 }
 
 /**
- * Runs a high-fidelity Monte Carlo simulation.
+ * Runs a high-fidelity Monte Carlo simulation (10,000+ paths).
  */
 export function runInstitutionalSimulation(input: InstitutionalSimInput): InstitutionalSimResult {
   const {
@@ -57,90 +58,103 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
     runs
   } = input;
 
-  const results: number[] = [];
+  const burnTotals: number[] = [];
+  const daysToInsolvency: number[] = [];
   let insolvencyCount = 0;
 
-  // Surgical Step 2: Correct Log-Normal Parameter Transformation
-  // sigma = sqrt(ln(1 + CV^2))
+  // Correct Log-Normal Parameter Transformation
   const cv = Math.max(0.01, burnVolatility);
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
-  // mu = ln(dailyMean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
-  // Surgical Step 5: High-fidelity run count (10,000 paths)
   const actualRuns = Math.max(runs, 10000);
 
   for (let r = 0; r < actualRuns; r++) {
     let periodTotalBurn = 0;
     let pathCapital = startingCapital;
-    let pathBroken = false;
+    let currentMrr = mrr;
+    let pathInsolventAtDay = -1;
     
-    // Surgical Step 3: Monthly Aggregation Loop
-    // Simulate each day individually and track path-dependent breach
-    for (let d = 0; d < daysRemaining; d++) {
-      const z = gaussianRandom();
-      // Stochastic Daily Cost = exp(mu + sigma * z)
-      let dailyCost = Math.exp(mu + sigma * z);
+    // Monthly growth/churn compounding interval
+    const compoundingInterval = 30;
 
-      // Tail Risk Injections
+    for (let d = 0; d < daysRemaining; d++) {
+      // 1. Compounding Growth/Churn (Applied monthly)
+      if (d > 0 && d % compoundingInterval === 0) {
+        currentMrr *= (1 + monthlyGrowthRate - churnRate);
+      }
+
+      // 2. Generate Stochastic Burn
+      const z = gaussianRandom();
+      let dailyCost = Math.exp(mu + sigma * z);
+      let dailyRevenue = currentMrr / 30;
+
+      // 3. Systemic Risk Injections
+      // Outage: Cost Spikes (Incident Response) & Revenue Collapses (Downtime)
       if (Math.random() < outageProb) {
-        dailyCost *= 0.1; // Outage collapse
+        dailyCost *= (1.5 + Math.random()); // 50% - 150% Spike
+        dailyRevenue *= 0.2; // 80% Revenue Loss
       }
       
+      // Retry Cascade: Severe Burn Spike
       if (Math.random() < retryCascadeProb) {
-        // Retry storm multiplier (2.5x to 4.5x spike)
-        dailyCost *= (2.5 + Math.random() * 2); 
+        dailyCost *= (2.5 + Math.random() * 2); // 2.5x - 4.5x Spike
       }
 
       const cost = Math.max(0, dailyCost);
       periodTotalBurn += cost;
 
-      // Daily cash flow (scaled MRR)
-      const dailyRevenue = (mrr * (1 + monthlyGrowthRate - churnRate)) / 30;
+      // 4. Update Capital and Check Insolvency
       pathCapital += (dailyRevenue - cost);
 
-      if (pathCapital <= 0 && !pathBroken) {
-        pathBroken = true;
+      if (pathCapital <= 0 && pathInsolventAtDay === -1) {
+        pathInsolventAtDay = d;
         insolvencyCount++;
       }
     }
 
-    results.push(periodTotalBurn);
+    burnTotals.push(periodTotalBurn);
+    daysToInsolvency.push(pathInsolventAtDay === -1 ? daysRemaining + 1000 : pathInsolventAtDay);
   }
 
-  // Distribution Analysis on AGGREGATED TOTALS
-  results.sort((a, b) => a - b);
-  const getP = (p: number) => results[Math.floor(results.length * (p / 100))];
+  // Distribution Analysis - Burn
+  burnTotals.sort((a, b) => a - b);
+  const getBurnP = (p: number) => burnTotals[Math.floor(burnTotals.length * (p / 100))];
 
-  const p5 = getP(5);
-  const p50 = getP(50);
-  const p95 = getP(95);
+  const p5Burn = getBurnP(5);
+  const p50Burn = getBurnP(50);
+  const p95Burn = getBurnP(95);
 
-  // VaR = Surprise delta at 95% confidence (Stress Case - Median Case)
-  const var95 = Math.max(0, p95 - p50);
-
-  // CVaR = Expected shortfall in the worst 5% cases
-  const worstTail = results.slice(Math.floor(results.length * 0.95));
+  const var95 = Math.max(0, p95Burn - p50Burn);
+  const worstTail = burnTotals.slice(Math.floor(burnTotals.length * 0.95));
   const cvar95 = worstTail.reduce((a, b) => a + b, 0) / (worstTail.length || 1);
+
+  // Distribution Analysis - Runway
+  daysToInsolvency.sort((a, b) => a - b);
+  const getRunwayP = (p: number) => daysToInsolvency[Math.floor(daysToInsolvency.length * (p / 100))];
+  
+  // Median and Stress Runway
+  const p50RunwayDays = getRunwayP(50);
+  const p5RunwayDays = getRunwayP(5); // Worst 5% case for runway
+
+  const expectedRunwayMonths = p50RunwayDays / 30;
+  const stressRunwayMonths = p5RunwayDays / 30;
 
   let survivalProbability = (actualRuns - insolvencyCount) / actualRuns;
   
-  // Surgical Step 5: Remove Fake Certainty (Illusion of 100% safety)
+  // High-uncertainty floor
   if (cv > 0.1 && survivalProbability === 1) {
     survivalProbability = 0.999;
   }
 
-  const periodMonths = Math.max(1, daysRemaining / 30);
-  const netMonthlyBurn = (p50 / periodMonths) - mrr;
-  const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
-
   return {
-    p5,
-    p50,
-    p95,
+    p5Burn,
+    p50Burn,
+    p95Burn,
     var95,
     cvar95,
     survivalProbability,
-    expectedRunwayMonths
+    expectedRunwayMonths,
+    stressRunwayMonths
   };
 }

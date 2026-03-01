@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AtlasBurn Institutional Risk Engine
+ * AtlasBurn Institutional Risk Engine v2
  * Standardized risk tiers and high-level simulation orchestration.
  */
 
@@ -83,13 +83,12 @@ export function calculateMonthEndForecast(
 
   return {
     probabilityOfRunwayBreach: 1 - sim.survivalProbability,
-    p50TotalBurn: sim.p50,
+    p50TotalBurn: sim.p50Burn,
   };
 }
 
 /**
  * Generates a comprehensive risk profile using forensic variance.
- * Aligned with deterministic economic parameters.
  */
 export function generateRiskProfile(
   usageRecords: any[],
@@ -98,12 +97,10 @@ export function generateRiskProfile(
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
   
-  // Align with Profile Settings
   const mrr = Math.max(organization?.monthlyRevenue ?? 0, 15000);
   const capital = Math.max(organization?.capitalReserves ?? 0, INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES);
   const fixedBurnFloor = organization?.fixedMonthlyBurn ?? INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR;
 
-  // Derive Daily Mean from Forensic Ledger vs Institutional Floor
   const baselineMonthlyBurn = variance.dailyMean * 30;
   const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, fixedBurnFloor);
   const dailyMeanToSimulate = effectiveMonthlyBurn / 30;
@@ -126,11 +123,11 @@ export function generateRiskProfile(
 
   const simulation = runInstitutionalSimulation(simInput);
   
-  // Monthly Normalization
-  const windowMonths = daysToSimulate / 30;
-  const monthlyP50 = simulation.p50 / windowMonths;
-  const monthlyP95 = simulation.p95 / windowMonths;
-  const monthlyVar95 = monthlyP95 - monthlyP50;
+  // Normalize window totals to monthly for display consistency
+  const windowMonths = Math.max(1, daysToSimulate / 30);
+  const monthlyP50 = simulation.p50Burn / windowMonths;
+  const monthlyP95 = simulation.p95Burn / windowMonths;
+  const monthlyVar95 = simulation.var95 / windowMonths;
   const monthlyCvar95 = simulation.cvar95 / windowMonths;
 
   const marginPercentage = mrr > 0 ? ((mrr - monthlyP50) / mrr) * 100 : 0;
@@ -145,9 +142,9 @@ export function generateRiskProfile(
   return {
     simulation: {
       ...simulation,
-      p5: simulation.p5 / windowMonths,
-      p50: monthlyP50,
-      p95: monthlyP95,
+      p5Burn: simulation.p5Burn / windowMonths,
+      p50Burn: monthlyP50,
+      p95Burn: monthlyP95,
       var95: monthlyVar95,
       cvar95: monthlyCvar95,
     },

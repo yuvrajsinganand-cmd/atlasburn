@@ -1,18 +1,15 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.6
+ * AtlasBurn Forensic SDK - Institutional v1.7
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
  * forensic metadata to the AtlasBurn control plane.
- * 
- * PORTABILITY: This file can be copied into other products to enable 
- * cross-product burn attribution.
  */
 
 export interface SleekSDKOptions {
   apiKey: string;    // Raw Ingest Key (Stored in .env)
   projectId: string; // Your AtlasBurn Project ID
-  ingestUrl?: string; // The absolute URL of your AtlasBurn deployment (e.g. https://atlasburn.com/api/ingest)
+  ingestUrl?: string; // The absolute URL of your AtlasBurn deployment
   batchSize?: number;
   maxQueueSize?: number;
 }
@@ -26,8 +23,20 @@ export interface MockLLMResponse {
 }
 
 export interface SleekMetadata {
-  featureId?: string; // Product feature attribution (e.g., "search_v2")
-  userTier?: string;  // Customer segment attribution (e.g., "enterprise")
+  featureId?: string; // Product feature attribution
+  userTier?: string;  // Customer segment attribution
+}
+
+/**
+ * Universal UUID generator with fallback for non-browser/legacy environments.
+ */
+function generateForensicId(): string {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch (e) { /* Fallback */ }
+  return `slk-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
 
 class SleekIngestor {
@@ -38,8 +47,8 @@ class SleekIngestor {
 
   constructor(options: SleekSDKOptions) {
     this.options = {
-      // If no ingestUrl is provided, it defaults to the local path. 
-      // For external products, you MUST provide the absolute URL.
+      // Ingest URL defaults to origin if in browser, or local path.
+      // Remote products MUST specify the full absolute URL.
       ingestUrl: options.ingestUrl || (typeof window !== 'undefined' 
         ? `${window.location.origin}/api/ingest` 
         : '/api/ingest'),
@@ -56,10 +65,9 @@ class SleekIngestor {
     
     this.queue.push({
       ...event,
-      eventId: crypto.randomUUID(), // Forensic replay protection
+      eventId: generateForensicId(), // Forensic replay protection
     });
 
-    // Auto-flush when batch size reached
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -93,7 +101,10 @@ class SleekIngestor {
         }),
       });
 
-      if (!response.ok) throw new Error(`Status ${response.status}`);
+      // Fixed: Only throw on failure.
+      if (!response.ok) {
+        throw new Error(`Atlas Ingest Failure: Status ${response.status}`);
+      }
     } catch (err) {
       if (attempt < this.maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
@@ -119,13 +130,9 @@ export function withSleek(client: any, options: SleekSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & SleekMetadata
     ): Promise<any> {
-      // Execute the actual LLM call
       const response = await client.chat(payload);
-
-      // Extract usage for forensic attribution
       const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
 
-      // Background enqueue (non-blocking)
       globalIngestor?.enqueue({
         model: payload.model,
         featureId: payload.featureId || 'default',
@@ -140,14 +147,12 @@ export function withSleek(client: any, options: SleekSDKOptions) {
       return response;
     },
     
-    /** Manual flush for serverless environments (call before exit) */
     async flush() {
       await globalIngestor?.flush();
     }
   };
 }
 
-/** Mock client for development validation */
 export const fakeLLM = {
   async chat(payload: { model: string }): Promise<MockLLMResponse> {
     await new Promise(r => setTimeout(r, 100));
