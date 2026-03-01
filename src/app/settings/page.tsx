@@ -183,6 +183,7 @@ export default function SettingsPage() {
     if (!orgRef || !organization?.allowedDomains) return;
     setVerifyingDomain(domainToVerify);
 
+    // Simulated DNS Check
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const updated = organization.allowedDomains.map((d: any) => {
