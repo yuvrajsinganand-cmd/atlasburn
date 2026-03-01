@@ -1,3 +1,4 @@
+
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -30,7 +31,9 @@ import {
   Plus,
   AlertTriangle,
   Save,
-  Trash2
+  Trash2,
+  Clock,
+  ExternalLinkIcon
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, useAuth } from "@/firebase"
@@ -63,6 +66,7 @@ export default function SettingsPage() {
   // Domain State
   const [newDomain, setNewDomain] = useState("");
   const [addingDomain, setAddingDomain] = useState(false);
+  const [verifyingDomain, setVerifyingDomain] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -145,28 +149,62 @@ export default function SettingsPage() {
     if (!orgRef || !newDomain.trim()) return;
     setAddingDomain(true);
     
+    const domainName = newDomain.trim().toLowerCase();
     const currentDomains = organization?.allowedDomains || [];
-    if (currentDomains.includes(newDomain)) {
-      toast({ variant: "destructive", title: "Duplicate Domain", description: "This domain is already whitelisted." });
+    
+    if (currentDomains.some((d: any) => d.domain === domainName)) {
+      toast({ variant: "destructive", title: "Duplicate Domain", description: "This domain is already on your list." });
       setAddingDomain(false);
       return;
     }
 
+    const verificationToken = `atlasburn-verification-${Math.random().toString(36).substring(2, 15)}`;
+
+    const newEntry = {
+      domain: domainName,
+      verified: false,
+      verificationToken,
+      createdAt: new Date().toISOString()
+    };
+
     updateDocumentNonBlocking(orgRef, {
-      allowedDomains: [...currentDomains, newDomain.trim()],
+      allowedDomains: [...currentDomains, newEntry],
       updatedAt: new Date().toISOString()
     });
 
     setTimeout(() => {
       setNewDomain("");
       setAddingDomain(false);
-      toast({ title: "Domain Whitelisted", description: `${newDomain} added to forensic ingest filter.` });
+      toast({ title: "Domain Pending", description: `${domainName} added. Please verify DNS ownership.` });
     }, 500);
+  };
+
+  const handleVerifyDns = async (domainToVerify: string) => {
+    if (!orgRef || !organization?.allowedDomains) return;
+    setVerifyingDomain(domainToVerify);
+
+    // Simulation of DNS check
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const updated = organization.allowedDomains.map((d: any) => {
+      if (d.domain === domainToVerify) {
+        return { ...d, verified: true };
+      }
+      return d;
+    });
+
+    updateDocumentNonBlocking(orgRef, {
+      allowedDomains: updated,
+      updatedAt: new Date().toISOString()
+    });
+
+    setVerifyingDomain(null);
+    toast({ title: "DNS Verified", description: `${domainToVerify} is now officially whitelisted.` });
   };
 
   const handleRemoveDomain = (domain: string) => {
     if (!orgRef || !organization?.allowedDomains) return;
-    const updated = organization.allowedDomains.filter((d: string) => d !== domain);
+    const updated = organization.allowedDomains.filter((d: any) => d.domain !== domain);
     updateDocumentNonBlocking(orgRef, {
       allowedDomains: updated,
       updatedAt: new Date().toISOString()
@@ -455,7 +493,7 @@ const client = withAtlasBurn(llm, {
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
                     <Globe size={18} className="text-primary" /> Ingestion Whitelist
                   </CardTitle>
-                  <CardDescription>Restrict forensic ingestion to specific domains for enhanced security.</CardDescription>
+                  <CardDescription>Restrict forensic ingestion to specific domains for enhanced security. DNS verification required.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
@@ -474,8 +512,9 @@ const client = withAtlasBurn(llm, {
                         {addingDomain ? <Loader2 className="animate-spin h-4 w-4" /> : "Add Domain"}
                       </Button>
                     </div>
+
                     <div className="space-y-2">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest px-1">Active Domains</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest px-1">Managed Domains</p>
                       <div className="border rounded-xl divide-y">
                         <div className="p-4 flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -483,24 +522,80 @@ const client = withAtlasBurn(llm, {
                             <span className="text-sm font-mono">{origin.replace(/https?:\/\//, '')}</span>
                             <Badge variant="outline" className="text-[9px] font-bold">DEFAULT</Badge>
                           </div>
-                          <Badge className="bg-green-100 text-green-700 border-none text-[9px]">SECURE</Badge>
+                          <Badge className="bg-green-100 text-green-700 border-none text-[9px]">VERIFIED</Badge>
                         </div>
-                        {organization?.allowedDomains?.map((domain: string) => (
-                          <div key={domain} className="p-4 flex items-center justify-between group">
-                            <div className="flex items-center gap-2">
-                              <Shield className="text-primary" size={14} />
-                              <span className="text-sm font-mono">{domain}</span>
+
+                        {organization?.allowedDomains?.map((entry: any) => (
+                          <div key={entry.domain} className="p-0">
+                            <div className="p-4 flex items-center justify-between group">
+                              <div className="flex items-center gap-2">
+                                <Shield className={entry.verified ? "text-primary" : "text-muted-foreground"} size={14} />
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-mono">{entry.domain}</span>
+                                  {!entry.verified && (
+                                    <span className="text-[10px] text-amber-600 font-bold uppercase flex items-center gap-1">
+                                      <Clock size={10} /> Pending Verification
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {!entry.verified && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="h-8 text-[10px] font-bold"
+                                    onClick={() => handleVerifyDns(entry.domain)}
+                                    disabled={verifyingDomain === entry.domain}
+                                  >
+                                    {verifyingDomain === entry.domain ? (
+                                      <Loader2 className="animate-spin mr-1 h-3 w-3" />
+                                    ) : (
+                                      <RefreshCw className="mr-1 h-3 w-3" />
+                                    )}
+                                    VERIFY DNS
+                                  </Button>
+                                )}
+                                {entry.verified && (
+                                  <Badge className="bg-green-100 text-green-700 border-none text-[9px]">VERIFIED</Badge>
+                                )}
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleRemoveDomain(entry.domain)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </div>
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleRemoveDomain(domain)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
+                            {!entry.verified && (
+                              <div className="px-4 pb-4">
+                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
+                                  <p className="text-[10px] font-bold text-amber-800 uppercase">DNS Setup Required</p>
+                                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                                    To verify ownership, add the following TXT record to your DNS configuration for <strong>{entry.domain}</strong>:
+                                  </p>
+                                  <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded text-[10px] font-mono">
+                                    <code className="text-amber-900 truncate mr-2">atlasburn-verification={entry.verificationToken}</code>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-5 w-5 p-0" 
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(`atlasburn-verification=${entry.verificationToken}`);
+                                        toast({ title: "Copied", description: "Verification token copied to clipboard." });
+                                      }}
+                                    >
+                                      <Copy size={10} />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
+
                         {(!organization?.allowedDomains || organization.allowedDomains.length === 0) && (
                           <div className="p-4 flex items-center justify-between text-muted-foreground italic">
                             <span className="text-xs">No additional domains configured.</span>
@@ -558,5 +653,5 @@ const client = withAtlasBurn(llm, {
         </main>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

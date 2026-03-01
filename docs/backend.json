@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -18,7 +19,7 @@
     "Organization": {
       "title": "Organization",
       "type": "object",
-      "description": "The Economic Container. Stores capital, revenue targets, and budget guardrails.",
+      "description": "The Economic Container. Stores capital, revenue targets, budget guardrails, and allowed domains.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
@@ -26,6 +27,18 @@
         "monthlyRevenue": { "type": "number", "description": "Current monthly recurring revenue (MRR)." },
         "fixedMonthlyBurn": { "type": "number", "description": "Manual override for institutional baseline burn." },
         "targetMargin": { "type": "number", "description": "Desired gross margin percentage (e.g. 0.7 for 70%)." },
+        "allowedDomains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": { "type": "string" },
+              "verified": { "type": "boolean" },
+              "verificationToken": { "type": "string" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name"]
