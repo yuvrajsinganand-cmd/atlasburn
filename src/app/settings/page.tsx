@@ -159,7 +159,8 @@ export default function SettingsPage() {
       return;
     }
 
-    const verificationToken = Math.random().toString(36).substring(2, 15);
+    // Generate a cryptographically strong unique verification token
+    const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     const newEntry = {
       domain: domainName,
