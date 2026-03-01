@@ -27,8 +27,8 @@ import {
   Building,
   Mail,
   Shield,
-  FileSearch,
-  ExternalLink
+  ExternalLink,
+  Plus
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
@@ -331,7 +331,7 @@ const client = withAtlasBurn(llm, {
 
             <TabsContent value="legal" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow cursor-pointer">
+                <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
                   <CardHeader>
                     <CardTitle className="text-lg font-headline flex items-center gap-2 text-primary">
                       <FileText size={18} /> Terms of Service
@@ -342,13 +342,15 @@ const client = withAtlasBurn(llm, {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Our terms govern the usage of the AtlasBurn Forensic SDK and Control Plane. By connecting your infrastructure, you agree to our automated burn auditing and capital risk modeling methodologies.
                     </p>
-                    <Button variant="link" className="p-0 h-auto text-primary font-bold mt-4 text-xs">
-                      Read Full Terms <ExternalLink size={10} className="ml-1" />
+                    <Button variant="link" asChild className="p-0 h-auto text-primary font-bold mt-4 text-xs">
+                      <a href="https://www.atlasburn.com/terms" target="_blank" rel="noopener noreferrer">
+                        Read Full Terms <ExternalLink size={10} className="ml-1" />
+                      </a>
                     </Button>
                   </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow cursor-pointer">
+                <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
                   <CardHeader>
                     <CardTitle className="text-lg font-headline flex items-center gap-2 text-primary">
                       <Lock size={18} /> Privacy & Data Policy
@@ -359,8 +361,10 @@ const client = withAtlasBurn(llm, {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       AtlasBurn encrypts all forensic metadata. We do not store raw LLM prompts or outputs—only token counts, model identifiers, and stochastic performance metrics for margin analysis.
                     </p>
-                    <Button variant="link" className="p-0 h-auto text-primary font-bold mt-4 text-xs">
-                      Review Data Policy <ExternalLink size={10} className="ml-1" />
+                    <Button variant="link" asChild className="p-0 h-auto text-primary font-bold mt-4 text-xs">
+                      <a href="https://www.atlasburn.com/privacy" target="_blank" rel="noopener noreferrer">
+                        Review Data Policy <ExternalLink size={10} className="ml-1" />
+                      </a>
                     </Button>
                   </CardContent>
                 </Card>
@@ -370,24 +374,5 @@ const client = withAtlasBurn(llm, {
         </main>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-function Plus({ className, size }: { className?: string, size?: number }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width={size || 24} 
-      height={size || 24} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="M5 12h14" /><path d="M12 5v14" />
-    </svg>
   )
 }
