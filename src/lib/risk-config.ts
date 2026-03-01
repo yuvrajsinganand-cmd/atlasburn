@@ -1,16 +1,18 @@
 /**
  * AtlasBurn Institutional Risk Configuration
- * Authoritative constants for the probabilistic engine.
+ * 
+ * ZERO-BASELINE SETTINGS.
+ * These are initial state values for the UI. No business logic hidden here.
  */
 
 export const INSTITUTIONAL_DEFAULTS = {
-  MONTHLY_BURN_FLOOR: 20000,
-  CAPITAL_RESERVES: 250000,
-  COEFFICIENT_OF_VARIATION: 0.25,
-  MONTHLY_GROWTH: 0.05,
-  CHURN_RATE: 0.03,
-  OUTAGE_PROBABILITY: 0.02,
-  RETRY_CASCADE_PROBABILITY: 0.05,
+  MONTHLY_BURN_FLOOR: 0,
+  CAPITAL_RESERVES: 0,
+  COEFFICIENT_OF_VARIATION: 0.15, // Baseline statistical noise
+  MONTHLY_GROWTH: 0.0,
+  CHURN_RATE: 0.0,
+  OUTAGE_PROBABILITY: 0.0,
+  RETRY_CASCADE_PROBABILITY: 0.0,
   SIMULATION_RUNS: 10000,
 };
 

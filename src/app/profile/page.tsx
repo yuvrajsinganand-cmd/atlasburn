@@ -23,7 +23,7 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   
   const [budgetCap, setBudgetCap] = useState(INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES.toString()); 
-  const [mrrInput, setMrrInput] = useState("15000");
+  const [mrrInput, setMrrInput] = useState("0");
   const [fixedBurnInput, setFixedBurnInput] = useState(INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR.toString());
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -77,32 +77,38 @@ export default function ProfilePage() {
     const fixedMonthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
-    const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
-    const capital = parseFloat(budgetCap) || INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES;
-    const revenue = parseFloat(mrrInput) || 15000;
-    const manualBurnFloor = parseFloat(fixedBurnInput) || INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR;
+    // If not ready, we use zero-base defaults
+    const varDailyMean = variableBurnInfo.status === 'READY' ? variableBurnInfo.result.dailyMean : 0;
+    const varCV = variableBurnInfo.status === 'READY' ? variableBurnInfo.result.cv : INSTITUTIONAL_DEFAULTS.COEFFICIENT_OF_VARIATION;
+
+    const compositeDailyMean = (fixedMonthlyBurn / 30) + varDailyMean;
+    const capital = parseFloat(budgetCap) || 0;
+    const revenue = parseFloat(mrrInput) || 0;
+    const manualBurnFloor = parseFloat(fixedBurnInput) || 0;
     
     // Institutional Floor Applied to modeling
     const effectiveDailyMean = Math.max(compositeDailyMean, manualBurnFloor / 30);
     
-    // Model month-end forecast based on composite baseline
+    // Model month-end forecast
     const forecasts = calculateMonthEndForecast(
-      effectiveDailyMean * 15, 
+      effectiveDailyMean * 15, // Assume middle of month for snapshot
       15, 
       30,
       INSTITUTIONAL_DEFAULTS.MONTHLY_GROWTH,
       capital,
-      variableBurnInfo.cv || INSTITUTIONAL_DEFAULTS.COEFFICIENT_OF_VARIATION 
+      varCV
     );
     
-    const runwayDays = calculateRunway(effectiveDailyMean, capital);
+    // Net Burn handles profitability (Infinity runway)
+    const netDailyBurn = effectiveDailyMean - (revenue / 30);
+    const runwayDays = calculateRunway(netDailyBurn, capital);
     const projectedMonthlyBurn = effectiveDailyMean * 30;
     const currentMargin = revenue > 0 ? ((revenue - projectedMonthlyBurn) / revenue) * 100 : 0;
     
     const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, currentMargin); 
 
     return {
-      runwayMonths: (runwayDays / 30).toFixed(1),
+      runwayMonths: runwayDays > 3650 ? "Profitable" : (runwayDays / 30).toFixed(1),
       breachProb: (forecasts.probabilityOfRunwayBreach * 100).toFixed(0),
       status: marginInfo.label,
       statusColor: marginInfo.color,
@@ -162,14 +168,15 @@ export default function ProfilePage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-primary/10 text-primary rounded-lg"><Zap size={20} /></div>
               <div>
-                <p className="text-sm font-bold">Risk Active</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Risk Monitoring</p>
+                <p className="text-sm font-bold">Active</p>
               </div>
             </Card>
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Monte Carlo</p>
-                <p className="text-sm font-bold">Log-Normal Paths</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Engine Status</p>
+                <p className="text-sm font-bold">Deterministic + Stochastic</p>
               </div>
             </Card>
           </div>
@@ -209,7 +216,7 @@ export default function ProfilePage() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Forecast Runway</p>
-                      <p className="text-2xl font-headline font-bold">{engineMetrics?.runwayMonths || "0.0"} Mo</p>
+                      <p className="text-2xl font-headline font-bold">{engineMetrics?.runwayMonths === "Profitable" ? "∞" : `${engineMetrics?.runwayMonths || "0.0"} Mo`}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase opacity-60 font-bold mb-1">Breach Prob (P90)</p>
@@ -250,7 +257,7 @@ export default function ProfilePage() {
                         <Flame size={12} /> Institutional Burn Baseline ($)
                       </Label>
                       <Input id="fixed-burn" type="number" value={fixedBurnInput} onChange={(e) => setFixedBurnInput(e.target.value)} className="h-10 bg-primary/5 border-primary/20" />
-                      <p className="text-[10px] text-muted-foreground">Manual override for modeling risk at a specific institutional scale (Default: $20,000).</p>
+                      <p className="text-[10px] text-muted-foreground">Manual override for modeling risk at a specific institutional scale (e.g. $20,000).</p>
                     </div>
                   </div>
                   <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
@@ -284,7 +291,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-muted-foreground px-2">
                     <ShieldAlert size={12} className="text-amber-500" />
-                    <p>Security overrides require a 24-hour forensic verification window.</p>
+                    <p>Security overrides require a forensic verification window.</p>
                   </div>
                 </CardContent>
               </Card>
