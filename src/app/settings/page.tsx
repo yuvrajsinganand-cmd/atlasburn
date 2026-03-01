@@ -18,12 +18,10 @@ import {
   Zap, 
   Globe, 
   CreditCard, 
-  ShieldAlert, 
   FileText, 
   CheckCircle2,
   Lock,
   User,
-  Users,
   Building,
   Mail,
   Shield,
@@ -33,11 +31,11 @@ import {
   Save,
   Trash2,
   Clock,
-  ExternalLinkIcon
+  Info
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, useAuth } from "@/firebase"
-import { collection, query, doc, updateDoc } from "firebase/firestore"
+import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { updateProfile } from "firebase/auth"
 import { toast } from "@/hooks/use-toast"
@@ -45,6 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { type SdkProjectSnapshot } from "@/types/sdk"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -183,7 +182,6 @@ export default function SettingsPage() {
     if (!orgRef || !organization?.allowedDomains) return;
     setVerifyingDomain(domainToVerify);
 
-    // Simulation of DNS check
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const updated = organization.allowedDomains.map((d: any) => {
@@ -210,14 +208,6 @@ export default function SettingsPage() {
       updatedAt: new Date().toISOString()
     });
     toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
-  };
-
-  const handleInviteUser = () => {
-    toast({ title: "Invitation System", description: "Institutional invitation sent to IAM gateway. Check pending requests." });
-  };
-
-  const handleManageBilling = () => {
-    toast({ title: "Billing Portal", description: "Redirecting to Stripe Institutional Portal... (Mock)" });
   };
 
   if (!mounted) return null;
@@ -377,10 +367,6 @@ const client = withAtlasBurn(llm, {
                         className="bg-muted/20" 
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry Vertical</Label>
-                      <Input placeholder="SaaS / Infrastructure" className="bg-muted/20" />
-                    </div>
                     <Button 
                       variant="outline" 
                       className="w-full font-headline font-bold" 
@@ -430,7 +416,6 @@ const client = withAtlasBurn(llm, {
                                 variant="ghost" 
                                 size="sm" 
                                 className="text-[10px] font-bold"
-                                onClick={() => toast({ title: "User Permissions", description: "This is the primary account owner." })}
                               >
                                 MANAGE
                               </Button>
@@ -438,16 +423,6 @@ const client = withAtlasBurn(llm, {
                           </TableRow>
                         </TableBody>
                       </Table>
-                      <div className="p-4 border-t text-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-2 font-bold"
-                          onClick={handleInviteUser}
-                        >
-                          <Plus size={14} /> Invite Institutional User
-                        </Button>
-                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -474,13 +449,7 @@ const client = withAtlasBurn(llm, {
                           <div className="h-full bg-white transition-all duration-500" style={{ width: `${usagePercentage}%` }} />
                         </div>
                       </div>
-                      <Button 
-                        variant="secondary" 
-                        className="w-full font-bold"
-                        onClick={handleManageBilling}
-                      >
-                        Manage Billing
-                      </Button>
+                      <Button variant="secondary" className="w-full font-bold">Manage Billing</Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -571,25 +540,82 @@ const client = withAtlasBurn(llm, {
                             </div>
                             {!entry.verified && (
                               <div className="px-4 pb-4">
-                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
-                                  <p className="text-[10px] font-bold text-amber-800 uppercase">DNS Setup Required</p>
-                                  <p className="text-[10px] text-amber-700 leading-relaxed">
-                                    To verify ownership, add the following TXT record to your DNS configuration for <strong>{entry.domain}</strong>:
-                                  </p>
-                                  <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded text-[10px] font-mono">
-                                    <code className="text-amber-900 truncate mr-2">atlasburn-verification={entry.verificationToken}</code>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="h-5 w-5 p-0" 
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(`atlasburn-verification=${entry.verificationToken}`);
-                                        toast({ title: "Copied", description: "Verification token copied to clipboard." });
-                                      }}
-                                    >
-                                      <Copy size={10} />
-                                    </Button>
+                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-5 space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">DNS Record Configuration</p>
+                                    <Badge variant="outline" className="text-[9px] bg-white/50 border-amber-200">Pending Validation</Badge>
                                   </div>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
+                                        Type
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
+                                            <TooltipContent className="text-[10px]">The type of DNS record. Forensic ownership requires a TXT record.</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                      <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">TXT</div>
+                                    </div>
+                                    
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
+                                        Host / Name
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
+                                            <TooltipContent className="text-[10px]">The hostname for the record. Use '@' for root domain verification.</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                      <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">@</div>
+                                    </div>
+
+                                    <div className="md:col-span-2 space-y-1.5">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
+                                        Value / Data
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
+                                            <TooltipContent className="text-[10px]">The unique token generated for this domain to verify ownership.</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                      <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded-lg text-xs font-mono group/record">
+                                        <code className="text-amber-900 truncate mr-2">atlasburn-verification={entry.verificationToken}</code>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          className="h-7 w-7 p-0 hover:bg-amber-100" 
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(`atlasburn-verification=${entry.verificationToken}`);
+                                            toast({ title: "Copied", description: "Verification token copied to clipboard." });
+                                          }}
+                                        >
+                                          <Copy size={12} className="text-amber-700" />
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
+                                        TTL
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
+                                            <TooltipContent className="text-[10px]">Time To Live. Standard institutional value is 3600 seconds (1 hour).</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                      <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">3600</div>
+                                    </div>
+                                  </div>
+                                  
+                                  <p className="text-[9px] text-amber-700 leading-relaxed italic border-l-2 border-amber-300 pl-3">
+                                    DNS propagation can take up to 24 hours. Click 'Verify DNS' above once you've updated your registrar.
+                                  </p>
                                 </div>
                               </div>
                             )}
