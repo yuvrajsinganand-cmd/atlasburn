@@ -60,7 +60,7 @@ export default function SettingsPage() {
       navigator.clipboard.writeText(result.rawKey);
       toast({ 
         title: "New Ingest Key Active", 
-        description: "Raw key copied to clipboard. Store it securely in your .env as SLEEK_INGEST_KEY.",
+        description: "Raw key copied to clipboard. Store it securely in your .env as ATLASBURN_KEY.",
       });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Rotation Failed", description: e.message });
@@ -132,9 +132,9 @@ export default function SettingsPage() {
                       <div className="space-y-4">
                         <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Cross-Product Ingest URL</p>
                         <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed border-l-4 border-primary">
-{`import { withSleek } from "./sleek-sdk";
-const client = withSleek(llm, {
-  apiKey: process.env.SLEEK_INGEST_KEY,
+{`import { withAtlasBurn } from "@atlasburn/sdk";
+const client = withAtlasBurn(llm, {
+  apiKey: process.env.ATLASBURN_KEY,
   projectId: "${user?.uid || 'PROJECT_ID'}",
   ingestUrl: "${origin}/api/ingest" 
 });`}

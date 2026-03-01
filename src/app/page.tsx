@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,7 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Flame, Zap, Terminal, Copy, Loader2, ArrowRight } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Terminal, Loader2, ArrowRight } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -54,8 +53,8 @@ export default function Dashboard() {
             <div className="bg-zinc-950 text-zinc-50 p-6 rounded-2xl font-mono text-left text-xs max-w-xl w-full border-l-4 border-primary">
               <p className="text-primary mb-2">// Setup Integration</p>
               <p>npm install @atlasburn/sdk</p>
-              <p className="mt-4 text-zinc-500">const client = withSleek(llm, {'{'}</p>
-              <p className="pl-4">apiKey: process.env.SLEEK_KEY,</p>
+              <p className="mt-4 text-zinc-500">const client = withAtlasBurn(llm, {'{'}</p>
+              <p className="pl-4">apiKey: process.env.ATLASBURN_KEY,</p>
               <p className="pl-4">projectId: "{user?.uid}"</p>
               <p>{'}'});</p>
             </div>

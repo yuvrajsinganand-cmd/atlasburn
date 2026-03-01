@@ -1,11 +1,10 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Terminal, Copy, Loader2, ArrowRight, Activity, Beaker } from "lucide-react"
+import { Terminal, Loader2, Beaker } from "lucide-react"
 import { useUser, useFirestore } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { useState } from "react"
@@ -77,10 +76,10 @@ export default function UsageLab() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Integration Snippet</p>
               <pre className="p-4 bg-black/50 rounded-xl font-mono text-xs overflow-x-auto text-primary leading-relaxed">
 {`// Initialize AtlasBurn Forensic SDK
-const { withSleek } = require('@atlasburn/sdk');
+const { withAtlasBurn } = require('@atlasburn/sdk');
 
-const openai = withSleek(new OpenAI(), {
-  apiKey: process.env.ATLAS_BURN_KEY,
+const openai = withAtlasBurn(new OpenAI(), {
+  apiKey: process.env.ATLASBURN_KEY,
   projectId: "${user?.uid || 'PROJECT_ID'}"
 });`}
               </pre>

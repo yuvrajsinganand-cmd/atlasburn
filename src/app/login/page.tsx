@@ -37,8 +37,8 @@ export default function LoginPage() {
               <BrainCircuit size={32} />
             </div>
           </div>
-          <CardTitle className="text-2xl font-headline font-bold">Welcome to AISleek</CardTitle>
-          <CardDescription>Smarter management of your AI tool landscape</CardDescription>
+          <CardTitle className="text-2xl font-headline font-bold">Welcome to AtlasBurn</CardTitle>
+          <CardDescription>Probabilistic capital risk engine for AI-native companies</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="space-y-4">

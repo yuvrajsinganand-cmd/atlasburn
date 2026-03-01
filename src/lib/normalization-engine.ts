@@ -3,9 +3,9 @@
  * Converts raw provider usage into canonical forensic cost events using the Registry.
  */
 
-import { getModelEconomics, type ModelEconomics } from './provider-registry';
+import { getModelEconomics } from './provider-registry';
 
-export interface SleekEvent {
+export interface AtlasBurnEvent {
   model: string;
   provider: string;
   inputTokens: number;
@@ -17,7 +17,7 @@ export interface SleekEvent {
 /**
  * Calculates real-world cost based on Institutional Registry rates.
  */
-export function normalizeUsage(modelId: string, inputTokens: number, outputTokens: number): SleekEvent {
+export function normalizeUsage(modelId: string, inputTokens: number, outputTokens: number): AtlasBurnEvent {
   const economics = getModelEconomics(modelId);
 
   const inputCost = (inputTokens / 1_000_000) * economics.inputCostPer1M;

@@ -4,8 +4,8 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'AISleek | AI Tool Navigator',
-  description: 'Smarter management of your AI tool landscape',
+  title: 'AtlasBurn | AI Capital Risk Engine',
+  description: 'Forensic burn modeling and capital risk simulation for AI-native companies.',
 };
 
 export default function RootLayout({

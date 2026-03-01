@@ -1,12 +1,12 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.7
+ * AtlasBurn Forensic SDK - Institutional v1.8
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
  * forensic metadata to the AtlasBurn control plane.
  */
 
-export interface SleekSDKOptions {
+export interface AtlasBurnSDKOptions {
   apiKey: string;    // Raw Ingest Key (Stored in .env)
   projectId: string; // Your AtlasBurn Project ID
   ingestUrl?: string; // The absolute URL of your AtlasBurn deployment
@@ -22,7 +22,7 @@ export interface MockLLMResponse {
   output: string;
 }
 
-export interface SleekMetadata {
+export interface AtlasBurnMetadata {
   featureId?: string; // Product feature attribution
   userTier?: string;  // Customer segment attribution
 }
@@ -36,19 +36,18 @@ function generateForensicId(): string {
       return globalThis.crypto.randomUUID();
     }
   } catch (e) { /* Fallback */ }
-  return `slk-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  return `abn-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
 
-class SleekIngestor {
+class AtlasBurnIngestor {
   private queue: any[] = [];
-  private options: SleekSDKOptions;
+  private options: AtlasBurnSDKOptions;
   private isProcessing: boolean = false;
   private maxRetries: number = 3;
 
-  constructor(options: SleekSDKOptions) {
+  constructor(options: AtlasBurnSDKOptions) {
     this.options = {
       // Ingest URL defaults to origin if in browser, or local path.
-      // Remote products MUST specify the full absolute URL.
       ingestUrl: options.ingestUrl || (typeof window !== 'undefined' 
         ? `${window.location.origin}/api/ingest` 
         : '/api/ingest'),
@@ -101,9 +100,8 @@ class SleekIngestor {
         }),
       });
 
-      // Fixed: Only throw on failure.
       if (!response.ok) {
-        throw new Error(`Atlas Ingest Failure: Status ${response.status}`);
+        throw new Error(`AtlasBurn Ingest Failure: Status ${response.status}`);
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
@@ -116,19 +114,19 @@ class SleekIngestor {
   }
 }
 
-let globalIngestor: SleekIngestor | null = null;
+let globalIngestor: AtlasBurnIngestor | null = null;
 
 /**
  * Wraps an LLM client with AtlasBurn Forensic Intelligence.
  */
-export function withSleek(client: any, options: SleekSDKOptions) {
+export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   if (!globalIngestor) {
-    globalIngestor = new SleekIngestor(options);
+    globalIngestor = new AtlasBurnIngestor(options);
   }
 
   return {
     async chat(
-      payload: { model: string; messages: any[] } & SleekMetadata
+      payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
       const response = await client.chat(payload);
       const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
@@ -152,13 +150,3 @@ export function withSleek(client: any, options: SleekSDKOptions) {
     }
   };
 }
-
-export const fakeLLM = {
-  async chat(payload: { model: string }): Promise<MockLLMResponse> {
-    await new Promise(r => setTimeout(r, 100));
-    return {
-      usage: { prompt_tokens: 1200, completion_tokens: 450 },
-      output: "AtlasBurn Mock Response"
-    };
-  }
-};
