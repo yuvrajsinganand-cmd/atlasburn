@@ -80,10 +80,11 @@
         "timestamp": { "type": "string", "format": "date-time" },
         "actorEmail": { "type": "string" },
         "action": { "type": "string" },
+        "category": { "type": "string", "enum": ["admin", "security", "billing", "access"] },
         "details": { "type": "string" },
-        "status": { "type": "string" }
+        "status": { "type": "string", "enum": ["success", "failure"] }
       },
-      "required": ["timestamp", "actorEmail", "action"]
+      "required": ["timestamp", "actorEmail", "action", "category"]
     }
   },
   "auth": {

@@ -26,7 +26,6 @@ import {
   Building,
   Mail,
   Shield,
-  ExternalLink,
   Plus,
   AlertTriangle,
   Save,
@@ -34,11 +33,11 @@ import {
   Clock,
   Info,
   ShieldAlert,
-  Search,
   UserPlus,
-  History
+  History,
+  ShieldX
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, limit } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -106,7 +105,7 @@ export default function SettingsPage() {
     if (!firestore || !user) return null;
     return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
   }, [firestore, user]);
-  const { data: members, isLoading: loadingMembers } = useCollection(membersQuery);
+  const { data: members } = useCollection(membersQuery);
 
   // Fetch Audit Logs
   const auditLogsQuery = useMemoFirebase(() => {
@@ -114,10 +113,20 @@ export default function SettingsPage() {
     return query(
       collection(firestore, "organizations", `org_${user.uid}`, "auditLogs"),
       orderBy("timestamp", "desc"),
-      limit(50)
+      limit(100)
     );
   }, [firestore, user]);
   const { data: auditLogs, isLoading: loadingLogs } = useCollection(auditLogsQuery);
+
+  const auditSummary = useMemo(() => {
+    if (!auditLogs) return { failedDns: 0, accessActions: 0, billingActions: 0, securityActions: 0 };
+    return {
+      failedDns: auditLogs.filter(l => l.action === 'DNS_VERIFICATION_FAILED').length,
+      accessActions: auditLogs.filter(l => l.category === 'access').length,
+      billingActions: auditLogs.filter(l => l.category === 'billing').length,
+      securityActions: auditLogs.filter(l => l.category === 'security').length,
+    };
+  }, [auditLogs]);
 
   useEffect(() => {
     if (organization) {
@@ -141,7 +150,7 @@ export default function SettingsPage() {
     if (user) fetchSnapshot();
   }, [user]);
 
-  const logAction = (action: string, details: string) => {
+  const logAction = (action: string, details: string, category: 'admin' | 'security' | 'billing' | 'access' = 'admin', status: 'success' | 'failure' = 'success') => {
     if (!firestore || !user) return;
     const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
     addDocumentNonBlocking(auditRef, {
@@ -149,7 +158,8 @@ export default function SettingsPage() {
       actorEmail: user.email,
       action,
       details,
-      status: "success"
+      status,
+      category
     });
   };
 
@@ -159,7 +169,7 @@ export default function SettingsPage() {
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
     toast({ title: "Project ID Copied", description: "Use this value for 'projectId' in SDK initialization." });
-    logAction("PROJECT_ID_COPIED", "User copied the global project ID.");
+    logAction("PROJECT_ID_COPIED", "User copied the global project ID.", "security");
   };
 
   const handleUpdateProfile = async () => {
@@ -168,9 +178,10 @@ export default function SettingsPage() {
     try {
       await updateProfile(auth.currentUser, { displayName });
       toast({ title: "Profile Updated", description: "Institutional identity sync complete." });
-      logAction("PROFILE_UPDATED", `Display name updated to ${displayName}`);
+      logAction("PROFILE_UPDATED", `Display name updated to ${displayName}`, "admin");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Update Failed", description: e.message });
+      logAction("PROFILE_UPDATE_FAILED", e.message, "admin", "failure");
     } finally {
       setSavingAccount(false);
     }
@@ -187,7 +198,7 @@ export default function SettingsPage() {
     setTimeout(() => {
       setSavingOrg(false);
       toast({ title: "Organization Synced", description: "Metadata updated in control plane." });
-      logAction("ORG_METADATA_UPDATED", `Org name set to ${orgName}`);
+      logAction("ORG_METADATA_UPDATED", `Org name set to ${orgName}`, "admin");
     }, 500);
   };
 
@@ -222,7 +233,7 @@ export default function SettingsPage() {
       setNewDomain("");
       setAddingDomain(false);
       toast({ title: "Domain Pending", description: `${domainName} added. Please verify DNS ownership.` });
-      logAction("DOMAIN_ADDED", `New domain ${domainName} added to pending whitelist.`);
+      logAction("DOMAIN_ADDED", `New domain ${domainName} added to pending whitelist.`, "admin");
     }, 500);
   };
 
@@ -238,14 +249,14 @@ export default function SettingsPage() {
           title: "DNS Verified", 
           description: `${domainToVerify} is now officially whitelisted and secure.` 
         });
-        logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`);
+        logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`, "security", "success");
       } else {
         toast({ 
           variant: "destructive",
           title: "Verification Failed", 
           description: result.error || "Could not detect DNS record." 
         });
-        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}.`);
+        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}. Details: ${result.error}`, "security", "failure");
       }
     } catch (e: any) {
       toast({ 
@@ -253,6 +264,7 @@ export default function SettingsPage() {
         title: "Resolution Error", 
         description: "An unexpected error occurred during DNS lookup." 
       });
+      logAction("DNS_RESOLUTION_ERROR", `Critical error during DNS lookup for ${domainToVerify}.`, "security", "failure");
     } finally {
       setVerifyingDomain(null);
     }
@@ -266,7 +278,7 @@ export default function SettingsPage() {
       updatedAt: new Date().toISOString()
     });
     toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
-    logAction("DOMAIN_REMOVED", `Domain ${domain} removed from whitelist.`);
+    logAction("DOMAIN_REMOVED", `Domain ${domain} removed from whitelist.`, "admin");
   };
 
   const handleInvite = () => {
@@ -289,8 +301,13 @@ export default function SettingsPage() {
       setIsInviteOpen(false);
       setInviteEmail("");
       toast({ title: "Member Invited", description: `Forensic access granted to ${inviteEmail} with ${inviteRole} authority.` });
-      logAction("MEMBER_INVITED", `Invited ${inviteEmail} with role ${inviteRole}.`);
+      logAction("MEMBER_INVITED", `Invited ${inviteEmail} with role ${inviteRole}.`, "access");
     }, 600);
+  };
+
+  const handleManageBilling = () => {
+    toast({ title: "Billing Control Plane", description: "Redirecting to institutional billing manager..." });
+    logAction("BILLING_MANAGER_OPENED", "User opened the billing configuration dashboard.", "billing");
   };
 
   if (!mounted) return null;
@@ -468,7 +485,7 @@ const client = withAtlasBurn(llm, {
             <TabsContent value="billing" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                  <Card className="border-none shadow-sm bg-white">
+                  <Card className="border-none shadow-sm bg-white overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-lg font-headline flex items-center gap-2">
@@ -586,7 +603,7 @@ const client = withAtlasBurn(llm, {
                           <div className="h-full bg-white transition-all duration-500" style={{ width: `${usagePercentage}%` }} />
                         </div>
                       </div>
-                      <Button variant="secondary" className="w-full font-bold">Manage Billing</Button>
+                      <Button variant="secondary" className="w-full font-bold" onClick={handleManageBilling}>Manage Billing</Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -715,22 +732,53 @@ const client = withAtlasBurn(llm, {
             </TabsContent>
 
             <TabsContent value="audit" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card className="p-4 bg-white border-none shadow-sm flex items-center gap-4">
+                  <div className="p-2 bg-destructive/10 text-destructive rounded-lg"><ShieldX size={20} /></div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Failed DNS</p>
+                    <p className="text-lg font-bold">{auditSummary.failedDns}</p>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-white border-none shadow-sm flex items-center gap-4">
+                  <div className="p-2 bg-primary/10 text-primary rounded-lg"><UserPlus size={20} /></div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Access Events</p>
+                    <p className="text-lg font-bold">{auditSummary.accessActions}</p>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-white border-none shadow-sm flex items-center gap-4">
+                  <div className="p-2 bg-green-50 text-green-600 rounded-lg"><CreditCard size={20} /></div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Billing Actions</p>
+                    <p className="text-lg font-bold">{auditSummary.billingActions}</p>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-white border-none shadow-sm flex items-center gap-4">
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><ShieldAlert size={20} /></div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Security Events</p>
+                    <p className="text-lg font-bold">{auditSummary.securityActions}</p>
+                  </div>
+                </Card>
+              </div>
+
               <Card className="border-none shadow-sm bg-white overflow-hidden">
                 <CardHeader className="bg-muted/50 border-b">
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
                     <History className="text-primary" size={20} /> Institutional Audit Ledger
                   </CardTitle>
-                  <CardDescription>Real-time feed of all administrative actions taken within this organization.</CardDescription>
+                  <CardDescription>Real-time feed of categorized administrative and security actions.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/10">
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Timestamp</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Category</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Actor</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Details</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Status</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -745,17 +793,20 @@ const client = withAtlasBurn(llm, {
                           <TableCell className="text-[10px] font-mono whitespace-nowrap">
                             {new Date(log.timestamp).toLocaleString()}
                           </TableCell>
-                          <TableCell className="text-xs font-bold">{log.actorEmail}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-[9px] font-bold uppercase">
-                              {log.action?.replace(/_/g, ' ')}
+                            <Badge variant="secondary" className="text-[9px] font-bold uppercase bg-muted text-muted-foreground">
+                              {log.category || 'admin'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground italic">
-                            {log.details}
+                          <TableCell className="text-xs font-bold">{log.actorEmail}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-bold">{log.action?.replace(/_/g, ' ')}</span>
+                              <span className="text-[10px] text-muted-foreground italic">{log.details}</span>
+                            </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Badge className="bg-green-100 text-green-700 text-[9px] border-none">
+                          <TableCell>
+                            <Badge className={`text-[9px] border-none ${log.status === 'failure' ? 'bg-destructive/10 text-destructive' : 'bg-green-100 text-green-700'}`}>
                               {log.status?.toUpperCase() || 'SUCCESS'}
                             </Badge>
                           </TableCell>
@@ -819,5 +870,25 @@ const client = withAtlasBurn(llm, {
         </main>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+// Inline ExternalLink icon since it wasn't explicitly imported
+function ExternalLink({ size, className }: { size?: number, className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width={size || 24} 
+      height={size || 24} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+    >
+      <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    </svg>
   );
 }
