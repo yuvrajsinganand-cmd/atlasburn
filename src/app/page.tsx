@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Terminal, Loader2, ArrowRight } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Terminal, Loader2, ArrowRight, Beaker } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -39,46 +39,42 @@ export default function Dashboard() {
     return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={32} /></div>;
   }
 
-  // SDK GATE 1: Not Connected
-  if (!snapshot || !snapshot.isConnected) {
+  // SDK GATE 1: Not Connected or No Events
+  if (!snapshot || !snapshot.hasEvents) {
     return (
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
           <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8">
-            <div className="bg-primary/10 p-6 rounded-3xl text-primary"><Terminal size={64} /></div>
-            <div className="space-y-2 max-w-md">
-              <h2 className="text-3xl font-headline font-bold">Connect the SDK</h2>
-              <p className="text-muted-foreground">AtlasBurn requires real forensic ingestion to model risk. Connect your product to begin capital simulation.</p>
-            </div>
-            <div className="bg-zinc-950 text-zinc-50 p-6 rounded-2xl font-mono text-left text-xs max-w-xl w-full border-l-4 border-primary">
-              <p className="text-primary mb-2">// Setup Integration</p>
-              <p>npm install @atlasburn/sdk</p>
-              <p className="mt-4 text-zinc-500">const client = withAtlasBurn(llm, {'{'}</p>
-              <p className="pl-4">apiKey: process.env.ATLASBURN_KEY,</p>
-              <p className="pl-4">projectId: "{user?.uid}"</p>
-              <p>{'}'});</p>
-            </div>
-            <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold"><Link href="/settings">Configure Keys <ArrowRight className="ml-2" /></Link></Button>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    );
-  }
-
-  // SDK GATE 2: No Events
-  if (!snapshot.hasEvents) {
-    return (
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset>
-          <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-6">
             <div className="bg-primary/10 p-6 rounded-3xl text-primary animate-pulse"><Activity size={64} /></div>
             <div className="space-y-2 max-w-md">
-              <h2 className="text-3xl font-headline font-bold">Waiting for Forensic Feed</h2>
-              <p className="text-muted-foreground">SDK connected. Awaiting your first API events to prime the Log-Normal Risk Engine.</p>
+              <h2 className="text-3xl font-headline font-bold">Awaiting Forensic Feed</h2>
+              <p className="text-muted-foreground leading-relaxed">AtlasBurn requires real forensic ingestion to model risk. Since this is a prototype, you can prime the engine in the Lab.</p>
             </div>
-            <Button asChild variant="outline" className="rounded-full px-8 font-headline font-bold"><Link href="/usage">Run Test Ingestion</Link></Button>
+            
+            <div className="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
+              <Card className="flex-1 p-6 border-none shadow-sm bg-white flex flex-col items-center gap-4">
+                <Beaker className="text-primary" size={32} />
+                <div className="space-y-1">
+                  <h3 className="font-bold">Simulate Data</h3>
+                  <p className="text-xs text-muted-foreground">Inject test events in the Forensic Lab to see the engine in action immediately.</p>
+                </div>
+                <Button asChild variant="outline" className="w-full font-headline font-bold">
+                  <Link href="/usage">Enter Forensic Lab</Link>
+                </Button>
+              </Card>
+
+              <Card className="flex-1 p-6 border-none shadow-sm bg-white flex flex-col items-center gap-4">
+                <Terminal className="text-muted-foreground" size={32} />
+                <div className="space-y-1">
+                  <h3 className="font-bold">Setup Keys</h3>
+                  <p className="text-xs text-muted-foreground">Configure your project credentials and whitelisted domains for production.</p>
+                </div>
+                <Button asChild variant="outline" className="w-full font-headline font-bold">
+                  <Link href="/settings">System Controls</Link>
+                </Button>
+              </Card>
+            </div>
           </div>
         </SidebarInset>
       </SidebarProvider>
@@ -107,9 +103,9 @@ export default function Dashboard() {
               <div className="p-4 bg-amber-50 text-amber-600 rounded-full"><Zap size={40} /></div>
               <div className="space-y-1">
                 <h3 className="text-xl font-headline font-bold text-amber-700">Incomplete Economic Context</h3>
-                <p className="text-sm text-muted-foreground">The risk engine is missing: <span className="font-mono font-bold">{simResult.missing.join(', ')}</span></p>
+                <p className="text-sm text-muted-foreground leading-relaxed">The risk engine is missing: <span className="font-mono font-bold">{simResult.missing.join(', ')}</span>. Set these in your profile to run survival simulations.</p>
               </div>
-              <Button asChild className="font-headline font-bold"><Link href="/profile">Set Economic Guardrails</Link></Button>
+              <Button asChild className="font-headline font-bold shadow-lg"><Link href="/profile">Set Economic Guardrails</Link></Button>
             </Card>
           ) : (
             <>
