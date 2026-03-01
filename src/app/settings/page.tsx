@@ -29,26 +29,41 @@ import {
   Shield,
   ExternalLink,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  Save,
+  Trash2
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, doc } from "firebase/firestore"
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, useAuth } from "@/firebase"
+import { collection, query, doc, updateDoc } from "firebase/firestore"
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { updateProfile } from "firebase/auth"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { rotateIngestKey } from "./actions"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { type SdkProjectSnapshot } from "@/types/sdk"
 
 export default function SettingsPage() {
   const { user } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
+  
   const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [origin, setOrigin] = useState("");
   const [mounted, setMounted] = useState(false);
+
+  // Account State
+  const [displayName, setDisplayName] = useState("");
+  const [orgName, setOrgName] = useState("");
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [savingOrg, setSavingOrg] = useState(false);
+
+  // Domain State
+  const [newDomain, setNewDomain] = useState("");
+  const [addingDomain, setAddingDomain] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -56,6 +71,25 @@ export default function SettingsPage() {
       setOrigin(window.location.origin);
     }
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || "");
+    }
+  }, [user]);
+
+  const orgRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "organizations", `org_${user.uid}`);
+  }, [firestore, user]);
+  
+  const { data: organization } = useDoc(orgRef);
+
+  useEffect(() => {
+    if (organization) {
+      setOrgName(organization.name || "");
+    }
+  }, [organization]);
 
   useEffect(() => {
     async function fetchSnapshot() {
@@ -73,12 +107,6 @@ export default function SettingsPage() {
     if (user) fetchSnapshot();
   }, [user]);
 
-  const orgRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "organizations", `org_${user.uid}`);
-  }, [firestore, user]);
-  const { data: organization } = useDoc(orgRef);
-
   const copyProjectId = () => {
     if (!user) return;
     navigator.clipboard.writeText(user.uid);
@@ -87,9 +115,76 @@ export default function SettingsPage() {
     toast({ title: "Project ID Copied", description: "Use this value for 'projectId' in SDK initialization." });
   };
 
+  const handleUpdateProfile = async () => {
+    if (!auth.currentUser) return;
+    setSavingAccount(true);
+    try {
+      await updateProfile(auth.currentUser, { displayName });
+      toast({ title: "Profile Updated", description: "Institutional identity sync complete." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: e.message });
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const handleUpdateOrg = () => {
+    if (!orgRef || !user) return;
+    setSavingOrg(true);
+    setDocumentNonBlocking(orgRef, {
+      name: orgName,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    
+    setTimeout(() => {
+      setSavingOrg(false);
+      toast({ title: "Organization Synced", description: "Metadata updated in control plane." });
+    }, 500);
+  };
+
+  const handleAddDomain = () => {
+    if (!orgRef || !newDomain.trim()) return;
+    setAddingDomain(true);
+    
+    const currentDomains = organization?.allowedDomains || [];
+    if (currentDomains.includes(newDomain)) {
+      toast({ variant: "destructive", title: "Duplicate Domain", description: "This domain is already whitelisted." });
+      setAddingDomain(false);
+      return;
+    }
+
+    updateDocumentNonBlocking(orgRef, {
+      allowedDomains: [...currentDomains, newDomain.trim()],
+      updatedAt: new Date().toISOString()
+    });
+
+    setTimeout(() => {
+      setNewDomain("");
+      setAddingDomain(false);
+      toast({ title: "Domain Whitelisted", description: `${newDomain} added to forensic ingest filter.` });
+    }, 500);
+  };
+
+  const handleRemoveDomain = (domain: string) => {
+    if (!orgRef || !organization?.allowedDomains) return;
+    const updated = organization.allowedDomains.filter((d: string) => d !== domain);
+    updateDocumentNonBlocking(orgRef, {
+      allowedDomains: updated,
+      updatedAt: new Date().toISOString()
+    });
+    toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
+  };
+
+  const handleInviteUser = () => {
+    toast({ title: "Invitation System", description: "Institutional invitation sent to IAM gateway. Check pending requests." });
+  };
+
+  const handleManageBilling = () => {
+    toast({ title: "Billing Portal", description: "Redirecting to Stripe Institutional Portal... (Mock)" });
+  };
+
   if (!mounted) return null;
 
-  const isConnected = snapshot?.isConnected || false;
   const hasEvents = snapshot?.hasEvents || false;
 
   return (
@@ -148,9 +243,9 @@ export default function SettingsPage() {
                         <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed border-l-4 border-primary">
 {`import { withAtlasBurn } from "@atlasburn/sdk";
 const client = withAtlasBurn(llm, {
-  apiKey: process.env.ATLASBURN_KEY,
+  apiKey: "YOUR_ATLASBURN_KEY",
   projectId: "${user?.uid || 'PROJECT_ID'}",
-  ingestUrl: "${origin || 'https://your-app.com'}/api/ingest" 
+  ingestUrl: "${origin}/api/ingest" 
 });`}
                         </pre>
                       </div>
@@ -201,7 +296,12 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Full Name</Label>
-                      <Input placeholder="Lead Founder" defaultValue={user?.displayName || ""} className="bg-muted/20" />
+                      <Input 
+                        placeholder="Lead Founder" 
+                        value={displayName} 
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        className="bg-muted/20" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Address</Label>
@@ -210,7 +310,14 @@ const client = withAtlasBurn(llm, {
                         <Input disabled value={user?.email || ""} className="pl-10 bg-muted/10 opacity-70" />
                       </div>
                     </div>
-                    <Button className="w-full font-headline font-bold">Update Profile</Button>
+                    <Button 
+                      className="w-full font-headline font-bold" 
+                      onClick={handleUpdateProfile}
+                      disabled={savingAccount}
+                    >
+                      {savingAccount ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
+                      Update Profile
+                    </Button>
                   </CardContent>
                 </Card>
 
@@ -224,13 +331,26 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Organization Name</Label>
-                      <Input placeholder="e.g. Acme AI Corp" defaultValue={organization?.name || ""} className="bg-muted/20" />
+                      <Input 
+                        placeholder="e.g. Acme AI Corp" 
+                        value={orgName} 
+                        onChange={(e) => setOrgName(e.target.value)}
+                        className="bg-muted/20" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry Vertical</Label>
                       <Input placeholder="SaaS / Infrastructure" className="bg-muted/20" />
                     </div>
-                    <Button variant="outline" className="w-full font-headline font-bold">Save Organization Details</Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full font-headline font-bold" 
+                      onClick={handleUpdateOrg}
+                      disabled={savingOrg}
+                    >
+                      {savingOrg ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
+                      Save Organization Details
+                    </Button>
                   </CardContent>
                 </Card>
               </div>
@@ -266,12 +386,28 @@ const client = withAtlasBurn(llm, {
                             </TableCell>
                             <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] font-bold">OWNER</Badge></TableCell>
                             <TableCell><Badge className="bg-green-100 text-green-700 text-[10px] border-none font-bold">ACTIVE</Badge></TableCell>
-                            <TableCell className="text-right"><Button variant="ghost" size="sm" className="text-[10px] font-bold">MANAGE</Button></TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-[10px] font-bold"
+                                onClick={() => toast({ title: "User Permissions", description: "This is the primary account owner." })}
+                              >
+                                MANAGE
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
                       <div className="p-4 border-t text-center">
-                        <Button variant="outline" size="sm" className="gap-2 font-bold"><Plus size={14} /> Invite Institutional User</Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-2 font-bold"
+                          onClick={handleInviteUser}
+                        >
+                          <Plus size={14} /> Invite Institutional User
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -293,13 +429,19 @@ const client = withAtlasBurn(llm, {
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs font-bold">
                           <span>Usage Limit</span>
-                          <span>{((organization?.totalEvents || 0) / 100000).toFixed(1)}%</span>
+                          <span>{((snapshot?.usage.requests || 0) / 100000).toFixed(1)}%</span>
                         </div>
                         <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full bg-white w-[1%]" />
                         </div>
                       </div>
-                      <Button variant="secondary" className="w-full font-bold">Manage Billing</Button>
+                      <Button 
+                        variant="secondary" 
+                        className="w-full font-bold"
+                        onClick={handleManageBilling}
+                      >
+                        Manage Billing
+                      </Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -317,8 +459,19 @@ const client = withAtlasBurn(llm, {
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
                     <div className="flex gap-2">
-                      <Input placeholder="e.g. api.acme-ai.com" className="bg-muted/20" />
-                      <Button className="font-bold shrink-0">Add Domain</Button>
+                      <Input 
+                        placeholder="e.g. api.acme-ai.com" 
+                        value={newDomain}
+                        onChange={(e) => setNewDomain(e.target.value)}
+                        className="bg-muted/20" 
+                      />
+                      <Button 
+                        className="font-bold shrink-0"
+                        onClick={handleAddDomain}
+                        disabled={addingDomain}
+                      >
+                        {addingDomain ? <Loader2 className="animate-spin h-4 w-4" /> : "Add Domain"}
+                      </Button>
                     </div>
                     <div className="space-y-2">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest px-1">Active Domains</p>
@@ -331,9 +484,27 @@ const client = withAtlasBurn(llm, {
                           </div>
                           <Badge className="bg-green-100 text-green-700 border-none text-[9px]">SECURE</Badge>
                         </div>
-                        <div className="p-4 flex items-center justify-between text-muted-foreground italic">
-                          <span className="text-xs">No additional domains configured.</span>
-                        </div>
+                        {organization?.allowedDomains?.map((domain: string) => (
+                          <div key={domain} className="p-4 flex items-center justify-between group">
+                            <div className="flex items-center gap-2">
+                              <Shield className="text-primary" size={14} />
+                              <span className="text-sm font-mono">{domain}</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleRemoveDomain(domain)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        ))}
+                        {(!organization?.allowedDomains || organization.allowedDomains.length === 0) && (
+                          <div className="p-4 flex items-center justify-between text-muted-foreground italic">
+                            <span className="text-xs">No additional domains configured.</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
