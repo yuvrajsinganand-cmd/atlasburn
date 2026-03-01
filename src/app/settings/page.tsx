@@ -28,7 +28,8 @@ import {
   Mail,
   Shield,
   ExternalLink,
-  Plus
+  Plus,
+  AlertTriangle
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
@@ -38,11 +39,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { rotateIngestKey } from "./actions"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { type SdkProjectSnapshot } from "@/types/sdk"
 
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [rotating, setRotating] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [origin, setOrigin] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -54,34 +57,27 @@ export default function SettingsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    async function fetchSnapshot() {
+      if (!user) return;
+      try {
+        const res = await fetch(`/api/projects/${user.uid}/snapshot?windowDays=30`);
+        const data = await res.json();
+        setSnapshot(data);
+      } catch (e) {
+        console.error("Failed to fetch forensic snapshot", e);
+      } finally {
+        setLoadingSnapshot(false);
+      }
+    }
+    if (user) fetchSnapshot();
+  }, [user]);
+
   const orgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "organizations", `org_${user.uid}`);
   }, [firestore, user]);
   const { data: organization } = useDoc(orgRef);
-
-  const subsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'aiSubscriptions'));
-  }, [firestore, user]);
-  const { data: subscriptions } = useCollection(subsQuery);
-
-  const handleRotate = async (subId: string) => {
-    if (!user) return;
-    setRotating(subId);
-    try {
-      const result = await rotateIngestKey(user.uid, subId);
-      navigator.clipboard.writeText(result.rawKey);
-      toast({ 
-        title: "New Ingest Key Active", 
-        description: "Raw key copied to clipboard. Store it securely in your .env as ATLASBURN_KEY.",
-      });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Rotation Failed", description: e.message });
-    } finally {
-      setRotating(null);
-    }
-  };
 
   const copyProjectId = () => {
     if (!user) return;
@@ -92,6 +88,9 @@ export default function SettingsPage() {
   };
 
   if (!mounted) return null;
+
+  const isConnected = snapshot?.isConnected || false;
+  const hasEvents = snapshot?.hasEvents || false;
 
   return (
     <SidebarProvider suppressHydrationWarning>
@@ -151,7 +150,7 @@ export default function SettingsPage() {
 const client = withAtlasBurn(llm, {
   apiKey: process.env.ATLASBURN_KEY,
   projectId: "${user?.uid || 'PROJECT_ID'}",
-  ingestUrl: "${origin}/api/ingest" 
+  ingestUrl: "${origin || 'https://your-app.com'}/api/ingest" 
 });`}
                         </pre>
                       </div>
@@ -164,13 +163,26 @@ const client = withAtlasBurn(llm, {
                       <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Ingest Health</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={14} className="text-green-600" />
-                          <span className="text-xs font-bold text-green-700">Service Online</span>
+                      {loadingSnapshot ? (
+                        <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
+                          <Loader2 className="animate-spin h-3 w-3" /> Analyzing...
                         </div>
-                        <span className="text-[10px] font-mono text-green-600">v1.8.2</span>
-                      </div>
+                      ) : hasEvents ? (
+                        <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-green-600" />
+                            <span className="text-xs font-bold text-green-700">Forensic Feed Online</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-green-600">v1.8.2</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle size={14} className="text-amber-600" />
+                            <span className="text-xs font-bold text-amber-700">Awaiting Integration</span>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -212,7 +224,7 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Organization Name</Label>
-                      <Input placeholder="Acme AI Corp" defaultValue={organization?.name || ""} className="bg-muted/20" />
+                      <Input placeholder="e.g. Acme AI Corp" defaultValue={organization?.name || ""} className="bg-muted/20" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry Vertical</Label>

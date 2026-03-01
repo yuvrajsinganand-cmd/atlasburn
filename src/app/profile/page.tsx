@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -22,9 +23,9 @@ export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   
-  const [budgetCap, setBudgetCap] = useState(INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES.toString()); 
+  const [budgetCap, setBudgetCap] = useState("0"); 
   const [mrrInput, setMrrInput] = useState("0");
-  const [fixedBurnInput, setFixedBurnInput] = useState(INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR.toString());
+  const [fixedBurnInput, setFixedBurnInput] = useState("0");
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -58,26 +59,19 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (organization) {
-      if (organization.capitalReserves !== undefined) {
-        setBudgetCap(organization.capitalReserves.toString());
-      }
-      if (organization.monthlyRevenue !== undefined) {
-        setMrrInput(organization.monthlyRevenue.toString());
-      }
-      if (organization.fixedMonthlyBurn !== undefined) {
-        setFixedBurnInput(organization.fixedMonthlyBurn.toString());
-      }
+      setBudgetCap((organization.capitalReserves || 0).toString());
+      setMrrInput((organization.monthlyRevenue || 0).toString());
+      setFixedBurnInput((organization.fixedMonthlyBurn || 0).toString());
     }
   }, [organization]);
 
   const engineMetrics = useMemo(() => {
-    if (!subscriptions || !mounted) return null;
+    if (!mounted) return null;
     
     // Calculate composite baseline burn
-    const fixedMonthlyBurn = subscriptions.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0);
+    const fixedMonthlyBurn = subscriptions?.reduce((acc, sub) => acc + (sub.monthlyFixedCost || 0), 0) || 0;
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
-    // If not ready, we use zero-base defaults
     const varDailyMean = variableBurnInfo.status === 'READY' ? variableBurnInfo.result.dailyMean : 0;
     const varCV = variableBurnInfo.status === 'READY' ? variableBurnInfo.result.cv : INSTITUTIONAL_DEFAULTS.COEFFICIENT_OF_VARIATION;
 
@@ -91,7 +85,7 @@ export default function ProfilePage() {
     
     // Model month-end forecast
     const forecasts = calculateMonthEndForecast(
-      effectiveDailyMean * 15, // Assume middle of month for snapshot
+      effectiveDailyMean * 15, // Mid-month snapshot
       15, 
       30,
       INSTITUTIONAL_DEFAULTS.MONTHLY_GROWTH,
@@ -99,7 +93,6 @@ export default function ProfilePage() {
       varCV
     );
     
-    // Net Burn handles profitability (Infinity runway)
     const netDailyBurn = effectiveDailyMean - (revenue / 30);
     const runwayDays = calculateRunway(netDailyBurn, capital);
     const projectedMonthlyBurn = effectiveDailyMean * 30;
@@ -108,8 +101,8 @@ export default function ProfilePage() {
     const marginInfo = getMarginStatus(forecasts.probabilityOfRunwayBreach, currentMargin); 
 
     return {
-      runwayMonths: runwayDays > 3650 ? "Profitable" : (runwayDays / 30).toFixed(1),
-      breachProb: (forecasts.probabilityOfRunwayBreach * 100).toFixed(0),
+      runwayMonths: capital === 0 && effectiveDailyMean > 0 ? "0.0" : (runwayDays > 3650 ? "Profitable" : (runwayDays / 30).toFixed(1)),
+      breachProb: capital === 0 && effectiveDailyMean > 0 ? "100" : (forecasts.probabilityOfRunwayBreach * 100).toFixed(0),
       status: marginInfo.label,
       statusColor: marginInfo.color,
       statusBg: marginInfo.bg,
@@ -176,7 +169,7 @@ export default function ProfilePage() {
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Engine Status</p>
-                <p className="text-sm font-bold">Deterministic + Stochastic</p>
+                <p className="text-sm font-bold">Forensic Loop</p>
               </div>
             </Card>
           </div>
@@ -188,7 +181,7 @@ export default function ProfilePage() {
                   <div className="mx-auto w-20 h-20 rounded-2xl bg-primary/5 flex items-center justify-center mb-4 border border-primary/10 shadow-inner">
                     <User size={40} className="text-primary/60" />
                   </div>
-                  <CardTitle className="font-headline text-lg">{user?.displayName || "Lead Founder"}</CardTitle>
+                  <CardTitle className="font-headline text-lg">{user?.displayName || "Forensic User"}</CardTitle>
                   <CardDescription className="text-xs truncate px-4">{user?.email}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-2">
@@ -240,7 +233,7 @@ export default function ProfilePage() {
                   <CardTitle className="flex items-center gap-2 font-headline">
                     <Wallet className="text-primary" size={20} /> Economic Parameters
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Adjust institutional financial baselines. These values drive the risk engine's survival modeling.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Adjust your deterministic financial context. These values drive the survival engine.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-6 md:grid-cols-2">
@@ -257,20 +250,20 @@ export default function ProfilePage() {
                         <Flame size={12} /> Institutional Burn Baseline ($)
                       </Label>
                       <Input id="fixed-burn" type="number" value={fixedBurnInput} onChange={(e) => setFixedBurnInput(e.target.value)} className="h-10 bg-primary/5 border-primary/20" />
-                      <p className="text-[10px] text-muted-foreground">Manual override for modeling risk at a specific institutional scale (e.g. $20,000).</p>
+                      <p className="text-[10px] text-muted-foreground">Manual override for modeling risk at a specific operational scale.</p>
                     </div>
                   </div>
                   <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-primary">
-                      <TrendingUp size={12} /> Institutional Impact
+                      <TrendingUp size={12} /> Economic Impact
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Adjusting your parameters acts as a "burn offset" in the Monte Carlo engine. A higher MRR reduces net monthly burn, effectively extending survival probability even during high-volatility events.
+                      Adjusting your Capital and MRR act as the "Economic Offset" for your forensic burn. Higher reserves significantly reduce Breach Probability across all horizons.
                     </p>
                   </div>
                   <Button onClick={handleSaveSettings} disabled={saving} className="w-full h-12 font-headline font-bold shadow-sm">
                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" size={18} />}
-                    Update Economic Guardrails
+                    Sync Economic Context
                   </Button>
                 </CardContent>
               </Card>
@@ -278,20 +271,16 @@ export default function ProfilePage() {
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
                   <CardTitle className="text-sm font-headline uppercase tracking-tight flex items-center gap-2">
-                    <Key size={16} className="text-muted-foreground" /> Access Management
+                    <Key size={16} className="text-muted-foreground" /> Access Authority
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Auth Method</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Verification Method</p>
                       <p className="text-xs font-mono">{user?.providerData[0]?.providerId || "password"}</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px] font-bold">QUANT-VERIFIED</Badge>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground px-2">
-                    <ShieldAlert size={12} className="text-amber-500" />
-                    <p>Security overrides require a forensic verification window.</p>
+                    <Badge variant="secondary" className="text-[10px] font-bold">SECURE</Badge>
                   </div>
                 </CardContent>
               </Card>
