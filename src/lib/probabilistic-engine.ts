@@ -130,8 +130,8 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
     survivalProbability = 0.999;
   }
 
-  const periodDays = Math.max(1, daysRemaining);
-  const netMonthlyBurn = (p50 / (periodDays / 30)) - mrr;
+  const periodMonths = Math.max(1, daysRemaining / 30);
+  const netMonthlyBurn = (p50 / periodMonths) - mrr;
   const expectedRunwayMonths = netMonthlyBurn > 0 ? startingCapital / netMonthlyBurn : 120;
 
   return {
