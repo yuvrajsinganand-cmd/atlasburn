@@ -34,3 +34,14 @@ export type SdkProjectSnapshot = {
 export type EngineResult<T> =
   | { status: 'READY'; result: T }
   | { status: 'NOT_READY'; missing: string[] };
+
+export interface InstitutionalSimResult {
+  p5Burn: number;
+  p50Burn: number;
+  p95Burn: number;
+  var95: number;
+  cvar95: number;
+  survivalProbability: number;
+  expectedRunwayMonths: number;
+  stressRunwayMonths: number;
+}

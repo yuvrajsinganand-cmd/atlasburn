@@ -6,20 +6,27 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { PROVIDER_PRICING } from "@/lib/pricing-data"
+import { PROVIDER_REGISTRY } from "@/lib/provider-registry"
 import { Coins, Info, Search, Database, ArrowUpRight, ArrowDownLeft } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export default function ModelCatalog() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [mounted, setMounted] = useState(false)
 
-  const models = Object.entries(PROVIDER_PRICING).filter(([id]) => 
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const models = Object.entries(PROVIDER_REGISTRY).filter(([id]) => 
     id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (!mounted) return null;
+
   return (
-    <SidebarProvider>
+    <SidebarProvider suppressHydrationWarning>
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
@@ -66,29 +73,29 @@ export default function ModelCatalog() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {models.map(([id, pricing]) => (
+                    {models.map(([id, economics]) => (
                       <TableRow key={id} className="group transition-colors">
                         <TableCell className="font-mono font-bold text-primary">{id}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="capitalize text-[10px] font-bold">
-                            {pricing.provider}
+                            {economics.provider}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">
                             <ArrowDownLeft size={12} className="text-muted-foreground" />
-                            <span className="font-semibold">${pricing.inputCostPer1M.toFixed(2)}</span>
+                            <span className="font-semibold">${economics.inputCostPer1M.toFixed(2)}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">
                             <ArrowUpRight size={12} className="text-muted-foreground" />
-                            <span className="font-semibold">${pricing.outputCostPer1M.toFixed(2)}</span>
+                            <span className="font-semibold">${economics.outputCostPer1M.toFixed(2)}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge variant="outline" className={`text-[9px] font-bold ${pricing.inputCostPer1M > 5 ? 'border-destructive/20 text-destructive bg-destructive/5' : 'border-green-600/20 text-green-600 bg-green-50'}`}>
-                            {pricing.inputCostPer1M > 5 ? 'PREMIUM REASONING' : 'EFFICIENCY CORE'}
+                          <Badge variant="outline" className={`text-[9px] font-bold ${economics.tier === 'reasoning' ? 'border-destructive/20 text-destructive bg-destructive/5' : 'border-green-600/20 text-green-600 bg-green-50'}`}>
+                            {economics.tier.toUpperCase()}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -104,26 +111,6 @@ export default function ModelCatalog() {
                 </Table>
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="p-6 border-none shadow-sm bg-primary text-primary-foreground">
-                <div className="flex items-center gap-2 mb-4">
-                  <Info size={18} />
-                  <h3 className="text-sm font-bold uppercase tracking-widest opacity-80">Forensic Context</h3>
-                </div>
-                <p className="text-sm leading-relaxed opacity-90 italic">
-                  "Model pricing is normalized daily. Our engine uses these market rates to calculate the exact unit cost of every token ingested via the SDK. This transparency allows for P90 risk modeling that reacts to provider price shocks."
-                </p>
-              </Card>
-              
-              <Card className="p-6 border-none shadow-sm bg-white border-dashed border-2 flex flex-col justify-center items-center text-center space-y-2">
-                <div className="p-3 bg-secondary rounded-full text-primary">
-                  <Database size={24} />
-                </div>
-                <h3 className="font-headline font-bold">Request New Model</h3>
-                <p className="text-xs text-muted-foreground">Missing a provider? Our normalization engine can adapt to custom endpoints.</p>
-              </Card>
-            </div>
           </div>
         </main>
       </SidebarInset>

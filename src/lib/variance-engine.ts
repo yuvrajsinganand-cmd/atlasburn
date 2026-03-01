@@ -10,7 +10,7 @@ export interface UsageVariance {
 
 /**
  * Derives statistical volatility (CV) from daily aggregates.
- * No hard-coded fallbacks.
+ * Returns NOT_READY if history is insufficient (< 7 days).
  */
 export function calculateUsageVariance(dailyUsage: Array<{ cost: number }>): EngineResult<UsageVariance> {
   const n = dailyUsage.length;

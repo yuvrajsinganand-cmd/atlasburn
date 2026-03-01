@@ -60,6 +60,8 @@ export async function GET(
       modelMap[model].requests += 1;
       
       totalCost += r.cost || 0;
+      totalPrompt += r.inputTokens || 0;
+      totalCompletion += r.outputTokens || 0;
     });
 
     const dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -83,7 +85,7 @@ export async function GET(
         capitalReserves: orgData.capitalReserves || 0,
         currentDailyBurn: varianceResult.status === 'READY' ? varianceResult.result.dailyMean : undefined,
         burnVolatility: varianceResult.status === 'READY' ? varianceResult.result.cv : undefined,
-        monthlyGrowthRate: 0.05, // Institutional baseline
+        monthlyGrowthRate: 0.05, // Default institutional baseline if not provided
         churnRate: 0.03,
       },
       systemicRisk: {

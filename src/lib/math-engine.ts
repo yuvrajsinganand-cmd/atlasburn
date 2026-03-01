@@ -1,3 +1,4 @@
+
 /**
  * Math Engine: Institutional Normalization
  * Pure logic only. No constants.
@@ -31,7 +32,7 @@ export function getMarginStatus(breachProb: number, margin: number) {
 }
 
 /**
- * Projects burn and calculates probability of breach using a stochastic model.
+ * Projects burn and calculates probability of breach using a stochastic approximation.
  * 
  * @param currentBurn - Cumulative burn in the current window.
  * @param daysElapsed - Days observed in the current window.
@@ -56,22 +57,15 @@ export function calculateMonthEndForecast(
   const totalProjected = currentBurn + projectedRemainingBurn;
 
   // Simplified breach probability using volatility and remaining capital
-  // We use a normal approximation for the "Surprise" factor across the remaining window
-  // Standard Deviation of the remaining sum = DailyMean * Volatility * sqrt(DaysRemaining)
   const sigma = dailyMean * volatility * Math.sqrt(daysRemaining);
   const headroom = capital - projectedRemainingBurn;
   
-  // Z-Score: How many standard deviations is the capital from the mean projected burn?
   const zScore = headroom / Math.max(sigma, 0.01);
   
-  // Cumulative Distribution Function approximation for breach probability
-  // If zScore is high (lots of headroom), breach prob is low.
-  // P(Burn > Capital) = 1 - CDF(zScore)
   let probabilityOfRunwayBreach = 0;
   if (zScore > 3) probabilityOfRunwayBreach = 0;
   else if (zScore < -3) probabilityOfRunwayBreach = 1;
   else {
-    // Basic linear approximation of 1-CDF for values between -3 and 3
     probabilityOfRunwayBreach = 0.5 - (zScore / 6);
   }
 
