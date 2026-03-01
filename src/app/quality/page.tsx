@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -10,28 +11,29 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
-import { 
-  ShieldAlert, 
-  ShieldCheck, 
-  History, 
-  Zap, 
-  Plus, 
-  Trash2, 
-  Loader2, 
-  AlertTriangle,
-  BarChart4,
-  CheckCircle2
-} from "lucide-react"
+import { ShieldCheck, History, Zap, Plus, Trash2, Loader2, AlertTriangle, BarChart4, CheckCircle2, TrendingDown, Clock, ShieldAlert } from "lucide-react"
 import { detectModelQualityDegradation, type DetectModelQualityDegradationOutput } from "@/ai/flows/detect-model-quality-degradation"
 import { toast } from "@/hooks/use-toast"
+import { useUser, useFirestore } from "@/firebase"
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { collection } from "firebase/firestore"
+
+interface DriftOutput extends DetectModelQualityDegradationOutput {
+  driftScore: number;
+  severity: "LOW" | "MODERATE" | "CRITICAL";
+  deltaFromBaseline: number;
+  timestamp: string;
+}
 
 export default function QualityMonitor() {
+  const { user } = useUser()
+  const firestore = useFirestore()
   const [historicalOutputs, setHistoricalOutputs] = useState<string[]>([""])
   const [currentOutput, setCurrentOutput] = useState("")
   const [criteria, setCriteria] = useState("coherence, factual accuracy, tone consistency")
   const [threshold, setThreshold] = useState(5)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<DetectModelQualityDegradationOutput | null>(null)
+  const [results, setResults] = useState<DriftOutput | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -49,14 +51,10 @@ export default function QualityMonitor() {
     setHistoricalOutputs(historicalOutputs.filter((_, i) => i !== index))
   }
 
-  const handleAudit = async () => {
+  const initiateAudit = async () => {
     const filteredHistorical = historicalOutputs.filter(o => o.trim() !== "")
     if (filteredHistorical.length === 0 || !currentOutput) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: "Please provide at least one historical output and the latest output."
-      })
+      toast({ variant: "destructive", title: "Forensic Insufficiency", description: "Provide production baseline and current output." })
       return
     }
 
@@ -68,20 +66,37 @@ export default function QualityMonitor() {
         qualityCriteria: criteria,
         degradationThresholdPercent: threshold
       })
-      setResults(res)
+
+      const enhanced: DriftOutput = {
+        ...res,
+        driftScore: (res.qualityDropPercentage || 0) * 2, // Normalized Drift Index
+        severity: (res.qualityDropPercentage || 0) > 10 ? "CRITICAL" : (res.qualityDropPercentage || 0) > 5 ? "MODERATE" : "LOW",
+        deltaFromBaseline: -(res.qualityDropPercentage || 0),
+        timestamp: new Date().toISOString()
+      };
+
+      setResults(enhanced)
+
+      // Log to Audit Ledger if degradation exceeded
+      if (enhanced.degradationDetected && firestore && user) {
+        const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
+        addDocumentNonBlocking(auditRef, {
+          timestamp: new Date().toISOString(),
+          actorEmail: user.email,
+          action: "PRODUCTION_DRIFT_ALERT",
+          category: "security",
+          status: "failure",
+          details: `Significant model drift detected: ${enhanced.driftScore.toFixed(1)} Index. Criteria: ${criteria}`,
+          userAgent: navigator.userAgent
+        });
+      }
+
       toast({
-        title: "Audit Complete",
-        description: res.degradationDetected 
-          ? "Significant quality degradation detected." 
-          : "Model quality remains within operational thresholds."
+        title: "Forensic Audit Complete",
+        description: res.degradationDetected ? "Production drift detected. Alert logged." : "Operational quality confirmed."
       })
     } catch (e) {
-      console.error(e)
-      toast({
-        variant: "destructive",
-        title: "Audit Failed",
-        description: "Failed to evaluate model quality. Check console for details."
-      })
+      toast({ variant: "destructive", title: "Audit Failed", description: "Analysis engines stalled." })
     } finally {
       setLoading(false)
     }
@@ -99,7 +114,7 @@ export default function QualityMonitor() {
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Quality Sentry</h1>
           </div>
           <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
-            <ShieldCheck size={10} /> DRIFT MONITOR ACTIVE
+            <ShieldAlert size={10} /> DRIFT MONITOR ACTIVE
           </Badge>
         </header>
 
@@ -109,33 +124,28 @@ export default function QualityMonitor() {
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
-                    <History className="text-primary" size={20} /> Historical Baseline
+                    <History className="text-primary" size={20} /> Production Baseline
                   </CardTitle>
-                  <CardDescription>Provide previous successful model outputs to establish a quality baseline.</CardDescription>
+                  <CardDescription>Establish a deterministic baseline using confirmed high-quality production outputs.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {historicalOutputs.map((output, idx) => (
                     <div key={idx} className="flex gap-2 group">
                       <div className="flex-1">
                         <Textarea 
-                          placeholder={`Output sample ${idx + 1}...`}
+                          placeholder={`Production Sample ${idx + 1}...`}
                           value={output}
                           onChange={(e) => updateHistorical(idx, e.target.value)}
-                          className="min-h-[100px] bg-muted/20"
+                          className="min-h-[100px] bg-muted/20 focus:bg-white transition-all"
                         />
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeHistorical(idx)}
-                      >
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeHistorical(idx)}>
                         <Trash2 size={16} />
                       </Button>
                     </div>
                   ))}
-                  <Button variant="outline" onClick={addHistorical} className="w-full border-dashed">
-                    <Plus size={14} className="mr-2" /> Add History Sample
+                  <Button variant="outline" onClick={addHistorical} className="w-full border-dashed border-primary/20 text-primary font-bold">
+                    <Plus size={14} className="mr-2" /> Add Baseline Fragment
                   </Button>
                 </CardContent>
               </Card>
@@ -143,16 +153,16 @@ export default function QualityMonitor() {
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
-                    <Zap className="text-accent" size={20} /> Latest Production Output
+                    <Zap className="text-accent" size={20} /> Live Production Sample
                   </CardTitle>
-                  <CardDescription>The recent output you want to verify against the established baseline.</CardDescription>
+                  <CardDescription>The current output subject to forensic drift analysis.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Textarea 
-                    placeholder="Paste the current model response here..."
+                    placeholder="Paste the latest production response..."
                     value={currentOutput}
                     onChange={(e) => setCurrentOutput(e.target.value)}
-                    className="min-h-[200px] bg-accent/5 border-accent/20"
+                    className="min-h-[200px] bg-accent/5 border-accent/20 focus:bg-white transition-all"
                   />
                 </CardContent>
               </Card>
@@ -161,17 +171,12 @@ export default function QualityMonitor() {
             <div className="space-y-6">
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader>
-                  <CardTitle className="text-sm font-headline uppercase tracking-widest text-muted-foreground">Audit Parameters</CardTitle>
+                  <CardTitle className="text-xs font-headline uppercase tracking-widest text-muted-foreground">Forensic Control</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase opacity-70">Evaluation Criteria</Label>
-                    <Input 
-                      value={criteria}
-                      onChange={(e) => setCriteria(e.target.value)}
-                      className="bg-muted/30"
-                    />
-                    <p className="text-[10px] text-muted-foreground italic">Comma-separated list of quality vectors.</p>
+                    <Label className="text-[10px] font-bold uppercase opacity-70">Evaluation Criteria</Label>
+                    <Input value={criteria} onChange={(e) => setCriteria(e.target.value)} className="bg-muted/30" />
                   </div>
                   
                   <div className="space-y-4 pt-2">
@@ -179,57 +184,42 @@ export default function QualityMonitor() {
                       <span>Degradation Threshold</span>
                       <span className="text-primary">{threshold}%</span>
                     </div>
-                    <Slider 
-                      value={[threshold]} 
-                      onValueChange={([v]) => setThreshold(v)} 
-                      max={20} 
-                      min={1}
-                      step={1} 
-                    />
-                    <p className="text-[10px] text-muted-foreground">Drop in quality score that triggers a forensic alert.</p>
+                    <Slider value={[threshold]} onValueChange={([v]) => setThreshold(v)} max={20} min={1} step={1} />
                   </div>
 
-                  <Button 
-                    className="w-full h-12 font-headline font-bold shadow-lg mt-4"
-                    disabled={loading}
-                    onClick={handleAudit}
-                  >
+                  <Button className="w-full h-14 font-headline font-bold shadow-xl mt-4" disabled={loading} onClick={initiateAudit}>
                     {loading ? <Loader2 className="animate-spin mr-2" /> : <BarChart4 size={18} className="mr-2" />}
-                    Run Quality Audit
+                    Initiate Forensic Audit
                   </Button>
                 </CardContent>
               </Card>
 
               {results && (
-                <Card className={`border-none shadow-xl transition-all duration-500 animate-in fade-in slide-in-from-right-4 ${results.degradationDetected ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}>
-                  <CardHeader>
-                    <CardTitle className="font-headline text-lg flex items-center gap-2">
-                      {results.degradationDetected ? <AlertTriangle /> : <CheckCircle2 />}
-                      Audit Result
+                <Card className={`border-none shadow-2xl transition-all duration-700 animate-in slide-in-from-right-8 ${results.degradationDetected ? 'bg-destructive text-white' : 'bg-primary text-white'}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-center mb-2">
+                      <Badge variant="secondary" className="bg-white/20 text-white border-none font-bold text-[9px]">
+                        {results.severity} DRIFT
+                      </Badge>
+                      <span className="text-[10px] opacity-70 font-mono">{new Date(results.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <CardTitle className="font-headline text-2xl flex items-center gap-3">
+                      {results.driftScore.toFixed(1)} <span className="text-sm font-normal opacity-70 tracking-widest uppercase">Drift Index</span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-white/10 rounded-xl">
+                      <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                         <p className="text-[9px] uppercase font-bold opacity-70 mb-1">Baseline Score</p>
-                        <p className="text-xl font-headline font-bold">{results.historicalAverageQualityScore?.toFixed(1) || "N/A"}/10</p>
+                        <p className="text-2xl font-headline font-bold">{results.historicalAverageQualityScore?.toFixed(1) || "N/A"}</p>
                       </div>
-                      <div className="p-3 bg-white/10 rounded-xl">
+                      <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                         <p className="text-[9px] uppercase font-bold opacity-70 mb-1">Current Score</p>
-                        <p className="text-xl font-headline font-bold">{results.currentQualityScore?.toFixed(1) || "N/A"}/10</p>
+                        <p className="text-2xl font-headline font-bold">{results.currentQualityScore?.toFixed(1) || "N/A"}</p>
                       </div>
                     </div>
                     
-                    {results.qualityDropPercentage !== undefined && (
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-xs font-bold uppercase opacity-80">Quality Shift</span>
-                        <Badge variant="secondary" className={`${results.degradationDetected ? 'bg-white text-destructive' : 'bg-white text-primary'} border-none font-bold`}>
-                          {results.qualityDropPercentage > 0 ? '-' : '+'}{Math.abs(results.qualityDropPercentage).toFixed(1)}%
-                        </Badge>
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-black/10 rounded-xl text-sm leading-relaxed italic border-l-4 border-white/20">
+                    <div className="p-4 bg-black/20 rounded-2xl text-sm leading-relaxed italic border-l-4 border-white/30">
                       "{results.reasoning}"
                     </div>
                   </CardContent>
