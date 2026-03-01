@@ -150,10 +150,6 @@ export default function SettingsPage() {
     if (user) fetchSnapshot();
   }, [user]);
 
-  /**
-   * Generates a deterministic fingerprint hash from the user agent.
-   * In a real app, this would be more complex and potentially include IP.
-   */
   const getFingerprint = () => {
     if (typeof navigator === 'undefined') return 'unknown';
     const str = navigator.userAgent;
@@ -781,6 +777,7 @@ const client = withAtlasBurn(llm, {
                     <TableHeader>
                       <TableRow className="bg-muted/10">
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Timestamp</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Actor</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Category</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Forensics</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
@@ -790,7 +787,7 @@ const client = withAtlasBurn(llm, {
                     <TableBody>
                       {loadingLogs ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-12">
+                          <TableCell colSpan={6} className="text-center py-12">
                             <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
                           </TableCell>
                         </TableRow>
@@ -798,6 +795,12 @@ const client = withAtlasBurn(llm, {
                         <TableRow key={log.id} className="hover:bg-muted/5 transition-colors">
                           <TableCell className="text-[10px] font-mono whitespace-nowrap">
                             {new Date(log.timestamp).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold">{log.actorEmail?.split('@')[0]}</span>
+                              <span className="text-[9px] text-muted-foreground truncate max-w-[120px]">{log.actorEmail}</span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="text-[9px] font-bold uppercase bg-muted text-muted-foreground">
