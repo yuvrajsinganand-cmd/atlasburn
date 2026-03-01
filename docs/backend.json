@@ -71,6 +71,19 @@
         "cost": { "type": "number" },
         "eventId": { "type": "string" }
       }
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "type": "object",
+      "description": "Institutional activity record for administrative actions.",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "actorEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["timestamp", "actorEmail", "action"]
     }
   },
   "auth": {
@@ -92,6 +105,10 @@
     "/organizations/{orgId}/usageRecords/{recordId}": {
       "schema": "#/backend/entities/UsageRecord",
       "description": "Forensic ledger."
+    },
+    "/organizations/{orgId}/auditLogs/{logId}": {
+      "schema": "#/backend/entities/AuditLog",
+      "description": "Institutional activity ledger."
     }
   }
 }

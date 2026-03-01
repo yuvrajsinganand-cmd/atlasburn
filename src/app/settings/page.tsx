@@ -35,11 +35,12 @@ import {
   Info,
   ShieldAlert,
   Search,
-  UserPlus
+  UserPlus,
+  History
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
-import { doc, collection, query } from "firebase/firestore"
+import { doc, collection, query, orderBy, limit } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { updateProfile } from "firebase/auth"
 import { toast } from "@/hooks/use-toast"
@@ -100,12 +101,23 @@ export default function SettingsPage() {
   
   const { data: organization } = useDoc(orgRef);
 
-  // Fetch Members from the Institutional Permissions collection
+  // Fetch Members
   const membersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
   }, [firestore, user]);
   const { data: members, isLoading: loadingMembers } = useCollection(membersQuery);
+
+  // Fetch Audit Logs
+  const auditLogsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "organizations", `org_${user.uid}`, "auditLogs"),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+  }, [firestore, user]);
+  const { data: auditLogs, isLoading: loadingLogs } = useCollection(auditLogsQuery);
 
   useEffect(() => {
     if (organization) {
@@ -129,12 +141,25 @@ export default function SettingsPage() {
     if (user) fetchSnapshot();
   }, [user]);
 
+  const logAction = (action: string, details: string) => {
+    if (!firestore || !user) return;
+    const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
+    addDocumentNonBlocking(auditRef, {
+      timestamp: new Date().toISOString(),
+      actorEmail: user.email,
+      action,
+      details,
+      status: "success"
+    });
+  };
+
   const copyProjectId = () => {
     if (!user) return;
     navigator.clipboard.writeText(user.uid);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
     toast({ title: "Project ID Copied", description: "Use this value for 'projectId' in SDK initialization." });
+    logAction("PROJECT_ID_COPIED", "User copied the global project ID.");
   };
 
   const handleUpdateProfile = async () => {
@@ -143,6 +168,7 @@ export default function SettingsPage() {
     try {
       await updateProfile(auth.currentUser, { displayName });
       toast({ title: "Profile Updated", description: "Institutional identity sync complete." });
+      logAction("PROFILE_UPDATED", `Display name updated to ${displayName}`);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Update Failed", description: e.message });
     } finally {
@@ -161,6 +187,7 @@ export default function SettingsPage() {
     setTimeout(() => {
       setSavingOrg(false);
       toast({ title: "Organization Synced", description: "Metadata updated in control plane." });
+      logAction("ORG_METADATA_UPDATED", `Org name set to ${orgName}`);
     }, 500);
   };
 
@@ -195,6 +222,7 @@ export default function SettingsPage() {
       setNewDomain("");
       setAddingDomain(false);
       toast({ title: "Domain Pending", description: `${domainName} added. Please verify DNS ownership.` });
+      logAction("DOMAIN_ADDED", `New domain ${domainName} added to pending whitelist.`);
     }, 500);
   };
 
@@ -210,12 +238,14 @@ export default function SettingsPage() {
           title: "DNS Verified", 
           description: `${domainToVerify} is now officially whitelisted and secure.` 
         });
+        logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`);
       } else {
         toast({ 
           variant: "destructive",
           title: "Verification Failed", 
           description: result.error || "Could not detect DNS record." 
         });
+        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}.`);
       }
     } catch (e: any) {
       toast({ 
@@ -236,6 +266,7 @@ export default function SettingsPage() {
       updatedAt: new Date().toISOString()
     });
     toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
+    logAction("DOMAIN_REMOVED", `Domain ${domain} removed from whitelist.`);
   };
 
   const handleInvite = () => {
@@ -243,7 +274,6 @@ export default function SettingsPage() {
     setSendingInvite(true);
 
     const memberCol = collection(firestore, "organizations", `org_${user.uid}`, "users");
-    // We add by a new doc - in a real app, this would be linked to an email invite.
     addDocumentNonBlocking(memberCol, {
       email: inviteEmail.trim(),
       role: inviteRole,
@@ -259,6 +289,7 @@ export default function SettingsPage() {
       setIsInviteOpen(false);
       setInviteEmail("");
       toast({ title: "Member Invited", description: `Forensic access granted to ${inviteEmail} with ${inviteRole} authority.` });
+      logAction("MEMBER_INVITED", `Invited ${inviteEmail} with role ${inviteRole}.`);
     }, 600);
   };
 
@@ -291,6 +322,7 @@ export default function SettingsPage() {
               <TabsTrigger value="account" className="gap-2 shrink-0 py-2"><User size={14} /> Account</TabsTrigger>
               <TabsTrigger value="billing" className="gap-2 shrink-0 py-2"><CreditCard size={14} /> Billing & Access</TabsTrigger>
               <TabsTrigger value="domains" className="gap-2 shrink-0 py-2"><Globe size={14} /> Domains</TabsTrigger>
+              <TabsTrigger value="audit" className="gap-2 shrink-0 py-2"><History size={14} /> Audit Log</TabsTrigger>
               <TabsTrigger value="legal" className="gap-2 shrink-0 py-2"><FileText size={14} /> Legal</TabsTrigger>
             </TabsList>
 
@@ -442,7 +474,7 @@ const client = withAtlasBurn(llm, {
                         <CardTitle className="text-lg font-headline flex items-center gap-2">
                           <Users size={18} className="text-primary" /> Institutional Permissions
                         </CardTitle>
-                        <CardDescription>Manage user access and roles for this organization. Access is granted through Firestore Security Rules via member delegation.</CardDescription>
+                        <CardDescription>Manage user access and roles for this organization.</CardDescription>
                       </div>
                       <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                         <DialogTrigger asChild>
@@ -477,16 +509,6 @@ const client = withAtlasBurn(llm, {
                                   <SelectItem value="engineer">Engineer (SDK & Technical)</SelectItem>
                                 </SelectContent>
                               </Select>
-                              <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
-                                <p className="text-[10px] font-bold text-primary uppercase mb-1 flex items-center gap-1">
-                                  <Shield size={10} /> Role Authority
-                                </p>
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                  {inviteRole === 'admin' && "Full management of organization metadata, billing, and member delegation."}
-                                  {inviteRole === 'finance' && "Optimized for margin analysis, burn forecasting, and capital optimization. No SDK management."}
-                                  {inviteRole === 'engineer' && "Scoped to SDK cluster configuration, model quality sentry, and usage forensics. No economic access."}
-                                </p>
-                              </div>
                             </div>
                           </div>
                           <DialogFooter>
@@ -509,7 +531,6 @@ const client = withAtlasBurn(llm, {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {/* Always show owner first */}
                           <TableRow>
                             <TableCell>
                               <div className="flex flex-col">
@@ -522,38 +543,21 @@ const client = withAtlasBurn(llm, {
                             <TableCell className="text-right text-[10px] font-mono text-muted-foreground">ROOT</TableCell>
                           </TableRow>
                           
-                          {/* Invited members from collection */}
                           {members?.map((member) => (
-                            <TableRow key={member.id} className="group transition-colors">
+                            <TableRow key={member.id}>
                               <TableCell>
                                 <div className="flex flex-col">
                                   <span className="text-sm font-bold">{member.name || member.email.split('@')[0]}</span>
                                   <span className="text-[10px] text-muted-foreground">{member.email}</span>
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px] font-bold uppercase border-muted-foreground/30">
-                                  {member.role}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge className={member.status === 'active' ? 'bg-green-100 text-green-700 font-bold text-[9px]' : 'bg-amber-100 text-amber-700 font-bold text-[9px]'}>
-                                  {member.status?.toUpperCase() || 'ACTIVE'}
-                                </Badge>
-                              </TableCell>
+                              <TableCell><Badge variant="outline" className="text-[10px] font-bold uppercase">{member.role}</Badge></TableCell>
+                              <TableCell><Badge className="bg-amber-100 text-amber-700 text-[10px] border-none font-bold uppercase">{member.status}</Badge></TableCell>
                               <TableCell className="text-right text-[10px] font-mono text-muted-foreground">
-                                {new Date(member.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                {new Date(member.createdAt).toLocaleDateString()}
                               </TableCell>
                             </TableRow>
                           ))}
-
-                          {loadingMembers && (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center py-8">
-                                <Loader2 className="animate-spin mx-auto text-muted-foreground" size={20} />
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </TableBody>
                       </Table>
                     </CardContent>
@@ -674,95 +678,98 @@ const client = withAtlasBurn(llm, {
                             {!entry.verified && (
                               <div className="px-4 pb-4">
                                 <div className="bg-amber-50 border border-amber-100 rounded-lg p-5 space-y-4">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">DNS Record Configuration</p>
-                                    <Badge variant="outline" className="text-[9px] bg-white/50 border-amber-200">Pending Validation</Badge>
-                                  </div>
-                                  
                                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
-                                        Type
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
-                                            <TooltipContent className="text-[10px]">The type of DNS record. Forensic ownership requires a TXT record.</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Type <Info size={10} /></div>
                                       <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">TXT</div>
                                     </div>
-                                    
                                     <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
-                                        Host / Name
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
-                                            <TooltipContent className="text-[10px]">The hostname for the record. Use '@' for root domain verification.</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Host <Info size={10} /></div>
                                       <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">@</div>
                                     </div>
-
                                     <div className="md:col-span-2 space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
-                                        Value / Data
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
-                                            <TooltipContent className="text-[10px]">The unique token generated for this domain to verify ownership.</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                      <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded-lg text-xs font-mono group/record">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Value <Info size={10} /></div>
+                                      <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded-lg text-xs font-mono">
                                         <code className="text-amber-900 truncate mr-2">atlasburn-verification={entry.verificationToken}</code>
                                         <Button 
                                           variant="ghost" 
                                           size="sm" 
-                                          className="h-7 w-7 p-0 hover:bg-amber-100" 
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(`atlasburn-verification=${entry.verificationToken}`);
-                                            toast({ title: "Copied", description: "Verification token copied to clipboard." });
-                                          }}
+                                          className="h-7 w-7 p-0" 
+                                          onClick={() => navigator.clipboard.writeText(`atlasburn-verification=${entry.verificationToken}`)}
                                         >
                                           <Copy size={12} className="text-amber-700" />
                                         </Button>
                                       </div>
                                     </div>
-
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">
-                                        TTL
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger><Info size={10} /></TooltipTrigger>
-                                            <TooltipContent className="text-[10px]">Time To Live. Standard institutional value is 3600 seconds (1 hour).</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                      <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">3600</div>
-                                    </div>
                                   </div>
-                                  
-                                  <p className="text-[9px] text-amber-700 leading-relaxed italic border-l-2 border-amber-300 pl-3">
-                                    AtlasBurn now performs a real-time global DNS check. Propagation can take several hours depending on your registrar.
-                                  </p>
                                 </div>
                               </div>
                             )}
                           </div>
                         ))}
-
-                        {(!organization?.allowedDomains || organization.allowedDomains.length === 0) && (
-                          <div className="p-4 flex items-center justify-between text-muted-foreground italic">
-                            <span className="text-xs">No additional domains configured.</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="audit" className="space-y-6">
+              <Card className="border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader className="bg-muted/50 border-b">
+                  <CardTitle className="text-lg font-headline flex items-center gap-2">
+                    <History className="text-primary" size={20} /> Institutional Audit Ledger
+                  </CardTitle>
+                  <CardDescription>Real-time feed of all administrative actions taken within this organization.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/10">
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Timestamp</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Actor</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Details</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingLogs ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-12">
+                            <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
+                          </TableCell>
+                        </TableRow>
+                      ) : auditLogs?.map((log) => (
+                        <TableRow key={log.id} className="hover:bg-muted/5 transition-colors">
+                          <TableCell className="text-[10px] font-mono whitespace-nowrap">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-xs font-bold">{log.actorEmail}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] font-bold uppercase">
+                              {log.action?.replace(/_/g, ' ')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground italic">
+                            {log.details}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge className="bg-green-100 text-green-700 text-[9px] border-none">
+                              {log.status?.toUpperCase() || 'SUCCESS'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {!loadingLogs && !auditLogs?.length && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
+                            No institutional activity recorded in this window.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </TabsContent>
