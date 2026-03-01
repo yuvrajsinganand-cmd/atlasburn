@@ -336,7 +336,7 @@ export default function SettingsPage() {
 
         <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
           <Tabs defaultValue="sdk" className="space-y-6">
-            <TabsList className="bg-muted/50 p-1 w-full flex justify-start overflow-x-auto scrollbar-hide h-auto gap-1">
+            <TabsList className="bg-muted/50 p-1 w-full flex justify-start overflow-x-auto h-auto gap-1">
               <TabsTrigger value="sdk" className="gap-2 shrink-0 py-2"><Terminal size={14} /> SDK Ingestion</TabsTrigger>
               <TabsTrigger value="account" className="gap-2 shrink-0 py-2"><User size={14} /> Account</TabsTrigger>
               <TabsTrigger value="billing" className="gap-2 shrink-0 py-2"><CreditCard size={14} /> Billing & Access</TabsTrigger>

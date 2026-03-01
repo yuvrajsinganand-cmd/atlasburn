@@ -77,7 +77,7 @@ export default function QualityMonitor() {
 
       setResults(enhanced)
 
-      // Log to Audit Ledger if degradation exceeded
+      // Log to Institutional Audit Ledger if degradation exceeded
       if (enhanced.degradationDetected && firestore && user) {
         const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
         addDocumentNonBlocking(auditRef, {

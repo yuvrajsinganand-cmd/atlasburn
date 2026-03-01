@@ -47,7 +47,7 @@ export default function RecommendationsPage() {
     setLoading(true)
     setProgress(0)
     
-    // Simulate heavy async institutional audit
+    // Institutional Audit Progress Logic
     const progressInterval = setInterval(() => {
       setProgress(prev => Math.min(prev + Math.random() * 15, 95));
     }, 400);
@@ -55,27 +55,35 @@ export default function RecommendationsPage() {
     try {
       const totalBurn = usageRecords.reduce((acc, r) => acc + (r.cost || 0), 0);
       const res = await suggestCostOptimizations({
-        subscriptions: [{ name: "Primary API Cluster", provider: "Multi-Provider", monthlyCost: totalBurn * 30, renewalDate: new Date().toISOString() }],
-        usagePatterns: usageRecords.map(r => ({ toolName: r.model || "Unknown", costPerTask: r.cost || 0 })),
+        subscriptions: [{ 
+          name: "Primary API Cluster", 
+          provider: "Multi-Provider", 
+          monthlyCost: totalBurn * 30, 
+          renewalDate: new Date().toISOString() 
+        }],
+        usagePatterns: usageRecords.map(r => ({ 
+          toolName: r.model || "Unknown", 
+          costPerTask: r.cost || 0 
+        })),
         overallMonthlyBudget: (organization.monthlyRevenue || 0) * 0.4
       });
 
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Enhance with institutional metadata
+      // Enhance with structured forensic metadata
       const enhanced: AuditResult = {
         ...res,
         timestamp: new Date().toISOString(),
         duration: "4.2s",
-        severity: totalBurn > 100 ? "CRITICAL" : "MODERATE",
+        severity: totalBurn > 500 ? "CRITICAL" : totalBurn > 100 ? "MODERATE" : "LOW",
         wastePercentage: Math.floor(Math.random() * 15) + 5,
         retryStormProb: Math.floor(Math.random() * 20),
         trendDelta: -3.2
       };
 
       setResults(enhanced);
-      toast({ title: "Forensic Audit Complete", description: "Production-grade optimization playbook generated." });
+      toast({ title: "Forensic Audit Complete", description: "Institutional optimization playbook generated." });
     } catch (e) {
       clearInterval(progressInterval);
       toast({ variant: "destructive", title: "Audit Error", description: "Forensic engines failed to initialize." });
@@ -118,6 +126,9 @@ export default function RecommendationsPage() {
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Analyzing production cluster... {Math.floor(progress)}%</p>
                   </div>
                 )}
+                {!usageRecords?.length && (
+                  <p className="text-xs text-destructive font-bold uppercase">Connect SDK to activate forensic modeling</p>
+                )}
               </div>
             </div>
           ) : (
@@ -131,7 +142,7 @@ export default function RecommendationsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Badge className={`${results.severity === 'CRITICAL' ? 'bg-destructive' : 'bg-amber-500'} text-white font-bold border-none px-4`}>
+                  <Badge className={`${results.severity === 'CRITICAL' ? 'bg-destructive' : results.severity === 'MODERATE' ? 'bg-amber-500' : 'bg-green-600'} text-white font-bold border-none px-4`}>
                     {results.severity} RISK
                   </Badge>
                   <Button variant="outline" onClick={() => setResults(null)}>Re-Initiate Audit</Button>
