@@ -7,11 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Terminal, Loader2, Beaker, Zap, ShieldCheck } from "lucide-react"
 import { useUser, useFirestore } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { collection, doc } from "firebase/firestore"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function UsageLab() {
   const { user } = useUser()
@@ -22,9 +22,22 @@ export default function UsageLab() {
     if (!user || !firestore) return;
     setTesting(true);
     try {
+      const orgRef = doc(firestore, 'organizations', `org_${user.uid}`);
       const usagePath = collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords');
       
-      // Inject 14 days of stochastic forensic data
+      // 1. Initialize the Economic Root (The Organization)
+      // This is required for the snapshot API to recognize the "Connection"
+      setDocumentNonBlocking(orgRef, {
+        name: `${user.displayName || 'Forensic'}'s Org`,
+        capitalReserves: 50000,
+        monthlyRevenue: 12000,
+        fixedMonthlyBurn: 2000,
+        targetMargin: 0.7,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // 2. Inject 14 days of stochastic forensic data
       const promises = [];
       for (let i = 14; i >= 0; i--) {
         const date = new Date();
@@ -40,25 +53,29 @@ export default function UsageLab() {
             model: 'gpt-4o',
             provider: 'openai',
             eventId: crypto.randomUUID(),
-            apiCallType: 'forensic_simulation'
+            apiCallType: 'forensic_simulation',
+            inputTokens: Math.floor(Math.random() * 1000) + 500,
+            outputTokens: Math.floor(Math.random() * 500) + 200
           }));
         }
       }
       
-      // Also add some "shocks" to test risk detection
+      // 3. Add some "shocks" to test risk detection
       promises.push(addDocumentNonBlocking(usagePath, {
         timestamp: new Date().toISOString(),
         cost: 500, // A massive spike
         model: 'o1-preview',
         provider: 'openai',
         eventId: crypto.randomUUID(),
-        apiCallType: 'stress_test_event'
+        apiCallType: 'stress_test_event',
+        inputTokens: 2000,
+        outputTokens: 1000
       }));
 
       await Promise.all(promises);
       toast({ 
         title: "Forensic Feed Primed", 
-        description: "Institutional burn data generated. Refresh the dashboard to see capital simulation." 
+        description: "Institutional burn data and Economic Root generated. Refresh the dashboard." 
       });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Injection Failed", description: e.message });
@@ -97,7 +114,7 @@ export default function UsageLab() {
                 <span className="text-[10px] font-bold uppercase tracking-widest">How to test</span>
               </div>
               <p className="text-sm text-zinc-400 leading-relaxed">
-                Click the button below to inject 14 days of synthetic forensic data into your organization. This will provide the "Forensic Volatility" and "Daily Burn" metrics required for the Probabilistic Risk Engine to function.
+                Click the button below to inject 14 days of synthetic forensic data and initialize your **Economic Root**. This will provide the "Forensic Volatility" and "Daily Burn" metrics required for the Probabilistic Risk Engine.
               </p>
             </div>
 
