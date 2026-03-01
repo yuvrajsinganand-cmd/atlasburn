@@ -147,7 +147,7 @@ export default function AtlasBurnDashboard() {
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Baseline Burn</span><Flame size={16} className="text-amber-500" /></div>
                   <div className="text-2xl font-headline font-bold text-amber-500">
@@ -167,7 +167,14 @@ export default function AtlasBurnDashboard() {
                   <div className="text-2xl font-headline font-bold text-destructive">
                     ${riskProfile!.simulation.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Period Surprise Stress</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Stress Case Delta (P95-P50)</p>
+                </Card>
+                <Card className="p-6 border-none shadow-sm bg-white">
+                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stress Burn (P95)</span><Activity size={16} className="text-destructive" /></div>
+                  <div className="text-2xl font-headline font-bold text-destructive">
+                    ${riskProfile!.simulation.p95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-2">Worst-Case Monthly Spend</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
                   <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Projected Runway</span><Target size={16} className="text-primary" /></div>

@@ -161,7 +161,6 @@ export default function ProfilePage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-primary/10 text-primary rounded-lg"><Zap size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Decision Engine</p>
                 <p className="text-sm font-bold">Active</p>
               </div>
             </Card>
