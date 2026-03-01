@@ -1,4 +1,3 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -186,6 +185,8 @@ export default function SettingsPage() {
   if (!mounted) return null;
 
   const hasEvents = snapshot?.hasEvents || false;
+  const totalRequests = snapshot?.usage?.requests || 0;
+  const usagePercentage = Math.min(100, (totalRequests / 100000) * 100);
 
   return (
     <SidebarProvider suppressHydrationWarning>
@@ -219,7 +220,7 @@ export default function SettingsPage() {
                   <Card className="border-none shadow-sm bg-white overflow-hidden">
                     <CardHeader className="bg-primary/5 border-b">
                       <CardTitle className="text-xl font-headline flex items-center gap-2 text-primary">
-                        <Zap size={20} /> Forensic SDK
+                        <Zap size={20} /> AtlasBurn Forensic SDK
                       </CardTitle>
                       <CardDescription>Connect other products to this control plane for unified burn visibility.</CardDescription>
                     </CardHeader>
@@ -429,10 +430,10 @@ const client = withAtlasBurn(llm, {
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs font-bold">
                           <span>Usage Limit</span>
-                          <span>{((snapshot?.usage.requests || 0) / 100000).toFixed(1)}%</span>
+                          <span>{((snapshot?.usage?.requests || 0) / 100000).toFixed(1)}%</span>
                         </div>
                         <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full bg-white w-[1%]" />
+                          <div className="h-full bg-white transition-all duration-500" style={{ width: `${usagePercentage}%` }} />
                         </div>
                       </div>
                       <Button 
