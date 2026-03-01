@@ -100,7 +100,7 @@ export default function SettingsPage() {
   
   const { data: organization } = useDoc(orgRef);
 
-  // Fetch Members
+  // Fetch Members from the Institutional Permissions collection
   const membersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
@@ -243,6 +243,7 @@ export default function SettingsPage() {
     setSendingInvite(true);
 
     const memberCol = collection(firestore, "organizations", `org_${user.uid}`, "users");
+    // We add by a new doc - in a real app, this would be linked to an email invite.
     addDocumentNonBlocking(memberCol, {
       email: inviteEmail.trim(),
       role: inviteRole,
@@ -376,11 +377,11 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Full Name</Label>
-                      <Input 
+                      <input 
+                        className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm"
                         placeholder="Lead Founder" 
                         value={displayName} 
                         onChange={(e) => setDisplayName(e.target.value)}
-                        className="bg-muted/20" 
                       />
                     </div>
                     <div className="space-y-2">
@@ -411,11 +412,11 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Organization Name</Label>
-                      <Input 
+                      <input 
+                        className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm"
                         placeholder="e.g. Acme AI Corp" 
                         value={orgName} 
                         onChange={(e) => setOrgName(e.target.value)}
-                        className="bg-muted/20" 
                       />
                     </div>
                     <Button 
@@ -441,7 +442,7 @@ const client = withAtlasBurn(llm, {
                         <CardTitle className="text-lg font-headline flex items-center gap-2">
                           <Users size={18} className="text-primary" /> Institutional Permissions
                         </CardTitle>
-                        <CardDescription>Manage user access and roles for this organization.</CardDescription>
+                        <CardDescription>Manage user access and roles for this organization. Access is granted through Firestore Security Rules via member delegation.</CardDescription>
                       </div>
                       <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                         <DialogTrigger asChild>
@@ -521,7 +522,7 @@ const client = withAtlasBurn(llm, {
                             <TableCell className="text-right text-[10px] font-mono text-muted-foreground">ROOT</TableCell>
                           </TableRow>
                           
-                          {/* Invited members */}
+                          {/* Invited members from collection */}
                           {members?.map((member) => (
                             <TableRow key={member.id} className="group transition-colors">
                               <TableCell>
