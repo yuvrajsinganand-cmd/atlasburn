@@ -16,14 +16,15 @@ import { toast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { calculateRunway, getMarginStatus, calculateMonthEndForecast } from "@/lib/math-engine"
 import { calculateUsageVariance } from "@/lib/variance-engine"
+import { INSTITUTIONAL_DEFAULTS } from "@/lib/risk-config"
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   
-  const [budgetCap, setBudgetCap] = useState("250000"); 
+  const [budgetCap, setBudgetCap] = useState(INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES.toString()); 
   const [mrrInput, setMrrInput] = useState("15000");
-  const [fixedBurnInput, setFixedBurnInput] = useState("20000");
+  const [fixedBurnInput, setFixedBurnInput] = useState(INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR.toString());
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -77,9 +78,9 @@ export default function ProfilePage() {
     const variableBurnInfo = calculateUsageVariance(usageRecords || []);
     
     const compositeDailyMean = (fixedMonthlyBurn / 30) + variableBurnInfo.dailyMean;
-    const capital = parseFloat(budgetCap) || 250000;
+    const capital = parseFloat(budgetCap) || INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES;
     const revenue = parseFloat(mrrInput) || 15000;
-    const manualBurnFloor = parseFloat(fixedBurnInput) || 20000;
+    const manualBurnFloor = parseFloat(fixedBurnInput) || INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR;
     
     // Institutional Floor Applied to modeling
     const effectiveDailyMean = Math.max(compositeDailyMean, manualBurnFloor / 30);
@@ -89,9 +90,9 @@ export default function ProfilePage() {
       effectiveDailyMean * 15, 
       15, 
       30,
-      0.05,
+      INSTITUTIONAL_DEFAULTS.MONTHLY_GROWTH,
       capital,
-      variableBurnInfo.cv || 0.25 
+      variableBurnInfo.cv || INSTITUTIONAL_DEFAULTS.COEFFICIENT_OF_VARIATION 
     );
     
     const runwayDays = calculateRunway(effectiveDailyMean, capital);
@@ -144,7 +145,7 @@ export default function ProfilePage() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
-              <Server size={10} /> v3.1-QUANT
+              <Server size={10} /> v3.2-BLOOMBERG
             </Badge>
           </div>
         </header>
@@ -161,14 +162,14 @@ export default function ProfilePage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-primary/10 text-primary rounded-lg"><Zap size={20} /></div>
               <div>
-                <p className="text-sm font-bold">Active</p>
+                <p className="text-sm font-bold">Risk Active</p>
               </div>
             </Card>
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Activity size={20} /></div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Monte Carlo</p>
-                <p className="text-sm font-bold">Log-Normal</p>
+                <p className="text-sm font-bold">Log-Normal Paths</p>
               </div>
             </Card>
           </div>
@@ -232,7 +233,7 @@ export default function ProfilePage() {
                   <CardTitle className="flex items-center gap-2 font-headline">
                     <Wallet className="text-primary" size={20} /> Economic Parameters
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Adjust your institution's financial baseline. These values drive the risk engine's composite survival modeling.</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">Adjust institutional financial baselines. These values drive the risk engine's survival modeling.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-6 md:grid-cols-2">
@@ -249,7 +250,7 @@ export default function ProfilePage() {
                         <Flame size={12} /> Institutional Burn Baseline ($)
                       </Label>
                       <Input id="fixed-burn" type="number" value={fixedBurnInput} onChange={(e) => setFixedBurnInput(e.target.value)} className="h-10 bg-primary/5 border-primary/20" />
-                      <p className="text-[10px] text-muted-foreground">Manual override to simulate risk at a specific institutional scale (e.g. $25k/mo).</p>
+                      <p className="text-[10px] text-muted-foreground">Manual override for modeling risk at a specific institutional scale (Default: $20,000).</p>
                     </div>
                   </div>
                   <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">

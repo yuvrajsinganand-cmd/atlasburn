@@ -7,6 +7,7 @@
 
 import { runInstitutionalSimulation, type InstitutionalSimInput, type InstitutionalSimResult } from './probabilistic-engine';
 import { calculateUsageVariance } from './variance-engine';
+import { INSTITUTIONAL_DEFAULTS, RISK_LEVELS } from './risk-config';
 
 export interface ComprehensiveRiskProfile {
   simulation: InstitutionalSimResult;
@@ -19,11 +20,6 @@ export interface ComprehensiveRiskProfile {
     description: string;
   };
 }
-
-// Institutional Scale Defaults (Enterprise Grade)
-const DEFAULT_MONTHLY_BURN = 20000;
-const DEFAULT_CASH = 250000;
-const DEFAULT_CV = 0.25;
 
 /**
  * Institutional standard for status categorization.
@@ -76,13 +72,13 @@ export function calculateMonthEndForecast(
     startingCapital: capital,
     mrr: 0,
     monthlyGrowthRate: growth,
-    churnRate: 0,
+    churnRate: INSTITUTIONAL_DEFAULTS.CHURN_RATE,
     currentDailyBurn: dailyMean,
     burnVolatility: volatility,
     daysRemaining: daysRemaining,
-    outageProb: 0.01,
-    retryCascadeProb: 0.02,
-    runs: 5000,
+    outageProb: INSTITUTIONAL_DEFAULTS.OUTAGE_PROBABILITY,
+    retryCascadeProb: INSTITUTIONAL_DEFAULTS.RETRY_CASCADE_PROBABILITY,
+    runs: INSTITUTIONAL_DEFAULTS.SIMULATION_RUNS,
   });
 
   return {
@@ -93,46 +89,44 @@ export function calculateMonthEndForecast(
 
 /**
  * Generates a comprehensive risk profile using forensic variance.
- * Force realistic scale defaults if actual data is microscopic.
+ * Aligned with deterministic economic parameters.
  */
 export function generateRiskProfile(
   usageRecords: any[],
   organization: any,
-  scenarioAdjustments: { growth?: number; volatility?: number; daysRemaining?: number } = {}
+  scenarioAdjustments: { growth?: number; volatility?: number; daysRemaining?: number; churn?: number } = {}
 ): ComprehensiveRiskProfile {
   const variance = calculateUsageVariance(usageRecords);
   
-  // Economic Scale Fix: Ensure we model at least an Institutional Baseline
+  // Align with Profile Settings
   const mrr = Math.max(organization?.monthlyRevenue ?? 0, 15000);
-  const capital = Math.max(organization?.capitalReserves ?? 0, DEFAULT_CASH);
-  
-  // Priority: 1. Manual Override 2. Derived from Records 3. Default Institutional Floor
+  const capital = Math.max(organization?.capitalReserves ?? 0, INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES);
+  const fixedBurnFloor = organization?.fixedMonthlyBurn ?? INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR;
+
+  // Derive Daily Mean from Forensic Ledger vs Institutional Floor
   const baselineMonthlyBurn = variance.dailyMean * 30;
-  const fixedBurnFloor = organization?.fixedMonthlyBurn ?? DEFAULT_MONTHLY_BURN;
   const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, fixedBurnFloor);
   const dailyMeanToSimulate = effectiveMonthlyBurn / 30;
 
-  const cv = scenarioAdjustments.volatility ?? (variance.cv || DEFAULT_CV);
-
-  // Time Horizon Logic (Default to 90 days / Quarterly)
+  const cv = scenarioAdjustments.volatility ?? (variance.cv || INSTITUTIONAL_DEFAULTS.COEFFICIENT_OF_VARIATION);
   const daysToSimulate = scenarioAdjustments.daysRemaining ?? 90;
 
   const simInput: InstitutionalSimInput = {
     startingCapital: capital,
     mrr: mrr,
-    monthlyGrowthRate: scenarioAdjustments.growth ?? 0.05,
-    churnRate: 0.03,
+    monthlyGrowthRate: scenarioAdjustments.growth ?? INSTITUTIONAL_DEFAULTS.MONTHLY_GROWTH,
+    churnRate: scenarioAdjustments.churn ?? INSTITUTIONAL_DEFAULTS.CHURN_RATE,
     currentDailyBurn: dailyMeanToSimulate,
     burnVolatility: cv,
     daysRemaining: daysToSimulate, 
-    outageProb: 0.02,
-    retryCascadeProb: 0.05,
-    runs: 10000, 
+    outageProb: INSTITUTIONAL_DEFAULTS.OUTAGE_PROBABILITY,
+    retryCascadeProb: INSTITUTIONAL_DEFAULTS.RETRY_CASCADE_PROBABILITY,
+    runs: INSTITUTIONAL_DEFAULTS.SIMULATION_RUNS, 
   };
 
   const simulation = runInstitutionalSimulation(simInput);
   
-  // Normalize metrics for display (per window simulation)
+  // Monthly Normalization
   const windowMonths = daysToSimulate / 30;
   const monthlyP50 = simulation.p50 / windowMonths;
   const monthlyP95 = simulation.p95 / windowMonths;
@@ -140,13 +134,12 @@ export function generateRiskProfile(
   const monthlyCvar95 = simulation.cvar95 / windowMonths;
 
   const marginPercentage = mrr > 0 ? ((mrr - monthlyP50) / mrr) * 100 : 0;
-  
   const status = getMarginStatus(1 - simulation.survivalProbability, marginPercentage);
   
   const descriptions: Record<string, string> = {
-    "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. CVaR indicates deep insolvency in tail scenarios.",
-    "MARGIN EROSION": "High variance detected. Quarterly churn and burn correlation is tightening. Institutional watch required.",
-    "CAPITAL SECURE": "Operational stability. Net margin covers stress events. High survival probability."
+    "INSOLVENCY RISK": "Critical capital exposure. Forensic volatility exceeds reserves. Expected shortfall (CVaR) indicates deep insolvency in tail scenarios.",
+    "MARGIN EROSION": "High variance detected. Institutional watch required as churn-to-burn correlation tightens.",
+    "CAPITAL SECURE": "Operational stability. Net margin comfortably absorbs P95 stress events."
   };
 
   return {
