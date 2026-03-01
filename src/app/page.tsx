@@ -23,7 +23,7 @@ export default function AtlasBurnDashboard() {
   const [volatilityAdj, setVolatilityAdj] = useState<number | null>(null);
   const [growthAdj, setGrowthAdj] = useState<number | null>(null);
   const [churnAdj, setChurnAdj] = useState<number | null>(null);
-  const [horizon, setHorizon] = useState<number>(90); 
+  const [horizon, setHorizon] = useState<number>(90); // Default 90 days
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

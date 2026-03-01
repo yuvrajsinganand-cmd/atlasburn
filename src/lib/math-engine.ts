@@ -50,7 +50,7 @@ export function getMarginStatus(breachProb: number, margin: number) {
  * Simple linear runway calculation in days.
  */
 export function calculateRunway(dailyBurn: number, capital: number): number {
-  if (dailyBurn <= 0) return 3650; 
+  if (dailyBurn <= 0) return 3650; // 10 years (effectively infinite)
   return capital / dailyBurn;
 }
 
@@ -101,6 +101,7 @@ export function generateRiskProfile(
   const capital = Math.max(organization?.capitalReserves ?? 0, INSTITUTIONAL_DEFAULTS.CAPITAL_RESERVES);
   const fixedBurnFloor = organization?.fixedMonthlyBurn ?? INSTITUTIONAL_DEFAULTS.MONTHLY_BURN_FLOOR;
 
+  // Use the forensic mean but respect the institutional baseline floor
   const baselineMonthlyBurn = variance.dailyMean * 30;
   const effectiveMonthlyBurn = Math.max(baselineMonthlyBurn, fixedBurnFloor);
   const dailyMeanToSimulate = effectiveMonthlyBurn / 30;

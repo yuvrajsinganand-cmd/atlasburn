@@ -63,8 +63,10 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
   let insolvencyCount = 0;
 
   // Correct Log-Normal Parameter Transformation
+  // sigma = sqrt(ln(1 + CV^2))
   const cv = Math.max(0.01, burnVolatility);
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
+  // mu = ln(mean) - 0.5 * sigma^2
   const mu = Math.log(Math.max(0.001, currentDailyBurn)) - 0.5 * Math.pow(sigma, 2);
 
   const actualRuns = Math.max(runs, 10000);
@@ -142,7 +144,7 @@ export function runInstitutionalSimulation(input: InstitutionalSimInput): Instit
 
   let survivalProbability = (actualRuns - insolvencyCount) / actualRuns;
   
-  // High-uncertainty floor
+  // High-uncertainty floor: if CV is high, probability can't be exactly 100%
   if (cv > 0.1 && survivalProbability === 1) {
     survivalProbability = 0.999;
   }
