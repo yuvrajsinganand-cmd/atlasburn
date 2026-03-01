@@ -45,6 +45,7 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { type SdkProjectSnapshot } from "@/types/sdk"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { verifyDomainDns } from "./actions"
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -158,7 +159,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const verificationToken = `atlasburn-verification-${Math.random().toString(36).substring(2, 15)}`;
+    const verificationToken = Math.random().toString(36).substring(2, 15);
 
     const newEntry = {
       domain: domainName,
@@ -179,27 +180,34 @@ export default function SettingsPage() {
     }, 500);
   };
 
-  const handleVerifyDns = async (domainToVerify: string) => {
-    if (!orgRef || !organization?.allowedDomains) return;
+  const handleVerifyDns = async (domainToVerify: string, token: string) => {
+    if (!user || !domainToVerify) return;
     setVerifyingDomain(domainToVerify);
 
-    // Simulated DNS Check
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const updated = organization.allowedDomains.map((d: any) => {
-      if (d.domain === domainToVerify) {
-        return { ...d, verified: true };
+    try {
+      const result = await verifyDomainDns(user.uid, domainToVerify, token);
+      
+      if (result.success) {
+        toast({ 
+          title: "DNS Verified", 
+          description: `${domainToVerify} is now officially whitelisted and secure.` 
+        });
+      } else {
+        toast({ 
+          variant: "destructive",
+          title: "Verification Failed", 
+          description: result.error || "Could not detect DNS record." 
+        });
       }
-      return d;
-    });
-
-    updateDocumentNonBlocking(orgRef, {
-      allowedDomains: updated,
-      updatedAt: new Date().toISOString()
-    });
-
-    setVerifyingDomain(null);
-    toast({ title: "DNS Verified", description: `${domainToVerify} is now officially whitelisted.` });
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive",
+        title: "Resolution Error", 
+        description: "An unexpected error occurred during DNS lookup." 
+      });
+    } finally {
+      setVerifyingDomain(null);
+    }
   };
 
   const handleRemoveDomain = (domain: string) => {
@@ -516,7 +524,7 @@ const client = withAtlasBurn(llm, {
                                     size="sm" 
                                     variant="outline" 
                                     className="h-8 text-[10px] font-bold"
-                                    onClick={() => handleVerifyDns(entry.domain)}
+                                    onClick={() => handleVerifyDns(entry.domain, entry.verificationToken)}
                                     disabled={verifyingDomain === entry.domain}
                                   >
                                     {verifyingDomain === entry.domain ? (
@@ -616,7 +624,7 @@ const client = withAtlasBurn(llm, {
                                   </div>
                                   
                                   <p className="text-[9px] text-amber-700 leading-relaxed italic border-l-2 border-amber-300 pl-3">
-                                    DNS propagation can take up to 24 hours. Click 'Verify DNS' above once you've updated your registrar.
+                                    AtlasBurn now performs a real-time global DNS check. Propagation can take several hours depending on your registrar.
                                   </p>
                                 </div>
                               </div>
