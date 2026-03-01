@@ -1,252 +1,153 @@
+
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Activity, Target, SlidersHorizontal, Zap, Loader2, Beaker, ShieldCheck, Flame } from "lucide-react"
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, orderBy, limit, doc } from "firebase/firestore"
-import { generateRiskProfile } from "@/lib/math-engine"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Slider } from "@/components/ui/slider"
+import { Activity, ShieldCheck, Flame, Zap, Terminal, Copy, Loader2, ArrowRight } from "lucide-react"
+import { useUser } from "@/firebase"
+import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
+import { type SdkProjectSnapshot } from "@/types/sdk"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
-export default function AtlasBurnDashboard() {
-  const { user } = useUser();
-  const firestore = useFirestore();
-  
-  const [volatilityAdj, setVolatilityAdj] = useState<number | null>(null);
-  const [growthAdj, setGrowthAdj] = useState<number | null>(null);
-  const [churnAdj, setChurnAdj] = useState<number | null>(null);
-  const [horizon, setHorizon] = useState<number>(90); // Default 90 days
-  const [mounted, setMounted] = useState(false);
+export default function Dashboard() {
+  const { user, isUserLoading } = useUser();
+  const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    async function fetchSnapshot() {
+      if (!user) return;
+      try {
+        const res = await fetch(`/api/projects/${user.uid}/snapshot?windowDays=90`);
+        const data = await res.json();
+        setSnapshot(data);
+      } catch (e) {
+        console.error("Failed to fetch forensic snapshot", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (!isUserLoading) fetchSnapshot();
+  }, [user, isUserLoading]);
 
-  const orgRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'organizations', `org_${user.uid}`);
-  }, [firestore, user]);
-  const { data: organization, isLoading: orgLoading } = useDoc(orgRef);
+  if (isUserLoading || loading) {
+    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={32} /></div>;
+  }
 
-  const usageQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'),
-      orderBy('timestamp', 'desc'),
-      limit(200)
-    );
-  }, [firestore, user]);
-  const { data: usageRecords, isLoading: usageLoading } = useCollection(usageQuery);
-
-  const riskProfile = useMemo(() => {
-    if (!usageRecords || !mounted) return null;
-    return generateRiskProfile(usageRecords, organization, {
-      volatility: volatilityAdj ?? undefined,
-      growth: growthAdj ?? undefined,
-      churn: churnAdj ?? undefined,
-      daysRemaining: horizon
-    });
-  }, [usageRecords, organization, growthAdj, volatilityAdj, churnAdj, horizon, mounted]);
-
-  const chartData = useMemo(() => {
-    if (!usageRecords || usageRecords.length === 0 || !mounted) return [];
-    const grouped = usageRecords.reduce((acc: any, rec) => {
-      const date = new Date(rec.timestamp).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-      if (!acc[date]) acc[date] = { date, burn: 0 };
-      acc[date].burn += rec.cost || 0;
-      return acc;
-    }, {});
-    return Object.values(grouped).reverse();
-  }, [usageRecords, mounted]);
-
-  const horizonLabel = useMemo(() => {
-    if (horizon === 90) return "Quarterly Outlook";
-    if (horizon === 180) return "6 Month Projection";
-    if (horizon === 365) return "1 Year Forecast";
-    if (horizon >= 1095) return "Survival Horizon (Full)";
-    return `${Math.round(horizon / 30)} Month Outlook`;
-  }, [horizon]);
-
-  if (orgLoading || usageLoading || !mounted) {
+  // SDK GATE 1: Not Connected
+  if (!snapshot || !snapshot.isConnected) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8">
+            <div className="bg-primary/10 p-6 rounded-3xl text-primary"><Terminal size={64} /></div>
+            <div className="space-y-2 max-w-md">
+              <h2 className="text-3xl font-headline font-bold">Connect the SDK</h2>
+              <p className="text-muted-foreground">AtlasBurn requires real forensic ingestion to model risk. Connect your product to begin capital simulation.</p>
+            </div>
+            <div className="bg-zinc-950 text-zinc-50 p-6 rounded-2xl font-mono text-left text-xs max-w-xl w-full border-l-4 border-primary">
+              <p className="text-primary mb-2">// Setup Integration</p>
+              <p>npm install @atlasburn/sdk</p>
+              <p className="mt-4 text-zinc-500">const client = withSleek(llm, {'{'}</p>
+              <p className="pl-4">apiKey: process.env.SLEEK_KEY,</p>
+              <p className="pl-4">projectId: "{user?.uid}"</p>
+              <p>{'}'});</p>
+            </div>
+            <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold"><Link href="/settings">Configure Keys <ArrowRight className="ml-2" /></Link></Button>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     );
   }
+
+  // SDK GATE 2: No Events
+  if (!snapshot.hasEvents) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-6">
+            <div className="bg-primary/10 p-6 rounded-3xl text-primary animate-pulse"><Activity size={64} /></div>
+            <div className="space-y-2 max-w-md">
+              <h2 className="text-3xl font-headline font-bold">Waiting for Forensic Feed</h2>
+              <p className="text-muted-foreground">SDK connected. Awaiting your first API events to prime the Log-Normal Risk Engine.</p>
+            </div>
+            <Button asChild variant="outline" className="rounded-full px-8 font-headline font-bold"><Link href="/usage">Run Test Ingestion</Link></Button>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
+
+  const simResult = runInstitutionalSimulation(snapshot);
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-background/50">
+      <SidebarInset>
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold tracking-tighter text-primary uppercase">Atlas Burn <span className="text-muted-foreground text-[10px] font-mono ml-2 uppercase tracking-widest">Bloomberg Institutional</span></h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Forensic Command</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <Tabs value={horizon.toString()} onValueChange={(v) => setHorizon(parseInt(v))} className="hidden md:block">
-              <TabsList className="bg-muted/50">
-                <TabsTrigger value="90" className="text-[10px] font-bold">3M</TabsTrigger>
-                <TabsTrigger value="180" className="text-[10px] font-bold">6M</TabsTrigger>
-                <TabsTrigger value="365" className="text-[10px] font-bold">12M</TabsTrigger>
-                <TabsTrigger value="1095" className="text-[10px] font-bold">FULL</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 h-8 text-xs font-headline font-bold">
-                  <SlidersHorizontal size={14} /> Stress Injector
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-bold font-headline text-sm text-primary">Systemic Shock Parameters</h4>
-                  <p className="text-[10px] text-muted-foreground uppercase leading-tight">Injecting variables into Log-Normal risk engine.</p>
-                </div>
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-bold uppercase">
-                      <span>Monthly Growth Intensity</span>
-                      <span>{((growthAdj ?? 0.05) * 100).toFixed(0)}%</span>
-                    </div>
-                    <Slider value={[((growthAdj ?? 0.05) * 100)]} onValueChange={([v]) => setGrowthAdj(v / 100)} max={100} step={1} />
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-bold uppercase">
-                      <span>Institutional Churn Rate</span>
-                      <span>{((churnAdj ?? 0.03) * 100).toFixed(0)}%</span>
-                    </div>
-                    <Slider value={[((churnAdj ?? 0.03) * 100)]} onValueChange={([v]) => setChurnAdj(v / 100)} max={20} step={1} />
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-bold uppercase">
-                      <span>Engine Volatility (CV)</span>
-                      <span>{((volatilityAdj ?? riskProfile?.volatility ?? 0.1) * 100).toFixed(0)}%</span>
-                    </div>
-                    <Slider value={[((volatilityAdj ?? riskProfile?.volatility ?? 0.1) * 100)]} onValueChange={([v]) => setVolatilityAdj(v / 100)} max={100} step={1} />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase ${riskProfile?.marginStatus.bg} ${riskProfile?.marginStatus.color}`}>
-              <Activity size={14} />
-              {riskProfile?.marginStatus.label}
-            </div>
-          </div>
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 uppercase text-[10px] font-bold">
+            <ShieldCheck size={12} /> Live Forensic Stream
+          </Badge>
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-          {!usageRecords?.length ? (
-            <Card className="p-12 text-center border-dashed border-2 flex flex-col items-center justify-center space-y-6 bg-white/50">
-              <div className="bg-primary/10 p-4 rounded-full text-primary"><Beaker size={48} /></div>
-              <div className="space-y-2 max-w-md">
-                <h2 className="text-2xl font-headline font-bold">Awaiting Forensic Feed</h2>
-                <p className="text-muted-foreground">The Log-Normal Risk Engine requires history to derive operational CV. Inject a forensic test to prime the simulation.</p>
+          {simResult.status === 'NOT_READY' ? (
+            <Card className="p-12 border-dashed border-2 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="p-4 bg-amber-50 text-amber-600 rounded-full"><Zap size={40} /></div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-headline font-bold text-amber-700">Incomplete Economic Context</h3>
+                <p className="text-sm text-muted-foreground">The risk engine is missing: <span className="font-mono font-bold">{simResult.missing.join(', ')}</span></p>
               </div>
-              <Button asChild size="lg" className="rounded-full px-8 font-headline font-bold shadow-xl"><Link href="/usage">Run Ingestion Test</Link></Button>
+              <Button asChild className="font-headline font-bold"><Link href="/profile">Set Economic Guardrails</Link></Button>
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Baseline Burn (P50)</span><Flame size={16} className="text-amber-500" /></div>
-                  <div className="text-2xl font-headline font-bold text-amber-500">
-                    ${riskProfile!.baselineMonthlyBurn.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs font-normal opacity-70">/mo</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Baseline</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">P50 Baseline Burn</p>
+                  <p className="text-2xl font-headline font-bold text-primary">${simResult.result.p50Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                 </Card>
-                <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-green-600">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Survival Prob</span><ShieldCheck size={16} className="text-green-600" /></div>
-                  <div className="text-2xl font-headline font-bold text-green-600">
-                    {(riskProfile!.simulation.survivalProbability * 100).toFixed(1)}%
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">{horizonLabel}</p>
+                <Card className="p-6 border-none shadow-sm bg-white">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Survival Probability</p>
+                  <p className="text-2xl font-headline font-bold text-green-600">{(simResult.result.survivalProbability * 100).toFixed(1)}%</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-destructive">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-destructive uppercase tracking-widest">Surprise Delta (VaR)</span><TrendingUp size={16} className="text-destructive" /></div>
-                  <div className="text-2xl font-headline font-bold text-destructive">
-                    ${riskProfile!.simulation.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-tight opacity-70 font-bold">Capital Cushion Required</p>
+                  <p className="text-[10px] font-bold text-destructive uppercase tracking-widest mb-1">Surprise Delta (VaR)</p>
+                  <p className="text-2xl font-headline font-bold text-destructive">${simResult.result.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                 </Card>
                 <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stress Burn (P95)</span><Activity size={16} className="text-destructive" /></div>
-                  <div className="text-2xl font-headline font-bold text-destructive">
-                    ${riskProfile!.simulation.p95Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Absolute Worst-Case Burn</p>
-                </Card>
-                <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forecast Runway</span><Target size={16} className="text-primary" /></div>
-                  <div className="text-2xl font-headline font-bold text-primary">
-                    {riskProfile!.simulation.expectedRunwayMonths.toFixed(1)} <span className="text-lg font-normal opacity-70">Mo</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Median Forecast Horizon</p>
-                </Card>
-                <Card className="p-6 border-none shadow-sm bg-white">
-                  <div className="flex justify-between items-center mb-2"><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forensic Volatility</span><Activity size={16} className="text-accent" /></div>
-                  <div className="text-2xl font-headline font-bold text-accent">
-                    {(riskProfile!.volatility * 100).toFixed(1)}%
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">Coefficient of Variation (CV)</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Forensic Volatility</p>
+                  <p className="text-2xl font-headline font-bold text-accent">{(snapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-                  <CardHeader className="px-0 pt-0">
-                    <CardTitle className="text-lg font-headline">Burn Attribution Stream</CardTitle>
-                    <CardDescription>Rolling daily burn derived from real-time forensic ingestion.</CardDescription>
-                  </CardHeader>
-                  <div className="h-[300px] w-full mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="colorBurn" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} />
-                        <YAxis axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                        <Area type="monotone" dataKey="burn" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorBurn)" strokeWidth={3} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-                
-                <Card className="border-none shadow-sm bg-primary text-primary-foreground p-6">
-                  <CardHeader className="px-0 pt-0">
-                    <CardTitle className="text-lg font-headline flex items-center gap-2"><Zap /> Institutional Analysis</CardTitle>
-                  </CardHeader>
-                  <div className="space-y-6">
-                    <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
-                      <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Expected Shortfall (CVaR)</p>
-                      <p className="text-3xl font-headline font-bold">${riskProfile!.simulation.cvar95.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      <p className="text-[9px] opacity-60 mt-1 uppercase tracking-tight">Avg burn in extreme tail scenarios</p>
-                    </div>
-                    <div className="space-y-4">
-                      <p className="text-sm leading-relaxed opacity-90 italic">
-                        "{riskProfile!.marginStatus.description}"
-                      </p>
-                      <Button variant="outline" className="w-full bg-white text-primary hover:bg-white/90 font-headline font-bold h-12 shadow-xl" asChild>
-                        <Link href="/optimizer">Execute Optimization Playbook</Link>
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
+              <Card className="border-none shadow-sm bg-white p-6">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle className="text-lg font-headline">Historical Burn Attribution</CardTitle>
+                </CardHeader>
+                <div className="h-[300px] w-full mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={snapshot.usage.daily}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} />
+                      <YAxis axisLine={false} tickLine={false} fontSize={10} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} strokeWidth={3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
             </>
           )}
         </main>
