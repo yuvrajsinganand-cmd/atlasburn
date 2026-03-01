@@ -35,7 +35,9 @@ import {
   ShieldAlert,
   UserPlus,
   History,
-  ShieldX
+  ShieldX,
+  Smartphone,
+  Cpu
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
@@ -100,14 +102,12 @@ export default function SettingsPage() {
   
   const { data: organization } = useDoc(orgRef);
 
-  // Fetch Members
   const membersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
   }, [firestore, user]);
   const { data: members } = useCollection(membersQuery);
 
-  // Fetch Audit Logs
   const auditLogsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -150,16 +150,35 @@ export default function SettingsPage() {
     if (user) fetchSnapshot();
   }, [user]);
 
+  /**
+   * Generates a deterministic fingerprint hash from the user agent.
+   * In a real app, this would be more complex and potentially include IP.
+   */
+  const getFingerprint = () => {
+    if (typeof navigator === 'undefined') return 'unknown';
+    const str = navigator.userAgent;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0; 
+    }
+    return Math.abs(hash).toString(16).toUpperCase();
+  };
+
   const logAction = (action: string, details: string, category: 'admin' | 'security' | 'billing' | 'access' = 'admin', status: 'success' | 'failure' = 'success') => {
     if (!firestore || !user) return;
     const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
+    
     addDocumentNonBlocking(auditRef, {
       timestamp: new Date().toISOString(),
       actorEmail: user.email,
       action,
       details,
       status,
-      category
+      category,
+      userAgent: navigator.userAgent,
+      loginMethod: user.providerData[0]?.providerId || 'password',
+      deviceFingerprint: getFingerprint()
     });
   };
 
@@ -215,7 +234,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const verificationToken = Math.random().toString(36).substring(2, 15);
 
     const newEntry = {
       domain: domainName,
@@ -245,25 +264,14 @@ export default function SettingsPage() {
       const result = await verifyDomainDns(user.uid, domainToVerify, token);
       
       if (result.success) {
-        toast({ 
-          title: "DNS Verified", 
-          description: `${domainToVerify} is now officially whitelisted and secure.` 
-        });
+        toast({ title: "DNS Verified", description: `${domainToVerify} is now officially whitelisted.` });
         logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`, "security", "success");
       } else {
-        toast({ 
-          variant: "destructive",
-          title: "Verification Failed", 
-          description: result.error || "Could not detect DNS record." 
-        });
-        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}. Details: ${result.error}`, "security", "failure");
+        toast({ variant: "destructive", title: "Verification Failed", description: result.error || "Could not detect DNS record." });
+        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}.`, "security", "failure");
       }
     } catch (e: any) {
-      toast({ 
-        variant: "destructive",
-        title: "Resolution Error", 
-        description: "An unexpected error occurred during DNS lookup." 
-      });
+      toast({ variant: "destructive", title: "Resolution Error", description: "An unexpected error occurred during DNS lookup." });
       logAction("DNS_RESOLUTION_ERROR", `Critical error during DNS lookup for ${domainToVerify}.`, "security", "failure");
     } finally {
       setVerifyingDomain(null);
@@ -300,21 +308,19 @@ export default function SettingsPage() {
       setSendingInvite(false);
       setIsInviteOpen(false);
       setInviteEmail("");
-      toast({ title: "Member Invited", description: `Forensic access granted to ${inviteEmail} with ${inviteRole} authority.` });
+      toast({ title: "Member Invited", description: `Invitation sent to ${inviteEmail}.` });
       logAction("MEMBER_INVITED", `Invited ${inviteEmail} with role ${inviteRole}.`, "access");
     }, 600);
   };
 
   const handleManageBilling = () => {
-    toast({ title: "Billing Control Plane", description: "Redirecting to institutional billing manager..." });
+    toast({ title: "Billing Control Plane", description: "Redirecting to billing manager..." });
     logAction("BILLING_MANAGER_OPENED", "User opened the billing configuration dashboard.", "billing");
   };
 
   if (!mounted) return null;
 
-  const hasEvents = snapshot?.hasEvents || false;
-  const totalRequests = snapshot?.usage?.requests || 0;
-  const usagePercentage = Math.min(100, (totalRequests / 100000) * 100);
+  const usagePercentage = snapshot?.usage ? Math.min(100, (snapshot.usage.requests / 100000) * 100) : 0;
 
   return (
     <SidebarProvider suppressHydrationWarning>
@@ -392,7 +398,7 @@ const client = withAtlasBurn(llm, {
                         <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
                           <Loader2 className="animate-spin h-3 w-3" /> Analyzing...
                         </div>
-                      ) : hasEvents ? (
+                      ) : snapshot?.hasEvents ? (
                         <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
                           <div className="flex items-center gap-2">
                             <CheckCircle2 size={14} className="text-green-600" />
@@ -426,11 +432,11 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Full Name</Label>
-                      <input 
-                        className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm"
+                      <Input 
                         placeholder="Lead Founder" 
                         value={displayName} 
                         onChange={(e) => setDisplayName(e.target.value)}
+                        className="bg-muted/20"
                       />
                     </div>
                     <div className="space-y-2">
@@ -461,11 +467,11 @@ const client = withAtlasBurn(llm, {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Organization Name</Label>
-                      <input 
-                        className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm"
+                      <Input 
                         placeholder="e.g. Acme AI Corp" 
                         value={orgName} 
                         onChange={(e) => setOrgName(e.target.value)}
+                        className="bg-muted/20"
                       />
                     </div>
                     <Button 
@@ -502,7 +508,7 @@ const client = withAtlasBurn(llm, {
                         <DialogContent>
                           <DialogHeader>
                             <DialogTitle className="font-headline text-xl">Delegate Forensic Access</DialogTitle>
-                            <DialogDescription>Assign a team member to this organization with specific operational authority.</DialogDescription>
+                            <DialogDescription>Assign a team member with specific authority.</DialogDescription>
                           </DialogHeader>
                           <div className="space-y-6 py-4">
                             <div className="space-y-2">
@@ -597,7 +603,7 @@ const client = withAtlasBurn(llm, {
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs font-bold">
                           <span>Usage Limit</span>
-                          <span>{((snapshot?.usage?.requests || 0) / 100000).toFixed(1)}%</span>
+                          <span>{snapshot?.usage ? ((snapshot.usage.requests / 100000) * 100).toFixed(1) : '0.0'}%</span>
                         </div>
                         <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full bg-white transition-all duration-500" style={{ width: `${usagePercentage}%` }} />
@@ -616,7 +622,7 @@ const client = withAtlasBurn(llm, {
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
                     <Globe size={18} className="text-primary" /> Ingestion Whitelist
                   </CardTitle>
-                  <CardDescription>Restrict forensic ingestion to specific domains for enhanced security. DNS verification required.</CardDescription>
+                  <CardDescription>Restrict forensic ingestion to specific domains. DNS verification required.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
@@ -697,15 +703,15 @@ const client = withAtlasBurn(llm, {
                                 <div className="bg-amber-50 border border-amber-100 rounded-lg p-5 space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Type <Info size={10} /></div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Type <TooltipProvider><Tooltip><TooltipTrigger><Info size={10} /></TooltipTrigger><TooltipContent>The DNS record type must be TXT.</TooltipContent></Tooltip></TooltipProvider></div>
                                       <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">TXT</div>
                                     </div>
                                     <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Host <Info size={10} /></div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Host <TooltipProvider><Tooltip><TooltipTrigger><Info size={10} /></TooltipTrigger><TooltipContent>Use '@' for root domain or the specific subdomain name.</TooltipContent></Tooltip></TooltipProvider></div>
                                       <div className="bg-white/80 border border-amber-200 p-2.5 rounded-lg text-xs font-mono font-bold text-amber-900">@</div>
                                     </div>
                                     <div className="md:col-span-2 space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Value <Info size={10} /></div>
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-900/60 uppercase">Value <TooltipProvider><Tooltip><TooltipTrigger><Info size={10} /></TooltipTrigger><TooltipContent>Copy this unique token into your DNS provider's TXT value field.</TooltipContent></Tooltip></TooltipProvider></div>
                                       <div className="flex items-center justify-between bg-white border border-amber-200 p-2 rounded-lg text-xs font-mono">
                                         <code className="text-amber-900 truncate mr-2">atlasburn-verification={entry.verificationToken}</code>
                                         <Button 
@@ -768,7 +774,7 @@ const client = withAtlasBurn(llm, {
                   <CardTitle className="text-lg font-headline flex items-center gap-2">
                     <History className="text-primary" size={20} /> Institutional Audit Ledger
                   </CardTitle>
-                  <CardDescription>Real-time feed of categorized administrative and security actions.</CardDescription>
+                  <CardDescription>Real-time feed of device forensics and administrative actions.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
@@ -776,7 +782,7 @@ const client = withAtlasBurn(llm, {
                       <TableRow className="bg-muted/10">
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Timestamp</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Category</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Actor</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Forensics</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Action</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
                       </TableRow>
@@ -798,7 +804,28 @@ const client = withAtlasBurn(llm, {
                               {log.category || 'admin'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs font-bold">{log.actorEmail}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground">
+                                <Cpu size={10} /> {log.deviceFingerprint || 'ID: UNKNOWN'}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground">
+                                <Smartphone size={10} /> {log.loginMethod?.toUpperCase() || 'PASS'}
+                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-[8px] text-muted-foreground underline cursor-help truncate max-w-[100px]">
+                                      {log.userAgent}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-[300px] text-[10px] font-mono">
+                                    {log.userAgent}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               <span className="text-xs font-bold">{log.action?.replace(/_/g, ' ')}</span>
@@ -812,13 +839,6 @@ const client = withAtlasBurn(llm, {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {!loadingLogs && !auditLogs?.length && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
-                            No institutional activity recorded in this window.
-                          </TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -836,11 +856,11 @@ const client = withAtlasBurn(llm, {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Our terms govern the usage of the AtlasBurn Forensic SDK and Control Plane. By connecting your infrastructure, you agree to our automated burn auditing and capital risk modeling methodologies.
+                      Our terms govern the usage of the AtlasBurn Forensic SDK and Control Plane.
                     </p>
                     <Button variant="link" asChild className="p-0 h-auto text-primary font-bold mt-4 text-xs">
                       <a href="https://www.atlasburn.com/terms" target="_blank" rel="noopener noreferrer">
-                        Read Full Terms <ExternalLink size={10} className="ml-1" />
+                        Read Full Terms
                       </a>
                     </Button>
                   </CardContent>
@@ -855,11 +875,11 @@ const client = withAtlasBurn(llm, {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      AtlasBurn encrypts all forensic metadata. We do not store raw LLM prompts or outputs—only token counts, model identifiers, and stochastic performance metrics for margin analysis.
+                      AtlasBurn encrypts all forensic metadata. We do not store raw LLM prompts.
                     </p>
                     <Button variant="link" asChild className="p-0 h-auto text-primary font-bold mt-4 text-xs">
                       <a href="https://www.atlasburn.com/privacy" target="_blank" rel="noopener noreferrer">
-                        Review Data Policy <ExternalLink size={10} className="ml-1" />
+                        Review Data Policy
                       </a>
                     </Button>
                   </CardContent>
@@ -870,25 +890,5 @@ const client = withAtlasBurn(llm, {
         </main>
       </SidebarInset>
     </SidebarProvider>
-  );
-}
-
-// Inline ExternalLink icon since it wasn't explicitly imported
-function ExternalLink({ size, className }: { size?: number, className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width={size || 24} 
-      height={size || 24} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-    </svg>
   );
 }
