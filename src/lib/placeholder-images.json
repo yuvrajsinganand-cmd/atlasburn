@@ -3,8 +3,8 @@
     {
       "id": "app-logo",
       "description": "AtlasBurn Stylized A Logo with Flame",
-      "imageUrl": "https://picsum.photos/seed/atlas-fire/512/512",
-      "imageHint": "cyan flame"
+      "imageUrl": "https://picsum.photos/seed/atlas-burn-main/512/512",
+      "imageHint": "stylized flame"
     }
   ]
 }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
@@ -40,20 +41,20 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="py-6 px-4">
         <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-10 w-10">
-            {logo ? (
-              <Image 
-                src={logo.imageUrl} 
-                alt={logo.description} 
-                width={32} 
-                height={32} 
-                data-ai-hint={logo.imageHint}
-                className="object-contain"
-              />
-            ) : (
+          {logo ? (
+            <Image 
+              src={logo.imageUrl} 
+              alt={logo.description} 
+              width={40} 
+              height={40} 
+              data-ai-hint={logo.imageHint}
+              className="object-contain rounded-xl shadow-sm"
+            />
+          ) : (
+            <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg flex items-center justify-center h-10 w-10">
               <BrainCircuit size={20} />
-            )}
-          </div>
+            </div>
+          )}
           <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden text-primary">
             ATLAS BURN
           </span>

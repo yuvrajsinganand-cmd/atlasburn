@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -37,18 +38,16 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center space-y-1">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary p-3 rounded-2xl text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-20 w-20">
-              {logo && (
-                <Image 
-                  src={logo.imageUrl} 
-                  alt={logo.description} 
-                  width={64} 
-                  height={64} 
-                  data-ai-hint={logo.imageHint}
-                  className="object-contain"
-                />
-              )}
-            </div>
+            {logo && (
+              <Image 
+                src={logo.imageUrl} 
+                alt={logo.description} 
+                width={120} 
+                height={120} 
+                data-ai-hint={logo.imageHint}
+                className="object-contain rounded-2xl shadow-xl border-4 border-white"
+              />
+            )}
           </div>
           <CardTitle className="text-2xl font-headline font-bold">Welcome to AtlasBurn</CardTitle>
           <CardDescription>Probabilistic capital risk engine for AI-native companies</CardDescription>
