@@ -45,10 +45,10 @@ export function AppSidebar() {
               <Image 
                 src={logo.imageUrl} 
                 alt={logo.description} 
-                width={24} 
-                height={24} 
+                width={32} 
+                height={32} 
                 data-ai-hint={logo.imageHint}
-                className="rounded-sm"
+                className="object-contain"
               />
             ) : (
               <BrainCircuit size={20} />

@@ -37,15 +37,15 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center space-y-1">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary p-3 rounded-2xl text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-16 w-16">
+            <div className="bg-primary p-3 rounded-2xl text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-20 w-20">
               {logo && (
                 <Image 
                   src={logo.imageUrl} 
                   alt={logo.description} 
-                  width={40} 
-                  height={40} 
+                  width={64} 
+                  height={64} 
                   data-ai-hint={logo.imageHint}
-                  className="rounded-md"
+                  className="object-contain"
                 />
               )}
             </div>
