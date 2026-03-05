@@ -1,7 +1,7 @@
 
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
+import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -40,8 +40,8 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="py-6 px-4">
-        <div className="flex items-center gap-3">
-          {logo ? (
+        <Link href="/" className="flex items-center gap-3">
+          {logo && (
             <Image 
               src={logo.imageUrl} 
               alt={logo.description} 
@@ -50,15 +50,11 @@ export function AppSidebar() {
               data-ai-hint={logo.imageHint}
               className="object-contain rounded-xl shadow-sm"
             />
-          ) : (
-            <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg flex items-center justify-center h-10 w-10">
-              <BrainCircuit size={20} />
-            </div>
           )}
           <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden text-primary">
             ATLAS BURN
           </span>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent className="px-2">
         <SidebarMenu>
