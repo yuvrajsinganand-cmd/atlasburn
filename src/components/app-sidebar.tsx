@@ -1,7 +1,7 @@
 "use client"
 
 import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
-import Link from "next/navigation"
+import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
