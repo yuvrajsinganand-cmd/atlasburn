@@ -72,7 +72,7 @@ export default function Dashboard() {
                 <Terminal size={64} />
               </div>
               <div className="space-y-4 max-w-xl">
-                <h2 className="text-4xl font-headline font-bold">Connect SDK to activate institutional modeling</h2>
+                <h2 className="text-4xl font-headline font-bold">Connect SDK to Activate Live Economics</h2>
                 <p className="text-muted-foreground text-lg leading-relaxed">
                   AtlasBurn is currently in passive mode. Deterministic economic risk modeling requires real-time forensic ingestion from the production cluster.
                 </p>
