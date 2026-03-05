@@ -1,6 +1,7 @@
+
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck, ShieldAlert } from "lucide-react"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
@@ -20,7 +21,7 @@ import {
 
 const items = [
   { title: "Economic Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Forensic Ledger", url: "/usage", icon: BarChart3 },
+  { title: "Integration Guide", url: "/usage", icon: Server },
   { title: "Model Intelligence", url: "/catalog", icon: Database },
   { title: "Audit & Optimize", url: "/optimizer", icon: Zap },
   { title: "Quality Sentry", url: "/quality", icon: ShieldAlert },

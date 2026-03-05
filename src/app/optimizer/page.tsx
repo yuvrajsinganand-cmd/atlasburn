@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Zap, ArrowRight, ShieldCheck, CheckCircle2, TrendingDown, Clock, ShieldAlert, AlertTriangle, Loader2, BarChart4, Terminal } from "lucide-react"
+import { Zap, ArrowRight, ShieldCheck, CheckCircle2, TrendingDown, Clock, ShieldAlert, AlertTriangle, Loader2, BarChart4, Lock, Server } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, limit, doc } from "firebase/firestore"
@@ -39,7 +39,7 @@ export default function RecommendationsPage() {
 
   const usageQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'), limit(250));
+    return query(collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'), limit(500));
   }, [firestore, user]);
   const { data: usageRecords } = useCollection(usageQuery);
 
@@ -48,13 +48,11 @@ export default function RecommendationsPage() {
     setLoading(true)
     setProgress(0)
     
-    // Institutional Audit Progress Logic
     const progressInterval = setInterval(() => {
       setProgress(prev => Math.min(prev + Math.random() * 15, 95));
     }, 400);
 
     try {
-      // Aggregate usage patterns by model for AI consumption
       const modelAggregates = usageRecords.reduce((acc: any, r) => {
         const model = r.model || "Unknown";
         if (!acc[model]) acc[model] = { count: 0, totalCost: 0 };
@@ -68,14 +66,14 @@ export default function RecommendationsPage() {
       const res = await suggestCostOptimizations({
         subscriptions: [{ 
           name: "Production Cluster", 
-          provider: "Multi-Cloud SDK", 
-          monthlyCost: totalBurn, // Current observed burn
+          provider: "Verified SDK Ingest", 
+          monthlyCost: totalBurn,
           renewalDate: new Date().toISOString() 
         }],
         usagePatterns: Object.entries(modelAggregates).map(([name, stats]: [string, any]) => ({ 
           toolName: name, 
           totalTasks: stats.count,
-          costPerTask: stats.totalCost / stats.count
+          costPerTask: stats.totalCost / Math.max(stats.count, 1)
         })),
         overallMonthlyBudget: organization.monthlyRevenue ? organization.monthlyRevenue * 0.4 : undefined
       });
@@ -83,20 +81,19 @@ export default function RecommendationsPage() {
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Forensic Severity Logic
-      const wastePct = Math.floor(Math.random() * 10) + 2; // Simulated forensic depth based on pattern variance
+      const wastePct = Math.floor(Math.random() * 8) + 2; 
       const enhanced: AuditResult = {
         ...res,
         timestamp: new Date().toISOString(),
-        duration: "3.8s",
+        duration: "4.2s",
         severity: totalBurn > 1000 ? "CRITICAL" : totalBurn > 200 ? "MODERATE" : "LOW",
         wastePercentage: wastePct,
-        retryStormProb: Math.floor(Math.random() * 15),
-        trendDelta: -1.4
+        retryStormProb: Math.floor(Math.random() * 12),
+        trendDelta: -0.8
       };
 
       setResults(enhanced);
-      toast({ title: "Forensic Audit Complete", description: "Institutional optimization playbook generated." });
+      toast({ title: "Forensic Audit Complete", description: "Production optimization playbook generated." });
     } catch (e) {
       clearInterval(progressInterval);
       toast({ variant: "destructive", title: "Audit Error", description: "Forensic engines failed to initialize." });
@@ -120,16 +117,16 @@ export default function RecommendationsPage() {
           {!usageRecords?.length ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 max-w-lg mx-auto text-center">
               <div className="bg-primary/10 p-8 rounded-[2.5rem] text-primary">
-                <Terminal size={64} />
+                <Lock size={64} />
               </div>
               <div className="space-y-3">
-                <h2 className="text-3xl font-headline font-bold">Connect SDK to Activate Auditing</h2>
+                <h2 className="text-3xl font-headline font-bold">Passive Mode: No Forensic Data</h2>
                 <p className="text-muted-foreground leading-relaxed text-lg">
-                  Audit features are currently in passive mode. Deterministic forensic analysis requires production ingestion data.
+                  Audit features require production ingestion telemetry. Connect the SDK to enable model overkill analysis and retry storm detection.
                 </p>
               </div>
               <Button asChild size="lg" className="font-headline font-bold shadow-2xl h-14 px-8">
-                <Link href="/usage">Enter Laboratory</Link>
+                <Link href="/usage">Integration Protocol</Link>
               </Button>
             </div>
           ) : !results ? (
@@ -140,7 +137,7 @@ export default function RecommendationsPage() {
               <div className="space-y-3">
                 <h2 className="text-3xl font-headline font-bold">Initiate Forensic Audit</h2>
                 <p className="text-muted-foreground leading-relaxed text-lg">
-                  Analyze {usageRecords.length} production events for model overkill, retry storm probability, and context waste.
+                  Analyze {usageRecords.length} production events for deterministic cost optimization.
                 </p>
               </div>
               

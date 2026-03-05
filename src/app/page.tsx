@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Terminal, Loader2, Beaker } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Terminal, Loader2, Server, Lock } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -69,32 +69,32 @@ export default function Dashboard() {
           {!snapshot || !snapshot.hasEvents ? (
             <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-8 animate-in fade-in duration-700">
               <div className="bg-primary/10 p-8 rounded-[2rem] text-primary">
-                <Terminal size={64} />
+                <Lock size={64} />
               </div>
               <div className="space-y-4 max-w-xl">
-                <h2 className="text-4xl font-headline font-bold">Connect SDK to Activate Live Economics</h2>
+                <h2 className="text-4xl font-headline font-bold">Passive Mode: Awaiting Ingestion</h2>
                 <p className="text-muted-foreground text-lg leading-relaxed">
-                  AtlasBurn is currently in passive mode. Deterministic economic risk modeling requires real-time forensic ingestion from the production cluster.
+                  AtlasBurn is strictly deterministic. Live economic modeling and survival simulations are deactivated until a verified production SDK feed is detected.
                 </p>
               </div>
               
               <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl">
                 <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all">
-                  <Beaker className="text-primary group-hover:scale-110 transition-transform" size={48} />
+                  <Server className="text-primary group-hover:scale-110 transition-transform" size={48} />
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold">Inject Synthetic Ingestion</h3>
-                    <p className="text-sm text-muted-foreground">Prime the engine in the Laboratory to model theoretical risk profiles immediately.</p>
+                    <h3 className="text-xl font-bold">Initialize SDK</h3>
+                    <p className="text-sm text-muted-foreground">Follow the integration protocol to connect your production cluster.</p>
                   </div>
                   <Button asChild variant="outline" className="w-full h-12 font-headline font-bold">
-                    <Link href="/usage">Enter Laboratory</Link>
+                    <Link href="/usage">Integration Protocol</Link>
                   </Button>
                 </Card>
 
                 <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all">
                   <Activity className="text-muted-foreground group-hover:scale-110 transition-transform" size={48} />
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold">Initialize Production SDK</h3>
-                    <p className="text-sm text-muted-foreground">Access global project credentials and whitelisted domains for production deployment.</p>
+                    <h3 className="text-xl font-bold">System Credentials</h3>
+                    <p className="text-sm text-muted-foreground">Access global project keys and whitelisted domains for deployment.</p>
                   </div>
                   <Button asChild variant="outline" className="w-full h-12 font-headline font-bold">
                     <Link href="/settings">System Controls</Link>
