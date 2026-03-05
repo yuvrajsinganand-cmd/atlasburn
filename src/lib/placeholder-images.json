@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "app-logo",
+      "description": "AtlasBurn Institutional Logo",
+      "imageUrl": "https://picsum.photos/seed/atlas-guard/64/64",
+      "imageHint": "abstract technology"
+    }
+  ]
 }

@@ -1,13 +1,14 @@
-
 "use client"
 
-import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, BarChart3, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
-import Link from "next/link"
+import { LayoutDashboard, BrainCircuit, Zap, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server } from "lucide-react"
+import Link from "next/navigation"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useUser, useAuth } from "@/firebase"
 import { initiateSignOut } from "@/firebase/non-blocking-login"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { PlaceHolderImages } from "@/lib/placeholder-images"
 
 import {
   Sidebar,
@@ -32,13 +33,26 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { user } = useUser()
   const auth = useAuth()
+  
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo')
 
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="py-6 px-4">
         <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg">
-            <BrainCircuit size={20} />
+          <div className="bg-primary p-2 rounded-lg text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-10 w-10">
+            {logo ? (
+              <Image 
+                src={logo.imageUrl} 
+                alt={logo.description} 
+                width={24} 
+                height={24} 
+                data-ai-hint={logo.imageHint}
+                className="rounded-sm"
+              />
+            ) : (
+              <BrainCircuit size={20} />
+            )}
           </div>
           <span className="font-headline font-bold text-lg tracking-tight group-data-[collapsible=icon]:hidden text-primary">
             ATLAS BURN

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/firebase';
 import { initiateGoogleSignIn, initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { Button } from '@/components/ui/button';
@@ -8,13 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BrainCircuit, LogIn, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
 import Link from 'next/link';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function LoginPage() {
   const auth = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  const logo = PlaceHolderImages.find(img => img.id === 'app-logo');
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +37,17 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center space-y-1">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary p-3 rounded-2xl text-primary-foreground shadow-lg">
-              <BrainCircuit size={32} />
+            <div className="bg-primary p-3 rounded-2xl text-primary-foreground shadow-lg flex items-center justify-center overflow-hidden h-16 w-16">
+              {logo && (
+                <Image 
+                  src={logo.imageUrl} 
+                  alt={logo.description} 
+                  width={40} 
+                  height={40} 
+                  data-ai-hint={logo.imageHint}
+                  className="rounded-md"
+                />
+              )}
             </div>
           </div>
           <CardTitle className="text-2xl font-headline font-bold">Welcome to AtlasBurn</CardTitle>
