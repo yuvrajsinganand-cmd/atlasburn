@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical, Laptop } from "lucide-react"
+import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
