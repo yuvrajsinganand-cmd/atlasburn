@@ -119,12 +119,6 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-lg leading-relaxed">
                   AtlasBurn is strictly deterministic. Live economic modeling and survival simulations are deactivated until a verified production SDK feed is detected.
                 </p>
-                <div className="flex justify-center pt-4">
-                  <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-2xl border">
-                    <Zap className="text-primary" size={16} />
-                    <span className="text-xs font-bold uppercase tracking-widest">Enable Demo Mode in sidebar to preview simulation</span>
-                  </div>
-                </div>
               </div>
               
               <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl">

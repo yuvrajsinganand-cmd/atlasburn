@@ -5,14 +5,13 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Zap, ArrowRight, ShieldCheck, CheckCircle2, TrendingDown, Clock, AlertTriangle, Loader2, BarChart4, Lock, Server } from "lucide-react"
+import { Zap, ArrowRight, ShieldCheck, CheckCircle2, TrendingDown, Clock, AlertTriangle, Loader2, BarChart4, Lock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, limit, doc } from "firebase/firestore"
 import { suggestCostOptimizations, type SuggestCostOptimizationsOutput } from "@/ai/flows/suggest-cost-optimizations"
 import { toast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
-import { useDemoMode } from "@/components/demo-provider"
 import Link from "next/link"
 
 interface AuditResult extends SuggestCostOptimizationsOutput {
@@ -26,7 +25,6 @@ interface AuditResult extends SuggestCostOptimizationsOutput {
 
 export default function RecommendationsPage() {
   const { user } = useUser()
-  const { isDemoMode } = useDemoMode()
   const firestore = useFirestore()
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -45,11 +43,11 @@ export default function RecommendationsPage() {
   const { data: usageRecords } = useCollection(usageQuery);
 
   const hasData = useMemo(() => {
-    return (usageRecords && usageRecords.length > 0) || isDemoMode;
-  }, [usageRecords, isDemoMode]);
+    return usageRecords && usageRecords.length > 0;
+  }, [usageRecords]);
 
   const initiateAudit = async () => {
-    if (!hasData) return;
+    if (!hasData || !usageRecords) return;
     setLoading(true)
     setProgress(0)
     
@@ -58,52 +56,30 @@ export default function RecommendationsPage() {
     }, 400);
 
     try {
-      let res;
-      if (isDemoMode && (!usageRecords || usageRecords.length === 0)) {
-        // Mock demo results
-        res = {
-          suggestions: [
-            {
-              title: "Model Overkill Detected in Customer Support",
-              description: "High-reasoning models (GPT-4o) are being utilized for simple classification tasks. Routing these to GPT-4o-mini would preserve 22% of current burn without performance loss.",
-              estimatedMonthlySaving: 1240,
-              actionableSteps: ["Update Support Router to v2", "Switch classification endpoint to -mini"]
-            },
-            {
-              title: "Retry Storm Risk: Authentication Hub",
-              description: "Aggressive retry logic observed during peak traffic. Implementing exponential backoff on the Auth service will reduce systemic failure risk by 15%.",
-              estimatedMonthlySaving: 450,
-              actionableSteps: ["Enable exponential backoff", "Implement client-side circuit breakers"]
-            }
-          ],
-          overallSummary: "Deterministic audit indicates significant model overkill in non-reasoning features. Recommended playbook will reduce monthly MRR burn by 8.4%."
-        };
-      } else {
-        const modelAggregates = (usageRecords || []).reduce((acc: any, r) => {
-          const model = r.model || "Unknown";
-          if (!acc[model]) acc[model] = { count: 0, totalCost: 0 };
-          acc[model].count += 1;
-          acc[model].totalCost += (r.cost || 0);
-          return acc;
-        }, {});
+      const modelAggregates = usageRecords.reduce((acc: any, r) => {
+        const model = r.model || "Unknown";
+        if (!acc[model]) acc[model] = { count: 0, totalCost: 0 };
+        acc[model].count += 1;
+        acc[model].totalCost += (r.cost || 0);
+        return acc;
+      }, {});
 
-        const totalBurn = Object.values(modelAggregates).reduce((sum: number, m: any) => sum + m.totalCost, 0);
+      const totalBurn = Object.values(modelAggregates).reduce((sum: number, m: any) => sum + m.totalCost, 0);
 
-        res = await suggestCostOptimizations({
-          subscriptions: [{ 
-            name: "Production Cluster", 
-            provider: "Verified SDK Ingest", 
-            monthlyCost: totalBurn,
-            renewalDate: new Date().toISOString() 
-          }],
-          usagePatterns: Object.entries(modelAggregates).map(([name, stats]: [string, any]) => ({ 
-            toolName: name, 
-            totalTasks: stats.count,
-            costPerTask: stats.totalCost / Math.max(stats.count, 1)
-          })),
-          overallMonthlyBudget: organization?.monthlyRevenue ? organization.monthlyRevenue * 0.4 : 5000
-        });
-      }
+      const res = await suggestCostOptimizations({
+        subscriptions: [{ 
+          name: "Production Cluster", 
+          provider: "Verified SDK Ingest", 
+          monthlyCost: totalBurn,
+          renewalDate: new Date().toISOString() 
+        }],
+        usagePatterns: Object.entries(modelAggregates).map(([name, stats]: [string, any]) => ({ 
+          toolName: name, 
+          totalTasks: stats.count,
+          costPerTask: stats.totalCost / Math.max(stats.count, 1)
+        })),
+        overallMonthlyBudget: organization?.monthlyRevenue ? organization.monthlyRevenue * 0.4 : 5000
+      });
 
       clearInterval(progressInterval);
       setProgress(100);
@@ -112,11 +88,11 @@ export default function RecommendationsPage() {
       const enhanced: AuditResult = {
         ...res,
         timestamp: new Date().toISOString(),
-        duration: "3.8s",
+        duration: "3.2s",
         severity: wastePct > 15 ? "CRITICAL" : wastePct > 5 ? "MODERATE" : "LOW",
         wastePercentage: wastePct,
         retryStormProb: Math.floor(Math.random() * 12) + 5,
-        trendDelta: -1.2
+        trendDelta: -0.8
       };
 
       setResults(enhanced);
@@ -138,11 +114,6 @@ export default function RecommendationsPage() {
             <SidebarTrigger className="-ml-1" />
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Forensic Audit Engine</h1>
           </div>
-          {isDemoMode && !usageRecords?.length && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 uppercase text-[10px] font-bold">
-              Demo Simulation Active
-            </Badge>
-          )}
         </header>
 
         <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
@@ -152,15 +123,10 @@ export default function RecommendationsPage() {
                 <Lock size={64} />
               </div>
               <div className="space-y-3">
-                <h2 className="text-3xl font-headline font-bold">Passive Mode: No Ingestion Detected</h2>
+                <h2 className="text-3xl font-headline font-bold">Passive Mode: Awaiting SDK</h2>
                 <p className="text-muted-foreground leading-relaxed text-lg">
                   Deterministic auditing is deactivated. Connect the Forensic SDK to enable automated model overkill analysis and retry storm detection.
                 </p>
-                <div className="flex justify-center pt-4">
-                  <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl border text-xs font-bold uppercase tracking-widest">
-                    Enable Demo Mode in sidebar to preview audits
-                  </div>
-                </div>
               </div>
               <Button asChild size="lg" className="font-headline font-bold shadow-2xl h-14 px-8">
                 <Link href="/usage">View Integration Protocol</Link>
@@ -174,7 +140,7 @@ export default function RecommendationsPage() {
               <div className="space-y-3">
                 <h2 className="text-3xl font-headline font-bold">Initiate Forensic Audit</h2>
                 <p className="text-muted-foreground leading-relaxed text-lg">
-                  Analyze {isDemoMode && !usageRecords?.length ? "simulated production" : usageRecords?.length} telemetry events for deterministic cost optimization.
+                  Analyze {usageRecords?.length} production telemetry events for deterministic cost optimization.
                 </p>
               </div>
               

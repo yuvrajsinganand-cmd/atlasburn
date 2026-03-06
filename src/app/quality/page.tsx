@@ -10,13 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
-import { ShieldCheck, History, Zap, Plus, Trash2, Loader2, AlertTriangle, BarChart4, CheckCircle2, TrendingDown, Clock, ShieldAlert } from "lucide-react"
+import { ShieldCheck, History, Zap, Plus, Trash2, Loader2, BarChart4, ShieldAlert, ShieldX } from "lucide-react"
 import { detectModelQualityDegradation, type DetectModelQualityDegradationOutput } from "@/ai/flows/detect-model-quality-degradation"
 import { toast } from "@/hooks/use-toast"
 import { useUser, useFirestore } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { collection } from "firebase/firestore"
-import { useDemoMode } from "@/components/demo-provider"
 
 interface DriftOutput extends DetectModelQualityDegradationOutput {
   driftScore: number;
@@ -27,7 +26,6 @@ interface DriftOutput extends DetectModelQualityDegradationOutput {
 
 export default function QualityMonitor() {
   const { user } = useUser()
-  const { isDemoMode } = useDemoMode()
   const firestore = useFirestore()
   const [historicalOutputs, setHistoricalOutputs] = useState<string[]>([""])
   const [currentOutput, setCurrentOutput] = useState("")
@@ -39,11 +37,7 @@ export default function QualityMonitor() {
 
   useEffect(() => {
     setMounted(true)
-    if (isDemoMode) {
-      setHistoricalOutputs(["The system is functioning within normal parameters. Revenue is stable.", "Capital reserves are sufficient for 12 months of operations."])
-      setCurrentOutput("The system is functioning... mostly. Revenue is stable, but capital reserves are dropping faster than anticipated due to model overkill.")
-    }
-  }, [isDemoMode])
+  }, [])
 
   const addHistorical = () => setHistoricalOutputs([...historicalOutputs, ""])
   const updateHistorical = (index: number, val: string) => {
@@ -74,7 +68,7 @@ export default function QualityMonitor() {
 
       const enhanced: DriftOutput = {
         ...res,
-        driftScore: (res.qualityDropPercentage || 0) * 2, // Normalized Drift Index
+        driftScore: (res.qualityDropPercentage || 0) * 2, 
         severity: (res.qualityDropPercentage || 0) > 10 ? "CRITICAL" : (res.qualityDropPercentage || 0) > 5 ? "MODERATE" : "LOW",
         deltaFromBaseline: -(res.qualityDropPercentage || 0),
         timestamp: new Date().toISOString()
@@ -82,7 +76,6 @@ export default function QualityMonitor() {
 
       setResults(enhanced)
 
-      // Log to Institutional Audit Ledger if degradation exceeded
       if (enhanced.degradationDetected && firestore && user) {
         const auditRef = collection(firestore, "organizations", `org_${user.uid}`, "auditLogs");
         addDocumentNonBlocking(auditRef, {
@@ -92,7 +85,7 @@ export default function QualityMonitor() {
           category: "security",
           status: "failure",
           details: `Significant model drift detected: ${enhanced.driftScore.toFixed(1)} Index. Criteria: ${criteria}`,
-          userAgent: navigator.userAgent
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Server'
         });
       }
 
@@ -119,11 +112,6 @@ export default function QualityMonitor() {
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Quality Sentry</h1>
           </div>
           <div className="flex items-center gap-2">
-            {isDemoMode && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
-                Demo Sample Active
-              </Badge>
-            )}
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
               <ShieldAlert size={10} /> DRIFT MONITOR ACTIVE
             </Badge>
