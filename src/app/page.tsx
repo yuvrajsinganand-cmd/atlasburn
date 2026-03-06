@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -14,9 +13,47 @@ import { type SdkProjectSnapshot } from "@/types/sdk"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
 import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
+import { useDemoMode } from "@/components/demo-provider"
+
+const MOCK_SNAPSHOT: SdkProjectSnapshot = {
+  projectId: "demo-project",
+  isConnected: true,
+  hasEvents: true,
+  windowDays: 90,
+  usage: {
+    totalCost: 12450.75,
+    promptTokens: 450000000,
+    completionTokens: 120000000,
+    requests: 842000,
+    byModel: {
+      "gpt-4o": { cost: 8400, promptTokens: 300000000, completionTokens: 80000000, requests: 500000 },
+      "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
+    },
+    daily: Array.from({ length: 30 }, (_, i) => ({
+      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      cost: 300 + Math.random() * 200,
+      promptTokens: 10000000,
+      completionTokens: 2000000,
+      requests: 20000
+    }))
+  },
+  economics: {
+    mrr: 45000,
+    currentDailyBurn: 415.02,
+    burnVolatility: 0.12,
+    monthlyGrowthRate: 0.08,
+    churnRate: 0.02,
+    capitalReserves: 250000
+  },
+  systemicRisk: {
+    outageProb: 0.01,
+    retryCascadeProb: 0.03
+  }
+};
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
+  const { isDemoMode } = useDemoMode();
   const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,11 +73,17 @@ export default function Dashboard() {
     if (!isUserLoading) fetchSnapshot();
   }, [user, isUserLoading]);
 
+  const activeSnapshot = useMemo(() => {
+    if (snapshot?.hasEvents) return snapshot;
+    if (isDemoMode) return MOCK_SNAPSHOT;
+    return snapshot;
+  }, [snapshot, isDemoMode]);
+
   if (isUserLoading || loading) {
     return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={32} /></div>;
   }
 
-  const simResult = snapshot?.hasEvents ? runInstitutionalSimulation(snapshot) : null;
+  const simResult = activeSnapshot?.hasEvents ? runInstitutionalSimulation(activeSnapshot) : null;
 
   return (
     <SidebarProvider>
@@ -53,20 +96,20 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-4">
             <SystemPulse 
-              hasData={!!snapshot?.hasEvents}
+              hasData={!!activeSnapshot?.hasEvents}
               breachProb={simResult?.status === 'READY' ? simResult.result.survivalProbability : 0}
-              p95BurnDelta={snapshot?.usage?.totalCost ? snapshot.usage.totalCost * 0.1 : 0}
+              p95BurnDelta={activeSnapshot?.usage?.totalCost ? activeSnapshot.usage.totalCost * 0.1 : 0}
             />
-            {snapshot?.hasEvents && (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 uppercase text-[10px] font-bold">
-                <ShieldCheck size={12} /> Live Ingestion
+            {activeSnapshot?.hasEvents && (
+              <Badge variant="outline" className={`${isDemoMode && !snapshot?.hasEvents ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'} gap-1 uppercase text-[10px] font-bold`}>
+                <ShieldCheck size={12} /> {isDemoMode && !snapshot?.hasEvents ? 'Simulated Feed' : 'Live Ingestion'}
               </Badge>
             )}
           </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-          {!snapshot || !snapshot.hasEvents ? (
+          {!activeSnapshot || !activeSnapshot.hasEvents ? (
             <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-8 animate-in fade-in duration-700">
               <div className="bg-primary/10 p-8 rounded-[2rem] text-primary">
                 <Lock size={64} />
@@ -76,6 +119,12 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-lg leading-relaxed">
                   AtlasBurn is strictly deterministic. Live economic modeling and survival simulations are deactivated until a verified production SDK feed is detected.
                 </p>
+                <div className="flex justify-center pt-4">
+                  <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-2xl border">
+                    <Zap className="text-primary" size={16} />
+                    <span className="text-xs font-bold uppercase tracking-widest">Enable Demo Mode in sidebar to preview simulation</span>
+                  </div>
+                </div>
               </div>
               
               <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl">
@@ -130,7 +179,7 @@ export default function Dashboard() {
                     </Card>
                     <Card className="p-6 border-none shadow-sm bg-white">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Forensic Volatility</p>
-                      <p className="text-2xl font-headline font-bold text-accent">{(snapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
+                      <p className="text-2xl font-headline font-bold text-accent">{(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
                     </Card>
                   </div>
 
@@ -140,7 +189,7 @@ export default function Dashboard() {
                     </CardHeader>
                     <div className="h-[300px] w-full mt-4">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={snapshot.usage.daily}>
+                        <AreaChart data={activeSnapshot.usage.daily}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} />
                           <YAxis axisLine={false} tickLine={false} fontSize={10} />

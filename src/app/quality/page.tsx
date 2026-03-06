@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -17,6 +16,7 @@ import { toast } from "@/hooks/use-toast"
 import { useUser, useFirestore } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { collection } from "firebase/firestore"
+import { useDemoMode } from "@/components/demo-provider"
 
 interface DriftOutput extends DetectModelQualityDegradationOutput {
   driftScore: number;
@@ -27,6 +27,7 @@ interface DriftOutput extends DetectModelQualityDegradationOutput {
 
 export default function QualityMonitor() {
   const { user } = useUser()
+  const { isDemoMode } = useDemoMode()
   const firestore = useFirestore()
   const [historicalOutputs, setHistoricalOutputs] = useState<string[]>([""])
   const [currentOutput, setCurrentOutput] = useState("")
@@ -38,7 +39,11 @@ export default function QualityMonitor() {
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    if (isDemoMode) {
+      setHistoricalOutputs(["The system is functioning within normal parameters. Revenue is stable.", "Capital reserves are sufficient for 12 months of operations."])
+      setCurrentOutput("The system is functioning... mostly. Revenue is stable, but capital reserves are dropping faster than anticipated due to model overkill.")
+    }
+  }, [isDemoMode])
 
   const addHistorical = () => setHistoricalOutputs([...historicalOutputs, ""])
   const updateHistorical = (index: number, val: string) => {
@@ -113,9 +118,16 @@ export default function QualityMonitor() {
             <SidebarTrigger className="-ml-1" />
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Quality Sentry</h1>
           </div>
-          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
-            <ShieldAlert size={10} /> DRIFT MONITOR ACTIVE
-          </Badge>
+          <div className="flex items-center gap-2">
+            {isDemoMode && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
+                Demo Sample Active
+              </Badge>
+            )}
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold py-1">
+              <ShieldAlert size={10} /> DRIFT MONITOR ACTIVE
+            </Badge>
+          </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-5xl mx-auto w-full">

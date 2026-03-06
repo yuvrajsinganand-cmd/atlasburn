@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
+import { DemoProvider } from '@/components/demo-provider';
 
 export const metadata: Metadata = {
   title: 'AtlasBurn | AI Capital Risk Engine',
@@ -23,8 +24,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          {children}
-          <Toaster />
+          <DemoProvider>
+            {children}
+            <Toaster />
+          </DemoProvider>
         </FirebaseClientProvider>
       </body>
     </html>
