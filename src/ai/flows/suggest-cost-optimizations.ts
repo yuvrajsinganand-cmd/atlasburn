@@ -55,7 +55,7 @@ Subscriptions:
 {{#each subscriptions}}
 - Tool: {{{this.name}}}
   Provider: {{{this.provider}}}
-  Monthly Cost: \${{this.monthlyCost}}
+  Monthly Cost: $\{{this.monthlyCost}}
   Renewal Date: {{{this.renewalDate}}}
   {{#if this.apiUsage}}API Usage (monthly): {{{this.apiUsage}}} units{{/if}}
   {{#if this.lastMonthUsageChange}}Usage Change (last month): {{{this.lastMonthUsageChange}}}%{{/if}}
@@ -64,20 +64,21 @@ Subscriptions:
 Usage Patterns:
 {{#each usagePatterns}}
 - Tool: {{{this.toolName}}}
-  {{#if this.costPerTask}}Cost per Task: \${{this.costPerTask}}{{/if}}
+  {{#if this.costPerTask}}Cost per Task: $\{{this.costPerTask}}{{/if}}
   {{#if this.totalTasks}}Total Tasks: {{{this.totalTasks}}}{{/if}}
-  {{#if this.costPerOutput}}Cost per Output: \${{this.costPerOutput}}{{/if}}
+  {{#if this.costPerOutput}}Cost per Output: $\{{this.costPerOutput}}{{/if}}
   {{#if this.trendAnalysis}}Trend: {{{this.trendAnalysis}}}{{/if}}
 {{/each}}
 
 {{#if overallMonthlyBudget}}
-The user has an overall desired monthly budget of \${{overallMonthlyBudget}}.
+The user has an overall desired monthly budget of $\{{overallMonthlyBudget}}.
 {{/if}}
 
-Based on this data, provide specific and actionable suggestions to help the user optimize their AI tool spending and potentially reach their budget goals. Focus on identifying underutilized tools, opportunities to switch to cheaper alternatives (e.g., GPT-4o to GPT-4o-mini), or ways to adjust usage for cost efficiency. For each suggestion, provide a title, a detailed description, an estimated monthly saving, and clear actionable steps.`,
+Based on this data, provide specific and actionable suggestions to help the user optimize their AI tool spending and potentially reach their budget goals. Focus on identifying underutilized tools, opportunities to switch to cheaper alternatives, or ways to adjust usage for cost efficiency. For each suggestion, provide a title, a detailed description, an estimated monthly saving, and clear actionable steps.`,
 });
 
 export async function suggestCostOptimizations(input: SuggestCostOptimizationsInput): Promise<SuggestCostOptimizationsOutput> {
   const { output } = await suggestCostOptimizationsPrompt(input);
-  return output!;
+  if (!output) throw new Error('Failed to generate cost optimization suggestions.');
+  return output;
 }

@@ -54,5 +54,6 @@ Set degradationDetected if threshold is met. Provide thorough reasoning.`,
 
 export async function detectModelQualityDegradation(input: DetectModelQualityDegradationInput): Promise<DetectModelQualityDegradationOutput> {
   const { output } = await detectModelQualityDegradationPrompt(input);
-  return output!;
+  if (!output) throw new Error('Failed to generate quality assessment.');
+  return output;
 }
