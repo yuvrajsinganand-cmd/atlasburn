@@ -16,7 +16,6 @@ import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
 
-// Moved inside component to avoid hydration mismatch with dynamic dates
 const getMockSnapshot = (): SdkProjectSnapshot => ({
   projectId: "demo-project",
   isConnected: true,
@@ -66,6 +65,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchSnapshot() {
+      if (isUserLoading) return;
       if (!user) {
         setLoading(false);
         return;
@@ -80,7 +80,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
-    if (!isUserLoading) fetchSnapshot();
+    fetchSnapshot();
   }, [user, isUserLoading]);
 
   const activeSnapshot = useMemo(() => {
@@ -90,7 +90,7 @@ export default function Dashboard() {
     return snapshot;
   }, [snapshot, isDemoMode, mounted]);
 
-  if (!mounted || isUserLoading || loading) {
+  if (!mounted || isUserLoading || (loading && !isDemoMode)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="animate-spin text-primary" size={32} />

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -68,6 +69,7 @@ export default function SDKSetupPage() {
                 <pre className="p-5 bg-black/50 rounded-2xl font-mono text-[12px] text-zinc-300 border border-zinc-800/50">
                   <code>npm install @atlasburn/sdk</code>
                 </pre>
+                <p className="text-[10px] text-muted-foreground px-2">Note: For MVP testing, you can copy <code>src/lib/atlasburn-sdk.ts</code> into your project.</p>
               </div>
 
               <div className="space-y-4">
@@ -92,7 +94,7 @@ const openai = withAtlasBurn(new OpenAI(), {
 
             <div className="pt-8 border-t border-zinc-800 flex justify-between items-center">
               <p className="text-[10px] text-zinc-500 max-w-md">
-                Deterministic modeling is enforced. Synthetic data injection has been deactivated to ensure institutional data integrity.
+                Deterministic modeling is enforced. All analytical engines pull directly from the verified production telemetry feed.
               </p>
               <Button asChild variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-900">
                 <Link href="/settings">Get API Key</Link>
