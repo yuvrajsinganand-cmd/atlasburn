@@ -21,17 +21,17 @@ export async function POST(request: Request) {
     const { apiKey, projectId, events, event } = body;
 
     if (!apiKey || !projectId) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized: Missing Key or Project ID.' }, { status: 401 });
     }
 
     // 1. Auth: Verify Hashed Key against the Organization path
     const hashedKey = hashIngestKey(apiKey);
-    const keysQuery = query(
+    const subsQuery = query(
       collection(db, 'users', projectId, 'aiSubscriptions'),
-      limit(10)
+      limit(20)
     );
     
-    const subSnap = await getDocs(keysQuery);
+    const subSnap = await getDocs(subsQuery);
     let targetSubId = null;
     let targetKeyId = null;
 
@@ -51,12 +51,12 @@ export async function POST(request: Request) {
     }
 
     if (!targetSubId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Forbidden: Invalid Ingest Key.' }, { status: 403 });
     }
 
     // 2. Parse Events
     const rawEvents = Array.isArray(events) ? events : (event ? [event] : []);
-    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored' });
+    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found in payload.' });
     if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
       return NextResponse.json({ error: 'Batch too large' }, { status: 413 });
     }
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
         model: normalized.model,
         provider: normalized.provider,
         featureId: evt.featureId || 'default_feature',
-        userTier: evt.userTier || 'pro', // Default to pro for attribution
+        userTier: evt.userTier || 'pro',
         eventId: evt.eventId,
         apiCallType: 'production_sdk_call'
       });
@@ -102,6 +102,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'success', count: rawEvents.length });
   } catch (err: any) {
     console.error('Atlas Ingest Failure:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
   }
 }

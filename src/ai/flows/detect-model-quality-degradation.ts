@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for detecting quality degradation in AI model outputs over time.
@@ -46,7 +47,7 @@ Criteria: {{qualityCriteria}}.
 
 1. Assess historical quality average (0-10).
 2. Assess current quality (0-10).
-3. Calculate % drop.
+3. Calculate percentage drop.
 4. Compare drop against {{degradationThresholdPercent}}% threshold.
 
 Set degradationDetected if threshold is met. Provide thorough reasoning.`,

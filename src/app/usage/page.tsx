@@ -1,17 +1,20 @@
+
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Terminal, ShieldCheck, Key, Globe, Lock, Cpu, Server, Copy, CheckCircle2, Package } from "lucide-react"
-import { useUser } from "@/firebase"
+import { Terminal, ShieldCheck, Key, Globe, Lock, Cpu, Server, Copy, CheckCircle2, Package, Activity, Loader2 } from "lucide-react"
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, limit } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 
 export default function SDKSetupPage() {
   const { user } = useUser()
+  const firestore = useFirestore()
   const [copied, setCopied] = useState(false)
 
   const copyInstall = () => {
@@ -20,6 +23,32 @@ export default function SDKSetupPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const usageQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+  }, [firestore, user]);
+
+  const { data: lastUsage, isLoading: loadingStatus } = useCollection(usageQuery);
+
+  const connectionStatus = useMemo(() => {
+    if (loadingStatus) return { label: "Checking...", color: "bg-muted text-muted-foreground", icon: Loader2 };
+    if (lastUsage && lastUsage.length > 0) {
+      return { 
+        label: "Verified", 
+        color: "bg-green-600 text-white", 
+        icon: ShieldCheck, 
+        lastTime: new Date(lastUsage[0].timestamp).toLocaleTimeString() 
+      };
+    }
+    return { label: "Waiting...", color: "bg-amber-500 text-white", icon: Activity };
+  }, [lastUsage, loadingStatus]);
+
+  const StatusIcon = connectionStatus.icon;
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -27,11 +56,14 @@ export default function SDKSetupPage() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">SDK Integration Guide</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Integration Protocol</h1>
           </div>
-          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 text-[10px] font-bold px-3 py-1">
-            <ShieldCheck size={12} /> DETERMINISTIC ENFORCEMENT
-          </Badge>
+          <div className="flex items-center gap-3">
+             <Badge variant="outline" className={`${connectionStatus.color} border-none gap-2 px-3 py-1 uppercase text-[10px] font-bold tracking-widest`}>
+                <StatusIcon size={12} className={loadingStatus ? "animate-spin" : ""} />
+                Feed: {connectionStatus.label}
+              </Badge>
+          </div>
         </header>
 
         <main className="p-6 space-y-6 max-w-5xl mx-auto w-full">
@@ -53,8 +85,8 @@ export default function SDKSetupPage() {
             <Card className="p-4 border-none shadow-sm flex items-center gap-4 bg-white">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Cpu size={20} /></div>
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Data Protocol</p>
-                <p className="text-sm font-bold">Forensic Ingest</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Protocol</p>
+                <p className="text-sm font-bold">Forensic V1.9</p>
               </div>
             </Card>
           </div>
@@ -82,13 +114,6 @@ export default function SDKSetupPage() {
                 <pre className="p-5 bg-black/50 rounded-2xl font-mono text-[12px] text-zinc-300 border border-zinc-800/50">
                   <code>npm install @atlasburn/sdk</code>
                 </pre>
-                <div className="flex items-start gap-2 p-4 bg-primary/10 rounded-xl border border-primary/20">
-                  <Package className="text-primary mt-0.5" size={16} />
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-primary">Publishing to npm</p>
-                    <p className="text-xs text-zinc-400">If you haven't published yet, run <code>npm login</code> and <code>npm publish --access public</code> in the <code>src/lib/sdk</code> directory.</p>
-                  </div>
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -112,9 +137,14 @@ const openai = withAtlasBurn(new OpenAI(), {
             </div>
 
             <div className="pt-8 border-t border-zinc-800 flex justify-between items-center">
-              <p className="text-[10px] text-zinc-500 max-w-md leading-relaxed">
-                Deterministic modeling is enforced. All analytical engines pull directly from the verified production telemetry feed. Origin validation is performed on all ingestion requests.
-              </p>
+              <div className="space-y-1">
+                 <p className="text-[10px] text-zinc-500 max-w-md leading-relaxed">
+                  Deterministic modeling is enforced. All analytical engines pull directly from the verified production telemetry feed.
+                </p>
+                {connectionStatus.lastTime && (
+                  <p className="text-[10px] text-green-400 font-bold uppercase">Last Heartbeat Received: {connectionStatus.lastTime}</p>
+                )}
+              </div>
               <Button asChild variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-900 font-headline font-bold">
                 <Link href="/settings">Get API Key</Link>
               </Button>
