@@ -3,6 +3,7 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { DemoProvider } from '@/components/demo-provider';
+import { AuthGuard } from '@/components/auth-guard';
 
 export const metadata: Metadata = {
   title: 'AtlasBurn | AI Capital Risk Engine',
@@ -24,10 +25,12 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          <DemoProvider>
-            {children}
-            <Toaster />
-          </DemoProvider>
+          <AuthGuard>
+            <DemoProvider>
+              {children}
+              <Toaster />
+            </DemoProvider>
+          </AuthGuard>
         </FirebaseClientProvider>
       </body>
     </html>
