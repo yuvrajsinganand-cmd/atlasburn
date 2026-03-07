@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -6,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Terminal, Loader2, Server, Lock } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -15,7 +16,8 @@ import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
 
-const MOCK_SNAPSHOT: SdkProjectSnapshot = {
+// Moved inside component to avoid hydration mismatch with dynamic dates
+const getMockSnapshot = (): SdkProjectSnapshot => ({
   projectId: "demo-project",
   isConnected: true,
   hasEvents: true,
@@ -49,17 +51,25 @@ const MOCK_SNAPSHOT: SdkProjectSnapshot = {
     outageProb: 0.01,
     retryCascadeProb: 0.03
   }
-};
+});
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
   const { isDemoMode } = useDemoMode();
   const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function fetchSnapshot() {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       try {
         const res = await fetch(`/api/projects/${user.uid}/snapshot?windowDays=90`);
         const data = await res.json();
@@ -74,13 +84,18 @@ export default function Dashboard() {
   }, [user, isUserLoading]);
 
   const activeSnapshot = useMemo(() => {
+    if (!mounted) return null;
     if (snapshot?.hasEvents) return snapshot;
-    if (isDemoMode) return MOCK_SNAPSHOT;
+    if (isDemoMode) return getMockSnapshot();
     return snapshot;
-  }, [snapshot, isDemoMode]);
+  }, [snapshot, isDemoMode, mounted]);
 
-  if (isUserLoading || loading) {
-    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={32} /></div>;
+  if (!mounted || isUserLoading || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
   }
 
   const simResult = activeSnapshot?.hasEvents ? runInstitutionalSimulation(activeSnapshot) : null;
