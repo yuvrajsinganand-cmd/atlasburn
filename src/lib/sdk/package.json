@@ -1,11 +1,11 @@
 {
   "name": "@atlasburn/sdk",
-  "version": "1.9.0",
+  "version": "1.0.0",
   "description": "Institutional Forensic SDK for AI Governance and Burn Monitoring",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "ai",
@@ -16,8 +16,5 @@
     "llm"
   ],
   "author": "AtlasBurn Institutional",
-  "license": "MIT",
-  "devDependencies": {
-    "typescript": "^5.0.0"
-  }
+  "license": "MIT"
 }

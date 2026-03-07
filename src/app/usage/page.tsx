@@ -4,7 +4,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Terminal, ShieldCheck, Key, Globe, Lock, Cpu, Server, Copy, CheckCircle2 } from "lucide-react"
+import { Terminal, ShieldCheck, Key, Globe, Lock, Cpu, Server, Copy, CheckCircle2, Package } from "lucide-react"
 import { useUser } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -82,9 +82,13 @@ export default function SDKSetupPage() {
                 <pre className="p-5 bg-black/50 rounded-2xl font-mono text-[12px] text-zinc-300 border border-zinc-800/50">
                   <code>npm install @atlasburn/sdk</code>
                 </pre>
-                <p className="text-[10px] text-muted-foreground px-2 italic">
-                  Note: If not yet published, you can use the source in <code>src/lib/sdk</code> directly.
-                </p>
+                <div className="flex items-start gap-2 p-4 bg-primary/10 rounded-xl border border-primary/20">
+                  <Package className="text-primary mt-0.5" size={16} />
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-primary">Publishing to npm</p>
+                    <p className="text-xs text-zinc-400">If you haven't published yet, run <code>npm login</code> and <code>npm publish --access public</code> in the <code>src/lib/sdk</code> directory.</p>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">
