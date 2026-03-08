@@ -35,7 +35,7 @@ const getMockSnapshot = (): SdkProjectSnapshot => ({
       cost: 300 + Math.random() * 200,
       promptTokens: 10000000,
       completionTokens: 2000000,
-      requests: 20000
+      requests: 20000 + Math.floor(Math.random() * 5000)
     }))
   },
   economics: {
@@ -195,6 +195,7 @@ export default function Dashboard() {
                   <Card className="border-none shadow-sm bg-white p-6">
                     <CardHeader className="px-0 pt-0">
                       <CardTitle className="text-lg font-headline">Institutional Burn Attribution</CardTitle>
+                      <CardDescription>Visualizing deterministic burn (USD) and operational throughput (Requests).</CardDescription>
                     </CardHeader>
                     <div className="h-[300px] w-full mt-4">
                       <ResponsiveContainer width="100%" height="100%">
@@ -202,8 +203,35 @@ export default function Dashboard() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} />
                           <YAxis axisLine={false} tickLine={false} fontSize={10} />
-                          <Tooltip />
-                          <Area type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} strokeWidth={3} />
+                          <Tooltip 
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-1">
+                                    <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{label}</p>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-primary font-bold">BURN:</span>
+                                      <span className="font-bold">${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-muted-foreground">UNITS:</span>
+                                      <span className="font-bold">{payload[0].payload.requests?.toLocaleString()} REQS</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="cost" 
+                            stroke="hsl(var(--primary))" 
+                            fill="hsl(var(--primary))" 
+                            fillOpacity={0.1} 
+                            strokeWidth={3} 
+                            name="Burn (USD)"
+                          />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
