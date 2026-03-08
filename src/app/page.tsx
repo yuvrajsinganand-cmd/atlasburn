@@ -15,42 +15,51 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
+import { generateMockSignals, translateSignalsToEconomicFactors } from "@/lib/runtime-signals"
+import { RuntimeSignalsGrid } from "@/components/runtime-signals-grid"
+import { RiskAlertBanner } from "@/components/risk-alert-banner"
 
-const getMockSnapshot = (): SdkProjectSnapshot => ({
-  projectId: "demo-project",
-  isConnected: true,
-  hasEvents: true,
-  windowDays: 365,
-  usage: {
-    totalCost: 12450.75,
-    promptTokens: 450000000,
-    completionTokens: 120000000,
-    requests: 842000,
-    byModel: {
-      "gpt-4o": { cost: 8400, promptTokens: 300000000, completionTokens: 80000000, requests: 500000 },
-      "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
+const getMockSnapshot = (): SdkProjectSnapshot => {
+  const signals = generateMockSignals();
+  const impacts = translateSignalsToEconomicFactors(signals);
+
+  return {
+    projectId: "demo-project",
+    isConnected: true,
+    hasEvents: true,
+    windowDays: 365,
+    runtimeSignals: signals,
+    usage: {
+      totalCost: 12450.75,
+      promptTokens: 450000000,
+      completionTokens: 120000000,
+      requests: 842000,
+      byModel: {
+        "gpt-4o": { cost: 8400, promptTokens: 300000000, completionTokens: 80000000, requests: 500000 },
+        "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
+      },
+      daily: Array.from({ length: 30 }, (_, i) => ({
+        date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        cost: 300 + Math.random() * 200,
+        promptTokens: 10000000,
+        completionTokens: 2000000,
+        requests: 20000 + Math.floor(Math.random() * 5000)
+      }))
     },
-    daily: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      cost: 300 + Math.random() * 200,
-      promptTokens: 10000000,
-      completionTokens: 2000000,
-      requests: 20000 + Math.floor(Math.random() * 5000)
-    }))
-  },
-  economics: {
-    mrr: 45000,
-    currentDailyBurn: 415.02,
-    burnVolatility: 0.12,
-    monthlyGrowthRate: 0.08,
-    churnRate: 0.02,
-    capitalReserves: 250000
-  },
-  systemicRisk: {
-    outageProb: 0.01,
-    retryCascadeProb: 0.03
-  }
-});
+    economics: {
+      mrr: 45000,
+      currentDailyBurn: 415.02,
+      burnVolatility: impacts.burnVolatility,
+      monthlyGrowthRate: 0.08,
+      churnRate: 0.02,
+      capitalReserves: 250000
+    },
+    systemicRisk: {
+      outageProb: impacts.outageProb,
+      retryCascadeProb: impacts.retryCascadeProb
+    }
+  };
+};
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -162,6 +171,17 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
+              {isDemoMode && activeSnapshot.runtimeSignals && (
+                <div className="animate-in slide-in-from-top-4 duration-700">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-1">AI Runtime Signals (Simulated)</h3>
+                  <RiskAlertBanner 
+                    var95={simResult?.status === 'READY' ? simResult.result.var95 : 0} 
+                    retryProb={activeSnapshot.systemicRisk.retryCascadeProb || 0} 
+                  />
+                  <RuntimeSignalsGrid signals={activeSnapshot.runtimeSignals} />
+                </div>
+              )}
+
               {simResult?.status === 'NOT_READY' ? (
                 <Card className="p-12 border-dashed border-2 flex flex-col items-center justify-center text-center space-y-4">
                   <div className="p-4 bg-amber-50 text-amber-600 rounded-full"><Zap size={40} /></div>

@@ -29,6 +29,16 @@ export type SdkProjectSnapshot = {
     outageProb?: number;
     retryCascadeProb?: number;
   };
+
+  // AI Runtime Signals (Prototype Layer)
+  runtimeSignals?: {
+    tokenVolume: number;
+    requestRate: number;
+    retryRate: number;
+    loopProbability: number;
+    contextExpansionRate: number;
+    modelMix: Record<string, number>;
+  };
 };
 
 export type EngineResult<T> =
