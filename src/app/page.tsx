@@ -20,7 +20,7 @@ const getMockSnapshot = (): SdkProjectSnapshot => ({
   projectId: "demo-project",
   isConnected: true,
   hasEvents: true,
-  windowDays: 90,
+  windowDays: 365,
   usage: {
     totalCost: 12450.75,
     promptTokens: 450000000,
@@ -90,7 +90,7 @@ export default function Dashboard() {
     return snapshot;
   }, [snapshot, isDemoMode, mounted]);
 
-  if (!mounted || isUserLoading || (loading && !isDemoMode)) {
+  if (!mounted || isUserLoading || (loading && !isDemoMode && user)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="animate-spin text-primary" size={32} />
@@ -117,7 +117,7 @@ export default function Dashboard() {
             />
             {activeSnapshot?.hasEvents && (
               <Badge variant="outline" className={`${isDemoMode && !snapshot?.hasEvents ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'} gap-1 uppercase text-[10px] font-bold`}>
-                <ShieldCheck size={12} /> {isDemoMode && !snapshot?.hasEvents ? 'Simulated Feed' : 'Live Ingestion'}
+                <ShieldCheck size={12} /> {isDemoMode && !snapshot?.hasEvents ? 'Full Runway Simulation' : 'Live Ingestion'}
               </Badge>
             )}
           </div>
@@ -175,11 +175,11 @@ export default function Dashboard() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="p-6 border-none shadow-sm bg-white">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">P50 Baseline Burn</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">P50 Baseline Burn (Annual)</p>
                       <p className="text-2xl font-headline font-bold text-primary">${simResult.result.p50Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                     </Card>
                     <Card className="p-6 border-none shadow-sm bg-white">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Survival Probability</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Full Survival Prob (12mo)</p>
                       <p className="text-2xl font-headline font-bold text-green-600">{(simResult.result.survivalProbability * 100).toFixed(1)}%</p>
                     </Card>
                     <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-destructive">

@@ -8,8 +8,9 @@ function gaussianRandom() {
 }
 
 /**
- * AtlasBurn Probabilistic Engine (Path B)
- * Performs 10,000 path Monte Carlo simulation scoped to SDK snapshot data.
+ * AtlasBurn Probabilistic Engine
+ * Performs 10,000 path Monte Carlo simulation over a fixed 365-day horizon 
+ * to determine the "Full Runaway" survival probability.
  */
 export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): EngineResult<InstitutionalSimResult> {
   const missing: string[] = [];
@@ -25,7 +26,7 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
   }
 
   const runs = 10000;
-  const days = snapshot.windowDays || 90;
+  const days = 365; // Fixed 1-year horizon for "Full Runaway" risk assessment
   const burnTotals: number[] = [];
   const daysToInsolvency: number[] = [];
   let insolvencyCount = 0;
@@ -44,7 +45,7 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
     for (let d = 0; d < days; d++) {
       // Monthly compounding of growth/churn
       if (d > 0 && d % 30 === 0) {
-        currentMrr *= (1 + (economics.monthlyGrowthRate || 0) - (economics.churnRate || 0));
+        currentMrr *= (1 + (economics.monthlyGrowthRate || 0.05) - (economics.churnRate || 0.02));
       }
 
       const z = gaussianRandom();

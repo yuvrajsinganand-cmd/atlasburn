@@ -93,7 +93,7 @@ export function AppSidebar() {
             </div>
             <p className="text-[9px] text-muted-foreground leading-relaxed">
               {isDemoMode 
-                ? "Simulating institutional telemetry and risk path simulations." 
+                ? "Simulating full 365-day institutional survival paths." 
                 : "Awaiting deterministic production feed from verified SDK."}
             </p>
           </div>
