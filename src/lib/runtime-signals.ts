@@ -3,6 +3,7 @@
  * AtlasBurn AI Runtime Signal Layer
  * 
  * Translates low-level AI behavior into financial risk factors.
+ * This bridges the gap between technical system health and capital risk.
  */
 
 export interface RuntimeSignals {
@@ -15,14 +16,14 @@ export interface RuntimeSignals {
 }
 
 /**
- * Generates synthetic AI runtime metrics for Phase 1 prototyping.
+ * Generates synthetic AI runtime metrics for Demo Mode.
  */
 export function generateMockSignals(): RuntimeSignals {
   return {
     tokenVolume: 450000000,
     requestRate: 12.5, // req/sec
-    retryRate: 0.045, // 4.5%
-    loopProbability: 0.012, // 1.2% risk of infinite loop
+    retryRate: 0.045, // 4.5% base retry rate
+    loopProbability: 0.012, // 1.2% risk of infinite loop detected by forensics
     contextExpansionRate: 1.4, // multiplier per turn
     modelMix: {
       "Reasoning (o1/Sonnet)": 0.65,
@@ -32,17 +33,22 @@ export function generateMockSignals(): RuntimeSignals {
 }
 
 /**
- * Maps AI runtime metrics to existing financial engine inputs.
+ * Maps AI runtime metrics to deterministic financial engine inputs.
  * 
- * Logic:
- * - High Retry Rate -> Higher Retry Cascade Probability
- * - High Loop Prob -> Higher Burn Volatility (Variance)
- * - High Request Rate -> Higher Daily Burn
+ * LOGIC MAPPING:
+ * - High Retry Rate -> Higher systemic risk of "Retry Cascades"
+ * - High Loop Prob -> Higher burn volatility (wider distribution in Monte Carlo)
+ * - High Request Rate -> Increased baseline burn and outage probability
  */
 export function translateSignalsToEconomicFactors(signals: RuntimeSignals) {
   return {
+    // Retry rate directly scales the probability of a catastrophic retry storm
     retryCascadeProb: signals.retryRate * 1.5,
+    
+    // Loop probability increases the statistical noise (volatility) in the burn model
     burnVolatility: 0.12 + (signals.loopProbability * 5),
+    
+    // High density traffic increases infrastructure outage risk
     outageProb: 0.01 + (signals.requestRate > 20 ? 0.02 : 0)
   };
 }

@@ -11,6 +11,9 @@ function gaussianRandom() {
  * AtlasBurn Probabilistic Engine
  * Performs 10,000 path Monte Carlo simulation over a fixed 365-day horizon 
  * to determine the "Full Runaway" survival probability.
+ * 
+ * Logic: Uses log-normal transformation to model stochastic daily burn with 
+ * variance weighting and systemic shock injection.
  */
 export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): EngineResult<InstitutionalSimResult> {
   const missing: string[] = [];
@@ -32,6 +35,7 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
   let insolvencyCount = 0;
 
   // Log-normal parameter transformation
+  // This ensures that daily burn remains positive and can model heavy-tailed events (spikes)
   const cv = economics.burnVolatility!;
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
   const mu = Math.log(economics.currentDailyBurn!) - 0.5 * Math.pow(sigma, 2);
@@ -53,12 +57,13 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
       let dailyRevenue = currentMrr / 30;
 
       // Systemic shocks: Outages trigger cost spikes and revenue collapse
+      // These probabilities are now driven by AI Runtime Signals in Demo Mode
       if (systemicRisk.outageProb && Math.random() < systemicRisk.outageProb) {
         dailyCost *= (1.5 + Math.random());
         dailyRevenue *= 0.2;
       }
       
-      // Retry cascades trigger massive burn spikes
+      // Retry cascades: Massive burn spikes caused by agent loop behavior
       if (systemicRisk.retryCascadeProb && Math.random() < systemicRisk.retryCascadeProb) {
         dailyCost *= (2.5 + Math.random() * 2);
       }
