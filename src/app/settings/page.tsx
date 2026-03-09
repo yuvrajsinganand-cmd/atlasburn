@@ -20,9 +20,7 @@ import {
   CreditCard, 
   FileText, 
   CheckCircle2,
-  Lock,
   User,
-  Users,
   Building,
   Mail,
   Shield,
@@ -253,18 +251,32 @@ export default function SettingsPage() {
   };
 
   const handleVerifyDns = async (domainToVerify: string, token: string) => {
-    if (!user || !domainToVerify) return;
+    if (!user || !domainToVerify || !orgRef) return;
     setVerifyingDomain(domainToVerify);
 
     try {
-      const result = await verifyDomainDns(user.uid, domainToVerify, token);
+      const result = await verifyDomainDns(domainToVerify, token);
       
       if (result.success) {
+        // Authoritative server check passed, now update Firestore using client auth
+        const currentDomains = organization?.allowedDomains || [];
+        const updatedDomains = currentDomains.map((d: any) => {
+          if (d.domain === domainToVerify) {
+            return { ...d, verified: true, verifiedAt: new Date().toISOString() };
+          }
+          return d;
+        });
+
+        updateDocumentNonBlocking(orgRef, { 
+          allowedDomains: updatedDomains,
+          updatedAt: new Date().toISOString()
+        });
+
         toast({ title: "DNS Verified", description: `${domainToVerify} is now officially whitelisted.` });
         logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`, "security", "success");
       } else {
         toast({ variant: "destructive", title: "Verification Failed", description: result.error || "Could not detect DNS record." });
-        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}.`, "security", "failure");
+        logAction("DNS_VERIFICATION_FAILED", `Failed attempt to verify ${domainToVerify}. Details: ${result.error}`, "security", "failure");
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Resolution Error", description: "An unexpected error occurred during DNS lookup." });
