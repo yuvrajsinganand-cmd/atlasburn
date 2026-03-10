@@ -18,7 +18,6 @@ export async function GET(
   const windowDays = parseInt(searchParams.get('windowDays') || '30');
 
   try {
-    // 1. Check Organization / Project Settings
     const orgRef = doc(db, 'organizations', `org_${projectId}`);
     const orgSnap = await getDoc(orgRef);
     
@@ -28,7 +27,6 @@ export async function GET(
 
     const orgData = orgSnap.data();
 
-    // 2. Fetch Aggregated Usage
     const usageRef = collection(db, 'organizations', `org_${projectId}`, 'usageRecords');
     const usageQuery = query(usageRef, orderBy('timestamp', 'desc'));
     const usageSnap = await getDocs(usageQuery);
@@ -39,9 +37,9 @@ export async function GET(
 
     const records = usageSnap.docs.map(d => d.data());
     
-    // 3. Aggregate Daily Data
     const dailyMap: Record<string, any> = {};
     const modelMap: Record<string, any> = {};
+    const featureMap: Record<string, any> = {};
     let totalCost = 0;
     let totalPrompt = 0;
     let totalCompletion = 0;
@@ -53,15 +51,26 @@ export async function GET(
       const model = r.model || 'unknown';
       if (!modelMap[model]) modelMap[model] = { cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
 
+      const featureId = r.featureId || 'default';
+      if (!featureMap[featureId]) featureMap[featureId] = { cost: 0, requests: 0, riskContribution: 0 };
+
       dailyMap[date].cost += r.cost || 0;
       dailyMap[date].requests += 1;
       
       modelMap[model].cost += r.cost || 0;
       modelMap[model].requests += 1;
+
+      featureMap[featureId].cost += r.cost || 0;
+      featureMap[featureId].requests += 1;
       
       totalCost += r.cost || 0;
       totalPrompt += r.inputTokens || 0;
       totalCompletion += r.outputTokens || 0;
+    });
+
+    // Calculate Feature-level risk contribution (simple % of total burn)
+    Object.keys(featureMap).forEach(fid => {
+      featureMap[fid].riskContribution = totalCost > 0 ? (featureMap[fid].cost / totalCost) : 0;
     });
 
     const dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -78,6 +87,7 @@ export async function GET(
         completionTokens: totalCompletion,
         requests: records.length,
         byModel: modelMap,
+        byFeature: featureMap,
         daily: dailyArray,
       },
       economics: {
@@ -85,7 +95,7 @@ export async function GET(
         capitalReserves: orgData.capitalReserves || 0,
         currentDailyBurn: varianceResult.status === 'READY' ? varianceResult.result.dailyMean : undefined,
         burnVolatility: varianceResult.status === 'READY' ? varianceResult.result.cv : undefined,
-        monthlyGrowthRate: 0.05, // Default institutional baseline if not provided
+        monthlyGrowthRate: 0.05,
         churnRate: 0.03,
       },
       systemicRisk: {

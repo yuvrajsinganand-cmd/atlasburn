@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, AlertCircle } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -18,6 +18,7 @@ import { useDemoMode } from "@/components/demo-provider"
 import { generateMockSignals, translateSignalsToEconomicFactors } from "@/lib/runtime-signals"
 import { RuntimeSignalsGrid } from "@/components/runtime-signals-grid"
 import { RiskAlertBanner } from "@/components/risk-alert-banner"
+import { Progress } from "@/components/ui/progress"
 
 const getMockSnapshot = (): SdkProjectSnapshot => {
   const signals = generateMockSignals();
@@ -37,6 +38,11 @@ const getMockSnapshot = (): SdkProjectSnapshot => {
       byModel: {
         "gpt-4o": { cost: 8400, promptTokens: 300000000, completionTokens: 80000000, requests: 500000 },
         "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
+      },
+      byFeature: {
+        "agent-search": { cost: 7200, requests: 400000, riskContribution: 0.58 },
+        "document-analysis": { cost: 3100, requests: 200000, riskContribution: 0.25 },
+        "realtime-chat": { cost: 2150.75, requests: 242000, riskContribution: 0.17 }
       },
       daily: Array.from({ length: 30 }, (_, i) => ({
         date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -212,50 +218,102 @@ export default function Dashboard() {
                     </Card>
                   </div>
 
-                  <Card className="border-none shadow-sm bg-white p-6">
-                    <CardHeader className="px-0 pt-0">
-                      <CardTitle className="text-lg font-headline">Institutional Burn Attribution</CardTitle>
-                      <CardDescription>Visualizing deterministic burn (USD) and operational throughput (Requests).</CardDescription>
-                    </CardHeader>
-                    <div className="h-[300px] w-full mt-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={activeSnapshot.usage.daily}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} />
-                          <YAxis axisLine={false} tickLine={false} fontSize={10} />
-                          <Tooltip 
-                            content={({ active, payload, label }) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-1">
-                                    <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{label}</p>
-                                    <div className="flex justify-between gap-4">
-                                      <span className="text-primary font-bold">BURN:</span>
-                                      <span className="font-bold">${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
+                      <CardHeader className="px-0 pt-0">
+                        <CardTitle className="text-lg font-headline">Institutional Burn Attribution</CardTitle>
+                        <CardDescription>Visualizing deterministic burn (USD) and operational throughput (Requests).</CardDescription>
+                      </CardHeader>
+                      <div className="h-[300px] w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={activeSnapshot.usage.daily}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} />
+                            <YAxis axisLine={false} tickLine={false} fontSize={10} />
+                            <Tooltip 
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-1">
+                                      <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{label}</p>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-primary font-bold">BURN:</span>
+                                        <span className="font-bold">${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">UNITS:</span>
+                                        <span className="font-bold">{payload[0].payload.requests?.toLocaleString()} REQS</span>
+                                      </div>
                                     </div>
-                                    <div className="flex justify-between gap-4">
-                                      <span className="text-muted-foreground">UNITS:</span>
-                                      <span className="font-bold">{payload[0].payload.requests?.toLocaleString()} REQS</span>
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="cost" 
-                            stroke="hsl(var(--primary))" 
-                            fill="hsl(var(--primary))" 
-                            fillOpacity={0.1} 
-                            strokeWidth={3} 
-                            name="Burn (USD)"
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="cost" 
+                              stroke="hsl(var(--primary))" 
+                              fill="hsl(var(--primary))" 
+                              fillOpacity={0.1} 
+                              strokeWidth={3} 
+                              name="Burn (USD)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
+
+                    <Card className="border-none shadow-sm bg-white p-6">
+                      <CardHeader className="px-0 pt-0">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-lg font-headline">Usage Attribution</CardTitle>
+                            <CardDescription>Risk distribution by feature.</CardDescription>
+                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6"><Info size={14} /></Button>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[200px]">
+                                Features responsible for over 50% of burn are flagged as high-risk drivers for the Surprise Delta.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </CardHeader>
+                      <div className="space-y-6 mt-6">
+                        {Object.entries(activeSnapshot.usage.byFeature || {}).sort((a, b) => b[1].cost - a[1].cost).map(([id, stats]) => (
+                          <div key={id} className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold uppercase tracking-tight flex items-center gap-1">
+                                  {id}
+                                  {stats.riskContribution > 0.4 && <AlertCircle size={12} className="text-destructive" />}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">{stats.requests.toLocaleString()} Requests</span>
+                              </div>
+                              <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                            <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
+                            <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
+                              <span>Risk Contribution</span>
+                              <span>{(stats.riskContribution * 100).toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-8 pt-6 border-t">
+                        <Button asChild variant="outline" className="w-full text-[10px] font-bold uppercase tracking-widest h-10 group">
+                          <Link href="/optimizer">
+                            Analyze Forensic Playbook
+                            <ArrowRight size={12} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </Card>
+                  </div>
                 </div>
               )}
             </>

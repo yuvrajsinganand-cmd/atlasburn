@@ -13,6 +13,7 @@ export type SdkProjectSnapshot = {
     completionTokens: number;
     requests: number;
     byModel: Record<string, { cost: number; promptTokens: number; completionTokens: number; requests: number; avgLatencyMs?: number }>;
+    byFeature: Record<string, { cost: number; requests: number; riskContribution: number }>;
     daily: Array<{ date: string; cost: number; promptTokens: number; completionTokens: number; requests: number }>;
   };
 
