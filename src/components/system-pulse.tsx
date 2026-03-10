@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -27,6 +26,7 @@ export function SystemPulse({
     const riskScore = (p95BurnDelta * 0.4) + (driftIndex * 0.3) + (retryStormProb * 0.2) + (breachProb * 0.1);
     
     if (riskScore > 40 || breachProb > 0.2 || driftIndex > 30) {
+      // The animate-pulse class below is what creates the blinking effect
       return { label: 'Risk Elevated', color: 'bg-destructive text-white animate-pulse', icon: AlertTriangle };
     }
     if (riskScore > 15 || driftIndex > 10) {
