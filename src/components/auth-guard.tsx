@@ -3,30 +3,35 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser } from '@/firebase';
+import { useDemoMode } from '@/components/demo-provider';
 import { Loader2 } from 'lucide-react';
 
 /**
  * Institutional AuthGuard
  * 
  * Enforces a strict authentication boundary:
- * 1. Redirects unauthenticated users to /login.
+ * 1. Redirects unauthenticated users to /login unless Demo Mode is active.
  * 2. Redirects authenticated users away from /login to the dashboard.
  * 3. Provides a clean loading state during identity verification.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
+  const { isDemoMode } = useDemoMode();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (!isUserLoading) {
-      if (!user && pathname !== '/login') {
+      const isAuthenticated = !!user || isDemoMode;
+      const isLoginPage = pathname === '/login';
+
+      if (!isAuthenticated && !isLoginPage) {
         router.replace('/login');
-      } else if (user && pathname === '/login') {
+      } else if (isAuthenticated && isLoginPage) {
         router.replace('/');
       }
     }
-  }, [user, isUserLoading, pathname, router]);
+  }, [user, isDemoMode, isUserLoading, pathname, router]);
 
   if (isUserLoading) {
     return (
@@ -41,13 +46,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Prevent unauthorized layout flicker
+  const isAuthenticated = !!user || isDemoMode;
   const isLoginPage = pathname === '/login';
-  if (!user && !isLoginPage) {
+
+  // Prevent unauthorized layout flicker
+  if (!isAuthenticated && !isLoginPage) {
     return null;
   }
 
-  if (user && isLoginPage) {
+  if (isAuthenticated && isLoginPage) {
     return null;
   }
 

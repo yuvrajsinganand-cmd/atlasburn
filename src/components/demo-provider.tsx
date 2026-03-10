@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface DemoContextType {
   isDemoMode: boolean;
   toggleDemoMode: () => void;
+  setDemoMode: (val: boolean) => void;
 }
 
 const DemoContext = createContext<DemoContextType | undefined>(undefined);
@@ -28,8 +29,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const setDemoMode = (val: boolean) => {
+    setIsDemoMode(val);
+    localStorage.setItem('atlasburn_demo_mode', String(val));
+  };
+
   return (
-    <DemoContext.Provider value={{ isDemoMode, toggleDemoMode }}>
+    <DemoContext.Provider value={{ isDemoMode, toggleDemoMode, setDemoMode }}>
       {children}
     </DemoContext.Provider>
   );

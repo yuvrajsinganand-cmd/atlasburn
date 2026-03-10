@@ -25,12 +25,12 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          <AuthGuard>
-            <DemoProvider>
+          <DemoProvider>
+            <AuthGuard>
               {children}
               <Toaster />
-            </DemoProvider>
-          </AuthGuard>
+            </AuthGuard>
+          </DemoProvider>
         </FirebaseClientProvider>
       </body>
     </html>
