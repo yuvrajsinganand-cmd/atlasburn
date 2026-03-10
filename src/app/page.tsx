@@ -19,6 +19,12 @@ import { generateMockSignals, translateSignalsToEconomicFactors } from "@/lib/ru
 import { RuntimeSignalsGrid } from "@/components/runtime-signals-grid"
 import { RiskAlertBanner } from "@/components/risk-alert-banner"
 import { Progress } from "@/components/ui/progress"
+import { 
+  Tooltip as UITooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
+} from "@/components/ui/tooltip"
 
 const getMockSnapshot = (): SdkProjectSnapshot => {
   const signals = generateMockSignals();
@@ -272,14 +278,14 @@ export default function Dashboard() {
                             <CardDescription>Risk distribution by feature.</CardDescription>
                           </div>
                           <TooltipProvider>
-                            <Tooltip>
+                            <UITooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-6 w-6"><Info size={14} /></Button>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[200px]">
                                 Features responsible for over 50% of burn are flagged as high-risk drivers for the Surprise Delta.
                               </TooltipContent>
-                            </Tooltip>
+                            </UITooltip>
                           </TooltipProvider>
                         </div>
                       </CardHeader>
