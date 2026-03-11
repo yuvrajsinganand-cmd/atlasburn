@@ -4,6 +4,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { calculateUsageVariance } from '@/lib/variance-engine';
+import { deriveSignalsFromRecords, translateSignalsToEconomicFactors } from '@/lib/runtime-signals';
 import { type SdkProjectSnapshot } from '@/types/sdk';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -35,8 +36,12 @@ export async function GET(
       return NextResponse.json({ isConnected: true, hasEvents: false, projectId });
     }
 
-    const records = usageSnap.docs.map(d => d.data());
+    const records = usageSnap.docs.map(d => ({ ...d.data(), id: d.id }));
     
+    // Derive Common Signals
+    const runtimeSignals = deriveSignalsFromRecords(records);
+    const signalImpacts = translateSignalsToEconomicFactors(runtimeSignals);
+
     const dailyMap: Record<string, any> = {};
     const modelMap: Record<string, any> = {};
     const featureMap: Record<string, any> = {};
@@ -104,6 +109,7 @@ export async function GET(
       isConnected: true,
       hasEvents: true,
       windowDays,
+      runtimeSignals,
       usage: {
         totalCost,
         promptTokens: totalPrompt,
@@ -117,13 +123,13 @@ export async function GET(
         mrr: orgData.monthlyRevenue || 0,
         capitalReserves: orgData.capitalReserves || 0,
         currentDailyBurn: varianceResult.status === 'READY' ? varianceResult.result.dailyMean : undefined,
-        burnVolatility: varianceResult.status === 'READY' ? varianceResult.result.cv : undefined,
+        burnVolatility: varianceResult.status === 'READY' ? varianceResult.result.cv : signalImpacts.burnVolatility,
         monthlyGrowthRate: 0.05,
         churnRate: 0.03,
       },
       systemicRisk: {
-        outageProb: 0.02,
-        retryCascadeProb: 0.05,
+        outageProb: signalImpacts.outageProb,
+        retryCascadeProb: signalImpacts.retryCascadeProb,
         spikeAlerts
       }
     };

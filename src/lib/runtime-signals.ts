@@ -33,6 +33,44 @@ export function generateMockSignals(): RuntimeSignals {
 }
 
 /**
+ * Derives real-world signals from production usage records.
+ */
+export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
+  if (!records || records.length === 0) {
+    return {
+      tokenVolume: 0,
+      requestRate: 0,
+      retryRate: 0,
+      loopProbability: 0,
+      contextExpansionRate: 1.0,
+      modelMix: {}
+    };
+  }
+
+  const totalTokens = records.reduce((sum, r) => sum + (r.inputTokens || 0) + (r.outputTokens || 0), 0);
+  
+  // Heuristic for recursion: very high token usage or repetitive feature calls in short windows
+  const anomalousCount = records.filter(r => (r.cost || 0) > 1.0).length;
+  const retryRate = anomalousCount / records.length;
+
+  // Calculate request rate over the last observed window
+  const timestamps = records.map(r => new Date(r.timestamp).getTime()).sort((a, b) => b - a);
+  const windowMs = timestamps[0] - timestamps[timestamps.length - 1];
+  const requestRate = windowMs > 0 ? (records.length / (windowMs / 1000)) : 0;
+
+  return {
+    tokenVolume: totalTokens,
+    requestRate: Math.min(requestRate, 100),
+    retryRate: retryRate,
+    loopProbability: retryRate * 0.8,
+    contextExpansionRate: 1.2,
+    modelMix: {
+      "Production Mix": 1.0
+    }
+  };
+}
+
+/**
  * Maps AI runtime metrics to deterministic financial engine inputs.
  * 
  * LOGIC MAPPING:

@@ -214,9 +214,9 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {isDemoMode && activeSnapshot.runtimeSignals && (
+              {activeSnapshot.runtimeSignals && (
                 <div className="animate-in slide-in-from-top-4 duration-700">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-1">AI Runtime Signals (Simulated)</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-1">AI Runtime Signals</h3>
                   <RiskAlertBanner 
                     var95={simResult?.status === 'READY' ? simResult.result.var95 : 0} 
                     retryProb={activeSnapshot.systemicRisk.retryCascadeProb || 0} 

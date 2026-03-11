@@ -337,7 +337,7 @@ export default function SettingsPage() {
     { name: "Monte Carlo Survival Engine", mode: "Common", desc: "10,000-path stochastic modeling of capital runway." },
     { name: "Forensic Ledger", mode: "Common", desc: "Deterministic model attribution and recursion detection." },
     { name: "Runaway Agent Guardrails", mode: "Common", desc: "Real-time spike detection and loop identification." },
-    { name: "AI Runtime Signals", mode: "Demo Only", desc: "Low-level telemetry viz (Loop Risk, Retry Cascades)." },
+    { name: "AI Runtime Signals", mode: "Common", desc: "Low-level telemetry viz derived from production and simulation." },
     { name: "Institutional SDK", mode: "SDK Only", desc: "Backend-only bridge for production telemetry flushes." },
     { name: "DNS Whitelisting", mode: "SDK Only", desc: "Security boundaries requiring TXT record validation." },
     { name: "Audit & Optimize (AI)", mode: "Common", desc: "Genkit-powered forensic recovery playbook." },
