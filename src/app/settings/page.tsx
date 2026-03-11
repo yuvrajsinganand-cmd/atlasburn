@@ -37,7 +37,8 @@ import {
   ShieldX,
   Smartphone,
   Cpu,
-  Lock
+  Lock,
+  Layers
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
@@ -332,6 +333,17 @@ export default function SettingsPage() {
 
   const usagePercentage = snapshot?.usage ? Math.min(100, (snapshot.usage.requests / 100000) * 100) : 0;
 
+  const capabilities = [
+    { name: "Monte Carlo Survival Engine", mode: "Common", desc: "10,000-path stochastic modeling of capital runway." },
+    { name: "Forensic Ledger", mode: "Common", desc: "Deterministic model attribution and recursion detection." },
+    { name: "Runaway Agent Guardrails", mode: "Common", desc: "Real-time spike detection and loop identification." },
+    { name: "AI Runtime Signals", mode: "Demo Only", desc: "Low-level telemetry viz (Loop Risk, Retry Cascades)." },
+    { name: "Institutional SDK", mode: "SDK Only", desc: "Backend-only bridge for production telemetry flushes." },
+    { name: "DNS Whitelisting", mode: "SDK Only", desc: "Security boundaries requiring TXT record validation." },
+    { name: "Audit & Optimize (AI)", mode: "Common", desc: "Genkit-powered forensic recovery playbook." },
+    { name: "Quality Sentry (AI)", mode: "Common", desc: "Model drift and coherence monitoring." },
+  ];
+
   return (
     <SidebarProvider suppressHydrationWarning>
       <AppSidebar />
@@ -352,12 +364,53 @@ export default function SettingsPage() {
           <Tabs defaultValue="sdk" className="space-y-6">
             <TabsList className="bg-muted/50 p-1 w-full flex justify-start overflow-x-auto h-auto gap-1">
               <TabsTrigger value="sdk" className="gap-2 shrink-0 py-2"><Terminal size={14} /> SDK Ingestion</TabsTrigger>
+              <TabsTrigger value="capabilities" className="gap-2 shrink-0 py-2"><Layers size={14} /> Capabilities</TabsTrigger>
               <TabsTrigger value="account" className="gap-2 shrink-0 py-2"><User size={14} /> Account</TabsTrigger>
               <TabsTrigger value="billing" className="gap-2 shrink-0 py-2"><CreditCard size={14} /> Billing & Access</TabsTrigger>
               <TabsTrigger value="domains" className="gap-2 shrink-0 py-2"><Globe size={14} /> Domains</TabsTrigger>
               <TabsTrigger value="audit" className="gap-2 shrink-0 py-2"><History size={14} /> Audit Log</TabsTrigger>
               <TabsTrigger value="legal" className="gap-2 shrink-0 py-2"><FileText size={14} /> Legal</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="capabilities" className="space-y-6">
+              <Card className="border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-lg font-headline flex items-center gap-2">
+                    <Layers size={18} className="text-primary" /> System Capabilities Manifest
+                  </CardTitle>
+                  <CardDescription>Comprehensive list of forensic features active in Phase 1.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/10">
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Capability</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Mode</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Horizon</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {capabilities.map((c) => (
+                        <TableRow key={c.name}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold">{c.name}</span>
+                              <span className="text-[10px] text-muted-foreground">{c.desc}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[9px] font-bold uppercase ${c.mode === 'Demo Only' ? 'border-amber-200 text-amber-700 bg-amber-50' : c.mode === 'SDK Only' ? 'border-primary/20 text-primary bg-primary/5' : 'border-green-200 text-green-700 bg-green-50'}`}>
+                              {c.mode}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-[10px] font-mono text-muted-foreground">Phase 1 (Live)</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="sdk" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
