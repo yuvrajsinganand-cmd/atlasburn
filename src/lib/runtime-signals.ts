@@ -83,14 +83,13 @@ export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
  * Maps AI runtime metrics to deterministic financial engine inputs.
  */
 export function translateSignalsToEconomicFactors(signals: RuntimeSignals) {
+  const retryCascadeProb = isFinite(signals.retryRate * 1.5) ? signals.retryRate * 1.5 : 0;
+  const burnVolatility = isFinite(0.12 + (signals.loopProbability * 5)) ? 0.12 + (signals.loopProbability * 5) : 0.12;
+  const outageProb = isFinite(0.01 + (signals.requestRate > 20 ? 0.02 : 0)) ? 0.01 + (signals.requestRate > 20 ? 0.02 : 0) : 0.01;
+
   return {
-    // Retry rate directly scales the probability of a catastrophic retry storm
-    retryCascadeProb: signals.retryRate * 1.5,
-    
-    // Loop probability increases the statistical noise (volatility) in the burn model
-    burnVolatility: 0.12 + (signals.loopProbability * 5),
-    
-    // High density traffic increases infrastructure outage risk
-    outageProb: 0.01 + (signals.requestRate > 20 ? 0.02 : 0)
+    retryCascadeProb,
+    burnVolatility,
+    outageProb
   };
 }

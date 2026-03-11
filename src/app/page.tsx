@@ -7,8 +7,9 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, AlertCircle, ShieldAlert, TrendingUp } from "lucide-react"
-import { useUser } from "@/firebase"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp } from "lucide-react"
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
@@ -25,6 +26,7 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip"
+import { aggregateSnapshot } from "@/lib/forensic-engine"
 
 const getMockSnapshot = (): SdkProjectSnapshot => {
   const signals = generateMockSignals();
@@ -79,42 +81,40 @@ const getMockSnapshot = (): SdkProjectSnapshot => {
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
   const { isDemoMode } = useDemoMode();
-  const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    async function fetchSnapshot() {
-      if (isUserLoading) return;
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/projects/${user.uid}/snapshot?windowDays=90`);
-        const data = await res.json();
-        setSnapshot(data);
-      } catch (e) {
-        console.error("Failed to fetch forensic snapshot", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchSnapshot();
-  }, [user, isUserLoading]);
+  const usageQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'),
+      orderBy('timestamp', 'desc'),
+      limit(500)
+    );
+  }, [firestore, user]);
+
+  const { data: usageRecords, isLoading: loadingUsage } = useCollection(usageQuery);
+
+  const orgRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'organizations', `org_${user.uid}`);
+  }, [firestore, user]);
+
+  const { data: organization, isLoading: loadingOrg } = useDoc(orgRef);
 
   const activeSnapshot = useMemo(() => {
     if (!mounted) return null;
-    if (snapshot?.hasEvents) return snapshot;
-    if (isDemoMode) return getMockSnapshot();
-    return snapshot;
-  }, [snapshot, isDemoMode, mounted]);
+    if (isDemoMode && (!usageRecords || usageRecords.length === 0)) return getMockSnapshot();
+    if (!usageRecords) return null;
+    
+    return aggregateSnapshot(user?.uid || 'anonymous', usageRecords, organization || {}, 30);
+  }, [usageRecords, organization, isDemoMode, mounted, user]);
 
-  if (!mounted || isUserLoading || (loading && !isDemoMode && user)) {
+  if (!mounted || isUserLoading || (loadingUsage && !isDemoMode && user)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="animate-spin text-primary" size={32} />
@@ -140,8 +140,8 @@ export default function Dashboard() {
               p95BurnDelta={activeSnapshot?.usage?.totalCost ? activeSnapshot.usage.totalCost * 0.1 : 0}
             />
             {activeSnapshot?.hasEvents && (
-              <Badge variant="outline" className={`${isDemoMode && !snapshot?.hasEvents ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'} gap-1 uppercase text-[10px] font-bold`}>
-                <ShieldCheck size={12} /> {isDemoMode && !snapshot?.hasEvents ? 'Full Runway Simulation' : 'Live Ingestion'}
+              <Badge variant="outline" className={`${isDemoMode && (!usageRecords || usageRecords.length === 0) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'} gap-1 uppercase text-[10px] font-bold`}>
+                <ShieldCheck size={12} /> {isDemoMode && (!usageRecords || usageRecords.length === 0) ? 'Full Runway Simulation' : 'Live Ingestion'}
               </Badge>
             )}
           </div>
