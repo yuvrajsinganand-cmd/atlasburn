@@ -54,14 +54,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { verifyDomainDns } from "./actions"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { aggregateSnapshot } from "@/lib/forensic-engine"
 
 export default function SettingsPage() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   
-  const [snapshot, setSnapshot] = useState<SdkProjectSnapshot | null>(null);
-  const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [origin, setOrigin] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -103,6 +102,17 @@ export default function SettingsPage() {
   
   const { data: organization } = useDoc(orgRef);
 
+  const usageQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'organizations', `org_${user.uid}`, 'usageRecords'),
+      orderBy('timestamp', 'desc'),
+      limit(500)
+    );
+  }, [firestore, user]);
+
+  const { data: usageRecords, isLoading: loadingSnapshot } = useCollection(usageQuery);
+
   const membersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, "organizations", `org_${user.uid}`, "users"));
@@ -119,6 +129,11 @@ export default function SettingsPage() {
   }, [firestore, user]);
   const { data: auditLogs, isLoading: loadingLogs } = useCollection(auditLogsQuery);
 
+  const snapshot = useMemo(() => {
+    if (!mounted || !usageRecords) return null;
+    return aggregateSnapshot(user?.uid || 'anonymous', usageRecords, organization || {}, 30);
+  }, [usageRecords, organization, mounted, user]);
+
   const auditSummary = useMemo(() => {
     if (!auditLogs) return { failedDns: 0, accessActions: 0, billingActions: 0, securityActions: 0 };
     return {
@@ -134,22 +149,6 @@ export default function SettingsPage() {
       setOrgName(organization.name || "");
     }
   }, [organization]);
-
-  useEffect(() => {
-    async function fetchSnapshot() {
-      if (!user) return;
-      try {
-        const res = await fetch(`/api/projects/${user.uid}/snapshot?windowDays=30`);
-        const data = await res.json();
-        setSnapshot(data);
-      } catch (e) {
-        console.error("Failed to fetch forensic snapshot", e);
-      } finally {
-        setLoadingSnapshot(false);
-      }
-    }
-    if (user) fetchSnapshot();
-  }, [user]);
 
   const getFingerprint = () => {
     if (typeof navigator === 'undefined') return 'unknown';
