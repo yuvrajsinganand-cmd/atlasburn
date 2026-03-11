@@ -70,7 +70,7 @@ export default function ForensicLedger() {
         <header className="flex h-16 shrink-0 items-center justify-between px-6 border-b bg-background/80 backdrop-blur">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="font-headline text-xl font-bold uppercase tracking-tight">Forensic Ledger</h1>
+            <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Forensic Ledger</h1>
           </div>
           <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1 uppercase text-[10px] font-bold">
             <History size={12} /> Real-time Audit Feed
@@ -98,7 +98,7 @@ export default function ForensicLedger() {
           <Card className="border-none shadow-sm bg-white overflow-hidden">
             <CardHeader className="bg-muted/20 border-b flex flex-row items-center justify-between py-4">
               <div>
-                <CardTitle className="text-sm font-headline flex items-center gap-2">
+                <CardTitle className="text-sm font-headline flex items-center gap-2 text-foreground">
                   <FileText className="text-primary" size={18} /> Deterministic Event Log
                 </CardTitle>
                 <CardDescription className="text-[10px]">Every token interaction attributed to a product capability.</CardDescription>
@@ -153,7 +153,7 @@ export default function ForensicLedger() {
                         </TableCell>
                         <TableCell>
                           <div className="text-[10px] font-medium text-muted-foreground">
-                            {record.inputTokens.toLocaleString()} / {record.outputTokens.toLocaleString()}
+                            {(record.inputTokens || 0).toLocaleString()} / {(record.outputTokens || 0).toLocaleString()}
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-[9px] opacity-50 truncate max-w-[80px]">

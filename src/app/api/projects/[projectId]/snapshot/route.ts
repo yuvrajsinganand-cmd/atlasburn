@@ -12,9 +12,9 @@ const db = getFirestore(app);
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = params;
+  const { projectId } = await params;
   const { searchParams } = new URL(request.url);
   const windowDays = parseInt(searchParams.get('windowDays') || '30');
 
@@ -49,7 +49,7 @@ export async function GET(
     let totalPrompt = 0;
     let totalCompletion = 0;
 
-    records.forEach(r => {
+    records.forEach((r: any) => {
       const date = new Date(r.timestamp).toISOString().split('T')[0];
       if (!dailyMap[date]) dailyMap[date] = { date, cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
       
@@ -136,6 +136,7 @@ export async function GET(
 
     return NextResponse.json(snapshot);
   } catch (error: any) {
+    console.error('Snapshot API Failure:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
