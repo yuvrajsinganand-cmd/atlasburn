@@ -7,11 +7,18 @@ import { getFirestore, doc, collection, addDoc, updateDoc, query, where, getDocs
 import { firebaseConfig } from '@/firebase/config';
 import { Resolver } from 'dns/promises';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+/**
+ * Safe Database Initialization
+ * Prevents build-time crashes by initializing within the action context.
+ */
+function getDb() {
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  return getFirestore(app);
+}
 
 export async function rotateIngestKey(userId: string, subId: string) {
   if (!userId || !subId) throw new Error("Missing context");
+  const db = getDb();
 
   const keysQuery = query(
     collection(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys'),
@@ -42,6 +49,7 @@ export async function rotateIngestKey(userId: string, subId: string) {
 
 export async function revokeIngestKey(userId: string, subId: string, keyId: string) {
   if (!userId || !subId || !keyId) throw new Error("Invalid parameters");
+  const db = getDb();
   const docRef = doc(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys', keyId);
   await updateDoc(docRef, { 
     status: 'revoked', 
