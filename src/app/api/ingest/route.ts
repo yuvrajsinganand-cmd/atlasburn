@@ -6,8 +6,13 @@ import { firebaseConfig } from '@/firebase/config';
 import { normalizeUsage } from '@/lib/normalization-engine';
 import { hashIngestKey } from '@/lib/crypto';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+/**
+ * Robust Firebase Initialization for API Routes
+ */
+function getDb() {
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  return getFirestore(app);
+}
 
 const MAX_EVENTS_PER_BATCH = 50;
 
@@ -17,6 +22,7 @@ const MAX_EVENTS_PER_BATCH = 50;
  */
 export async function POST(request: Request) {
   try {
+    const db = getDb();
     const body = await request.json();
     const { apiKey, projectId, events, event } = body;
 

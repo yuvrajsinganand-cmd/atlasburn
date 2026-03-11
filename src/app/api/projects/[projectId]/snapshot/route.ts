@@ -5,8 +5,13 @@ import { getFirestore, collection, query, orderBy, getDocs, doc, getDoc, limit }
 import { firebaseConfig } from '@/firebase/config';
 import { aggregateSnapshot } from '@/lib/forensic-engine';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+/**
+ * Robust Firebase Initialization for API Routes
+ */
+function getDb() {
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  return getFirestore(app);
+}
 
 export async function GET(
   request: Request,
@@ -22,12 +27,12 @@ export async function GET(
   const windowDays = parseInt(searchParams.get('windowDays') || '30');
 
   try {
+    const db = getDb();
     const orgRef = doc(db, 'organizations', `org_${projectId}`);
     const orgSnap = await getDoc(orgRef);
     
-    // Note: If no user context is provided, this will fail with 'permission denied'
-    // This API is intended for administrative or public-facing reporting.
-    // Dashboard users fetch records directly via client hooks.
+    // Note: This API is secondary to client-side aggregation.
+    // It requires the App Hosting environment to have appropriate service account permissions.
     
     const orgData = orgSnap.exists() ? orgSnap.data() : {};
 
@@ -42,11 +47,10 @@ export async function GET(
   } catch (error: any) {
     console.error('Snapshot API Critical Failure:', error);
     
-    // Check for standard permission error
     if (error.code === 'permission-denied' || error.message?.includes('permission')) {
       return NextResponse.json({ 
         error: 'Permission Denied', 
-        details: 'The API route lacks authorization to read this project. Use client-side aggregation for private data.' 
+        details: 'The API route lacks authorization to read this project.' 
       }, { status: 403 });
     }
 

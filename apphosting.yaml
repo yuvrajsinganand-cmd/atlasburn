@@ -1,7 +1,14 @@
-# Settings to manage and configure a Firebase App Hosting backend.
+
+# AtlasBurn App Hosting Configuration
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  # Maintain institutional availability
+  minInstances: 0
+  maxInstances: 2
+  # Next.js 15 requires sufficient memory for optimal SSR performance
+  memory: 512Mi
+
+env:
+  - variable: NEXT_TELEMETRY_DISABLED
+    value: "1"
