@@ -1,7 +1,7 @@
 
 "use client"
 
-import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical } from "lucide-react"
+import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical, FileText } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -27,6 +27,7 @@ import {
 
 const items = [
   { title: "Economic Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Forensic Ledger", url: "/ledger", icon: FileText },
   { title: "Integration Guide", url: "/usage", icon: Server },
   { title: "Model Intelligence", url: "/catalog", icon: Database },
   { title: "Audit & Optimize", url: "/optimizer", icon: Zap },
@@ -53,6 +54,8 @@ export function AppSidebar() {
               width={40} 
               height={40} 
               data-ai-hint={logo.imageHint}
+              priority
+              unoptimized
               className="object-contain rounded-xl shadow-sm"
             />
           )}

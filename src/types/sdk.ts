@@ -13,7 +13,7 @@ export type SdkProjectSnapshot = {
     completionTokens: number;
     requests: number;
     byModel: Record<string, { cost: number; promptTokens: number; completionTokens: number; requests: number; avgLatencyMs?: number }>;
-    byFeature: Record<string, { cost: number; requests: number; riskContribution: number }>;
+    byFeature: Record<string, { cost: number; requests: number; riskContribution: number; status: 'PROTECTED' | 'BREACHED'; trend: number }>;
     daily: Array<{ date: string; cost: number; promptTokens: number; completionTokens: number; requests: number }>;
   };
 
@@ -29,6 +29,7 @@ export type SdkProjectSnapshot = {
   systemicRisk: {
     outageProb?: number;
     retryCascadeProb?: number;
+    spikeAlerts: Array<{ featureId: string; severity: 'CRITICAL' | 'WARNING'; message: string; costImpact: number }>;
   };
 
   // AI Runtime Signals (Prototype Layer)

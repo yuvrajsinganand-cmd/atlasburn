@@ -52,7 +52,7 @@ export async function GET(
       if (!modelMap[model]) modelMap[model] = { cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
 
       const featureId = r.featureId || 'default';
-      if (!featureMap[featureId]) featureMap[featureId] = { cost: 0, requests: 0, riskContribution: 0 };
+      if (!featureMap[featureId]) featureMap[featureId] = { cost: 0, requests: 0, riskContribution: 0, status: 'PROTECTED', trend: 0, history: [] };
 
       dailyMap[date].cost += r.cost || 0;
       dailyMap[date].requests += 1;
@@ -62,15 +62,38 @@ export async function GET(
 
       featureMap[featureId].cost += r.cost || 0;
       featureMap[featureId].requests += 1;
+      featureMap[featureId].history.push(r.cost || 0);
       
       totalCost += r.cost || 0;
       totalPrompt += r.inputTokens || 0;
       totalCompletion += r.outputTokens || 0;
     });
 
-    // Calculate Feature-level risk contribution (simple % of total burn)
+    const spikeAlerts: any[] = [];
+
+    // Calculate Feature-level risk and spikes
     Object.keys(featureMap).forEach(fid => {
-      featureMap[fid].riskContribution = totalCost > 0 ? (featureMap[fid].cost / totalCost) : 0;
+      const feature = featureMap[fid];
+      feature.riskContribution = totalCost > 0 ? (feature.cost / totalCost) : 0;
+      
+      // Basic spike detection: last 5 events vs previous 20
+      if (feature.history.length > 10) {
+        const recent = feature.history.slice(0, 5).reduce((a: number, b: number) => a + b, 0) / 5;
+        const baseline = feature.history.slice(5, 25).reduce((a: number, b: number) => a + b, 0) / Math.max(1, Math.min(20, feature.history.length - 5));
+        
+        feature.trend = baseline > 0 ? (recent - baseline) / baseline : 0;
+        
+        if (feature.trend > 2.0) { // 200% increase
+          feature.status = 'BREACHED';
+          spikeAlerts.push({
+            featureId: fid,
+            severity: feature.trend > 4.0 ? 'CRITICAL' : 'WARNING',
+            message: `Abnormal burn surge detected in ${fid}. Cost increased by ${(feature.trend * 100).toFixed(0)}%.`,
+            costImpact: recent * 30 // Est monthly impact
+          });
+        }
+      }
+      delete feature.history; // Clean up snapshot
     });
 
     const dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -100,7 +123,8 @@ export async function GET(
       },
       systemicRisk: {
         outageProb: 0.02,
-        retryCascadeProb: 0.05
+        retryCascadeProb: 0.05,
+        spikeAlerts
       }
     };
 

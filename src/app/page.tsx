@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, AlertCircle } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, AlertCircle, ShieldAlert, TrendingUp } from "lucide-react"
 import { useUser } from "@/firebase"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
@@ -46,9 +46,9 @@ const getMockSnapshot = (): SdkProjectSnapshot => {
         "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
       },
       byFeature: {
-        "agent-search": { cost: 7200, requests: 400000, riskContribution: 0.58 },
-        "document-analysis": { cost: 3100, requests: 200000, riskContribution: 0.25 },
-        "realtime-chat": { cost: 2150.75, requests: 242000, riskContribution: 0.17 }
+        "support-bot-alpha": { cost: 7200, requests: 400000, riskContribution: 0.58, status: 'BREACHED', trend: 4.2 },
+        "document-analysis": { cost: 3100, requests: 200000, riskContribution: 0.25, status: 'PROTECTED', trend: -0.1 },
+        "realtime-chat": { cost: 2150.75, requests: 242000, riskContribution: 0.17, status: 'PROTECTED', trend: 0.05 }
       },
       daily: Array.from({ length: 30 }, (_, i) => ({
         date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -68,7 +68,10 @@ const getMockSnapshot = (): SdkProjectSnapshot => {
     },
     systemicRisk: {
       outageProb: impacts.outageProb,
-      retryCascadeProb: impacts.retryCascadeProb
+      retryCascadeProb: impacts.retryCascadeProb,
+      spikeAlerts: [
+        { featureId: "support-bot-alpha", severity: "CRITICAL", message: "Runaway agent loop detected. Burn increased 420%.", costImpact: 8500 }
+      ]
     }
   };
 };
@@ -183,6 +186,34 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
+              {activeSnapshot.systemicRisk.spikeAlerts.length > 0 && (
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
+                  {activeSnapshot.systemicRisk.spikeAlerts.map((alert, i) => (
+                    <Card key={i} className={`p-4 border-none shadow-md ${alert.severity === 'CRITICAL' ? 'bg-destructive/10 border-l-4 border-l-destructive' : 'bg-amber-50 border-l-4 border-l-amber-500'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${alert.severity === 'CRITICAL' ? 'bg-destructive/20 text-destructive' : 'bg-amber-100 text-amber-600'}`}>
+                            <ShieldAlert size={20} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold uppercase tracking-tight flex items-center gap-2">
+                              {alert.severity} GUARDRAIL BREACH: {alert.featureId}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{alert.message}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-muted-foreground uppercase">Projected Impact</p>
+                          <p className={`text-lg font-headline font-bold ${alert.severity === 'CRITICAL' ? 'text-destructive' : 'text-amber-600'}`}>
+                            +${alert.costImpact.toLocaleString()}<span className="text-[10px] font-normal">/mo</span>
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
               {isDemoMode && activeSnapshot.runtimeSignals && (
                 <div className="animate-in slide-in-from-top-4 duration-700">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-1">AI Runtime Signals (Simulated)</h3>
@@ -294,27 +325,39 @@ export default function Dashboard() {
                           <div key={id} className="space-y-2">
                             <div className="flex justify-between items-end">
                               <div className="flex flex-col">
-                                <span className="text-xs font-bold uppercase tracking-tight flex items-center gap-1">
+                                <span className={`text-xs font-bold uppercase tracking-tight flex items-center gap-1 ${stats.status === 'BREACHED' ? 'text-destructive' : ''}`}>
                                   {id}
-                                  {stats.riskContribution > 0.4 && <AlertCircle size={12} className="text-destructive" />}
+                                  {stats.status === 'BREACHED' && <ShieldAlert size={12} className="animate-pulse" />}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground">{stats.requests.toLocaleString()} Requests</span>
                               </div>
                               <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
-                            <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
+                            <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 || stats.status === 'BREACHED' ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
                             <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
                               <span>Risk Contribution</span>
-                              <span>{(stats.riskContribution * 100).toFixed(0)}%</span>
+                              <span className="flex items-center gap-1">
+                                {(stats.riskContribution * 100).toFixed(0)}% 
+                                {stats.trend !== 0 && (
+                                  <span className={stats.trend > 0 ? 'text-destructive' : 'text-green-600'}>
+                                    ({stats.trend > 0 ? '+' : ''}{(stats.trend * 100).toFixed(0)}%)
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           </div>
                         ))}
                       </div>
-                      <div className="mt-8 pt-6 border-t">
+                      <div className="mt-8 pt-6 border-t flex flex-col gap-2">
                         <Button asChild variant="outline" className="w-full text-[10px] font-bold uppercase tracking-widest h-10 group">
-                          <Link href="/optimizer">
-                            Analyze Forensic Playbook
+                          <Link href="/ledger">
+                            View Forensic Ledger
                             <ArrowRight size={12} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                          </Link>
+                        </Button>
+                        <Button asChild variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest h-10">
+                          <Link href="/optimizer">
+                            Analyze Playbook
                           </Link>
                         </Button>
                       </div>
