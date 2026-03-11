@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, getDocs, doc, getDoc, limit } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { calculateUsageVariance } from '@/lib/variance-engine';
 import { deriveSignalsFromRecords, translateSignalsToEconomicFactors } from '@/lib/runtime-signals';
@@ -15,6 +15,11 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params;
+  
+  if (!projectId || projectId === 'undefined' || projectId === 'null') {
+    return NextResponse.json({ error: 'Invalid Project ID' }, { status: 400 });
+  }
+
   const { searchParams } = new URL(request.url);
   const windowDays = parseInt(searchParams.get('windowDays') || '30');
 
@@ -28,8 +33,9 @@ export async function GET(
 
     const orgData = orgSnap.data();
 
+    // Defensive Limit: Only process the latest 500 records for the snapshot to prevent proxy timeout/400 errors
     const usageRef = collection(db, 'organizations', `org_${projectId}`, 'usageRecords');
-    const usageQuery = query(usageRef, orderBy('timestamp', 'desc'));
+    const usageQuery = query(usageRef, orderBy('timestamp', 'desc'), limit(500));
     const usageSnap = await getDocs(usageQuery);
 
     if (usageSnap.empty) {
@@ -81,24 +87,23 @@ export async function GET(
       const feature = featureMap[fid];
       feature.riskContribution = totalCost > 0 ? (feature.cost / totalCost) : 0;
       
-      // Basic spike detection: last 5 events vs previous 20
       if (feature.history.length > 10) {
         const recent = feature.history.slice(0, 5).reduce((a: number, b: number) => a + b, 0) / 5;
         const baseline = feature.history.slice(5, 25).reduce((a: number, b: number) => a + b, 0) / Math.max(1, Math.min(20, feature.history.length - 5));
         
         feature.trend = baseline > 0 ? (recent - baseline) / baseline : 0;
         
-        if (feature.trend > 2.0) { // 200% increase
+        if (feature.trend > 2.0) { 
           feature.status = 'BREACHED';
           spikeAlerts.push({
             featureId: fid,
             severity: feature.trend > 4.0 ? 'CRITICAL' : 'WARNING',
             message: `Abnormal burn surge detected in ${fid}. Cost increased by ${(feature.trend * 100).toFixed(0)}%.`,
-            costImpact: recent * 30 // Est monthly impact
+            costImpact: recent * 30 
           });
         }
       }
-      delete feature.history; // Clean up snapshot
+      delete feature.history;
     });
 
     const dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));

@@ -41,6 +41,7 @@ export async function rotateIngestKey(userId: string, subId: string) {
 }
 
 export async function revokeIngestKey(userId: string, subId: string, keyId: string) {
+  if (!userId || !subId || !keyId) throw new Error("Invalid parameters");
   const docRef = doc(db, 'users', userId, 'aiSubscriptions', subId, 'ingestKeys', keyId);
   await updateDoc(docRef, { 
     status: 'revoked', 
@@ -56,15 +57,14 @@ export async function verifyDomainDns(domain: string, expectedToken: string) {
   if (!domain || !expectedToken) return { success: false, error: "Missing verification context." };
 
   try {
-    // 1. Initialize Resolver with Public DNS (Google) to bypass local cache
     const resolver = new Resolver();
+    // Using authoritative Google DNS to bypass internal cache layers
     resolver.setServers(['8.8.8.8', '8.8.4.4']);
     
     const records = await resolver.resolveTxt(domain.trim());
     const flatRecords = records.flat().map(r => r.trim());
     const verificationString = `atlasburn-verification=${expectedToken}`;
     
-    // 2. Perform flexible check (some providers might wrap in quotes)
     const isVerified = flatRecords.some(r => r.includes(verificationString) || r.replace(/"/g, '').includes(verificationString));
 
     if (isVerified) {
@@ -73,13 +73,13 @@ export async function verifyDomainDns(domain: string, expectedToken: string) {
 
     return { 
       success: false, 
-      error: "Verification token not detected. Ensure the TXT record is correctly set. DNS propagation can take time, but we are querying Google DNS (8.8.8.8) directly." 
+      error: "Verification token not detected. Ensure the TXT record is correctly set. DNS propagation can take time." 
     };
   } catch (err: any) {
     console.error("DNS Resolution Error:", err);
     return { 
       success: false, 
-      error: err.code === 'ENOTFOUND' ? "Domain not found." : "Could not resolve DNS records. Please check the domain name and ensure a TXT record exists." 
+      error: err.code === 'ENOTFOUND' ? "Domain not found." : "Could not resolve DNS records." 
     };
   }
 }

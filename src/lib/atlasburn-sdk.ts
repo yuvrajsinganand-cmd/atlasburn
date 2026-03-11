@@ -1,5 +1,6 @@
+
 /**
- * AtlasBurn Forensic SDK - Institutional v1.9
+ * AtlasBurn Forensic SDK - Institutional v1.9.1
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
@@ -7,16 +8,16 @@
  */
 
 export interface AtlasBurnSDKOptions {
-  apiKey: string;    // Raw Ingest Key (Stored in .env)
-  projectId: string; // Your AtlasBurn Project ID
-  ingestUrl?: string; // The absolute URL of your AtlasBurn deployment
+  apiKey: string;    
+  projectId: string; 
+  ingestUrl?: string; 
   batchSize?: number;
   maxQueueSize?: number;
 }
 
 export interface AtlasBurnMetadata {
-  featureId?: string; // Product feature attribution
-  userTier?: string;  // Customer segment attribution
+  featureId?: string; 
+  userTier?: string;  
 }
 
 function generateForensicId(): string {
@@ -24,7 +25,7 @@ function generateForensicId(): string {
     if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
       return globalThis.crypto.randomUUID();
     }
-  } catch (e) { /* Fallback */ }
+  } catch (e) {}
   return `abn-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
 
@@ -38,7 +39,7 @@ class AtlasBurnIngestor {
     this.options = {
       ingestUrl: options.ingestUrl || (typeof window !== 'undefined' 
         ? `${window.location.origin}/api/ingest` 
-        : '/api/ingest'),
+        : ''),
       batchSize: 5,
       maxQueueSize: 200,
       ...options
@@ -61,7 +62,7 @@ class AtlasBurnIngestor {
   }
 
   public async flush() {
-    if (this.isProcessing || this.queue.length === 0) return;
+    if (this.isProcessing || this.queue.length === 0 || !this.options.ingestUrl) return;
     
     this.isProcessing = true;
     const eventsToProcess = [...this.queue];
@@ -77,8 +78,10 @@ class AtlasBurnIngestor {
   }
 
   private async sendWithRetry(events: any[], attempt: number): Promise<void> {
+    if (!this.options.ingestUrl) return;
+    
     try {
-      const response = await fetch(this.options.ingestUrl!, {
+      const response = await fetch(this.options.ingestUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
