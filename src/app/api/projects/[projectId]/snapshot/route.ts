@@ -56,7 +56,16 @@ export async function GET(
     let totalCompletion = 0;
 
     records.forEach((r: any) => {
-      const date = new Date(r.timestamp).toISOString().split('T')[0];
+      // Defensive parsing for timestamps to prevent crash during ISO conversion
+      let date = 'unknown';
+      try {
+        if (r.timestamp) {
+          date = new Date(r.timestamp).toISOString().split('T')[0];
+        }
+      } catch (e) {
+        console.warn('Invalid timestamp in record:', r.id);
+      }
+
       if (!dailyMap[date]) dailyMap[date] = { date, cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
       
       const model = r.model || 'unknown';
@@ -141,7 +150,11 @@ export async function GET(
 
     return NextResponse.json(snapshot);
   } catch (error: any) {
-    console.error('Snapshot API Failure:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Snapshot API Critical Failure:', error);
+    return NextResponse.json({ 
+      error: 'Forensic Snapshot Generation Failed', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    }, { status: 500 });
   }
 }

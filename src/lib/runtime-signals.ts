@@ -54,15 +54,24 @@ export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
   const retryRate = anomalousCount / records.length;
 
   // Calculate request rate over the last observed window
-  const timestamps = records.map(r => new Date(r.timestamp).getTime()).sort((a, b) => b - a);
-  const windowMs = timestamps[0] - timestamps[timestamps.length - 1];
-  const requestRate = windowMs > 0 ? (records.length / (windowMs / 1000)) : 0;
+  // Ensure we only use records with valid timestamps to avoid NaN in JSON serialization
+  const timestamps = records
+    .map(r => r.timestamp ? new Date(r.timestamp).getTime() : NaN)
+    .filter(t => !isNaN(t))
+    .sort((a, b) => b - a);
 
+  let requestRate = 0;
+  if (timestamps.length >= 2) {
+    const windowMs = timestamps[0] - timestamps[timestamps.length - 1];
+    requestRate = windowMs > 0 ? (records.length / (windowMs / 1000)) : 0;
+  }
+
+  // Final safety check: ensure all values are finite for JSON serialization
   return {
-    tokenVolume: totalTokens,
-    requestRate: Math.min(requestRate, 100),
-    retryRate: retryRate,
-    loopProbability: retryRate * 0.8,
+    tokenVolume: isFinite(totalTokens) ? totalTokens : 0,
+    requestRate: isFinite(requestRate) ? Math.min(requestRate, 100) : 0,
+    retryRate: isFinite(retryRate) ? retryRate : 0,
+    loopProbability: isFinite(retryRate * 0.8) ? retryRate * 0.8 : 0,
     contextExpansionRate: 1.2,
     modelMix: {
       "Production Mix": 1.0
@@ -72,11 +81,6 @@ export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
 
 /**
  * Maps AI runtime metrics to deterministic financial engine inputs.
- * 
- * LOGIC MAPPING:
- * - High Retry Rate -> Higher systemic risk of "Retry Cascades"
- * - High Loop Prob -> Higher burn volatility (wider distribution in Monte Carlo)
- * - High Request Rate -> Increased baseline burn and outage probability
  */
 export function translateSignalsToEconomicFactors(signals: RuntimeSignals) {
   return {

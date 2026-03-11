@@ -21,7 +21,7 @@ export default function ForensicLedger() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
+    setMounted(true);
   }, [])
 
   const ledgerQuery = useMemoFirebase(() => {
@@ -63,6 +63,15 @@ export default function ForensicLedger() {
 
   if (!mounted) return null;
 
+  const safeFormatDate = (timestamp: any) => {
+    if (!timestamp) return '---';
+    try {
+      return new Date(timestamp).toLocaleString();
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
   return (
     <SidebarProvider suppressHydrationWarning>
       <AppSidebar />
@@ -90,7 +99,7 @@ export default function ForensicLedger() {
             </div>
             <div className="flex gap-2">
               <Badge className="bg-destructive/10 text-destructive border-none font-bold text-[10px]">
-                {displayRecords.filter(r => r.cost > 1.0 || r.isRecursion).length} Anomalies Flagged
+                {displayRecords.filter(r => (r.cost || 0) > 1.0 || r.isRecursion).length} Anomalies Flagged
               </Badge>
             </div>
           </div>
@@ -126,18 +135,19 @@ export default function ForensicLedger() {
                     </TableRow>
                   )}
                   {displayRecords.map((record) => {
-                    const isHighCost = record.cost > 1.0;
+                    const cost = record.cost || 0;
+                    const isHighCost = cost > 1.0;
                     const isRecursion = record.isRecursion;
                     
                     return (
                       <TableRow key={record.id} className={`group transition-colors ${isRecursion ? 'bg-destructive/5 hover:bg-destructive/10' : ''}`}>
                         <TableCell className="font-mono text-[10px] text-muted-foreground">
-                          {new Date(record.timestamp).toLocaleString()}
+                          {safeFormatDate(record.timestamp)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className={`text-xs font-bold ${isRecursion ? 'text-destructive' : 'text-foreground'}`}>
-                              {record.featureId}
+                              {record.featureId || '---'}
                             </span>
                             {isRecursion && (
                               <Badge className="bg-destructive text-white border-none text-[8px] h-4 px-1 animate-pulse">
@@ -148,7 +158,7 @@ export default function ForensicLedger() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-[9px] font-bold uppercase">
-                            {record.model}
+                            {record.model || 'unknown'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -161,7 +171,7 @@ export default function ForensicLedger() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={`flex items-center justify-end gap-1 font-headline font-bold ${isHighCost ? 'text-destructive' : 'text-primary'}`}>
-                            ${record.cost.toFixed(4)}
+                            ${cost.toFixed(4)}
                             {isHighCost && <ArrowUpRight size={12} />}
                           </div>
                         </TableCell>
