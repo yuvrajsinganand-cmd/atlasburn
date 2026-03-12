@@ -42,8 +42,8 @@ import {
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, limit } from "firebase/firestore"
-import { setDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { doc, collection, query, orderBy, limit, deleteDoc } from "firebase/firestore"
+import { setDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { updateProfile } from "firebase/auth"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -307,7 +307,7 @@ export default function SettingsPage() {
     addDocumentNonBlocking(memberCol, {
       email: inviteEmail.trim(),
       role: inviteRole,
-      status: "pending",
+      status: "active",
       invitedBy: user.email,
       createdAt: new Date().toISOString(),
       organizationId: `org_${user.uid}`,
@@ -321,6 +321,22 @@ export default function SettingsPage() {
       toast({ title: "Member Invited", description: `Invitation sent to ${inviteEmail}.` });
       logAction("MEMBER_INVITED", `Invited ${inviteEmail} with role ${inviteRole}.`, "access");
     }, 600);
+  };
+
+  const handleUpdateMemberRole = (memberId: string, newRole: string) => {
+    if (!user || !firestore) return;
+    const memberRef = doc(firestore, "organizations", `org_${user.uid}`, "users", memberId);
+    updateDocumentNonBlocking(memberRef, { role: newRole });
+    toast({ title: "Role Updated", description: "Member authority reassigned flawlessly." });
+    logAction("MEMBER_ROLE_UPDATED", `Member ${memberId} reassigned to ${newRole}`, "access");
+  };
+
+  const handleRemoveMember = (memberId: string) => {
+    if (!user || !firestore) return;
+    const memberRef = doc(firestore, "organizations", `org_${user.uid}`, "users", memberId);
+    deleteDocumentNonBlocking(memberRef);
+    toast({ title: "Member Removed", description: "Institutional access revoked." });
+    logAction("MEMBER_REMOVED", `Revoked access for member ${memberId}`, "access", "success");
   };
 
   const handleManageBilling = () => {
@@ -369,10 +385,10 @@ export default function SettingsPage() {
                 <Layers size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Capabilities
               </TabsTrigger>
               <TabsTrigger value="account" className="gap-2 shrink-0 py-2 group">
-                <User size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Account
+                <User size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Identity & Team
               </TabsTrigger>
               <TabsTrigger value="billing" className="gap-2 shrink-0 py-2 group">
-                <CreditCard size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Billing & Access
+                <CreditCard size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Billing
               </TabsTrigger>
               <TabsTrigger value="domains" className="gap-2 shrink-0 py-2 group">
                 <Globe size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Domains
@@ -562,104 +578,131 @@ const client = withAtlasBurn(llm, {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg font-headline flex items-center gap-2">
+                      <Users size={18} className="text-primary" /> Institutional Permissions
+                    </CardTitle>
+                    <CardDescription>Manage user roles and assign authorities flawlessly.</CardDescription>
+                  </div>
+                  <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="gap-2 font-headline font-bold">
+                        <UserPlus size={14} /> Invite Member
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="font-headline text-xl">Delegate Forensic Access</DialogTitle>
+                        <DialogDescription>Assign a team member with specific authority.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-6 py-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Email Address</Label>
+                          <Input 
+                            placeholder="name@acme.ai" 
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            className="bg-muted/20"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Access Role</Label>
+                          <Select value={inviteRole} onValueChange={setInviteRole}>
+                            <SelectTrigger className="bg-muted/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                              <SelectItem value="finance">Finance (Economic Forensics)</SelectItem>
+                              <SelectItem value="engineer">Engineer (SDK & Technical)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button className="w-full font-headline font-bold" onClick={handleInvite} disabled={sendingInvite || !inviteEmail.trim()}>
+                          {sendingInvite ? <Loader2 className="animate-spin mr-2" /> : <UserPlus className="mr-2" />}
+                          Send Institutional Invitation
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/10">
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">User</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Role Authority</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">{user?.displayName || "Lead Founder"}</span>
+                            <span className="text-[10px] text-muted-foreground">{user?.email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] font-bold">OWNER</Badge></TableCell>
+                        <TableCell><Badge className="bg-green-100 text-green-700 text-[10px] border-none font-bold">ACTIVE</Badge></TableCell>
+                        <TableCell className="text-right text-[10px] font-mono text-muted-foreground">ROOT</TableCell>
+                      </TableRow>
+                      
+                      {members?.map((member) => (
+                        <TableRow key={member.id}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold">{member.name || member.email.split('@')[0]}</span>
+                              <span className="text-[10px] text-muted-foreground">{member.email}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Select defaultValue={member.role} onValueChange={(val) => handleUpdateMemberRole(member.id, val)}>
+                              <SelectTrigger className="h-8 w-[130px] text-[10px] font-bold uppercase bg-muted/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin" className="text-[10px] uppercase font-bold">Admin</SelectItem>
+                                <SelectItem value="finance" className="text-[10px] uppercase font-bold">Finance</SelectItem>
+                                <SelectItem value="engineer" className="text-[10px] uppercase font-bold">Engineer</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell><Badge className="bg-amber-100 text-amber-700 text-[10px] border-none font-bold uppercase">{member.status}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveMember(member.id)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="billing" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                  <Card className="border-none shadow-sm bg-white overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg font-headline flex items-center gap-2">
-                          <Users size={18} className="text-primary" /> Institutional Permissions
-                        </CardTitle>
-                        <CardDescription>Manage user access and roles for this organization.</CardDescription>
-                      </div>
-                      <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" className="gap-2 font-headline font-bold">
-                            <UserPlus size={14} /> Invite Member
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle className="font-headline text-xl">Delegate Forensic Access</DialogTitle>
-                            <DialogDescription>Assign a team member with specific authority.</DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-6 py-4">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Email Address</Label>
-                              <Input 
-                                placeholder="name@acme.ai" 
-                                value={inviteEmail}
-                                onChange={(e) => setInviteEmail(e.target.value)}
-                                className="bg-muted/20"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Access Role</Label>
-                              <Select value={inviteRole} onValueChange={setInviteRole}>
-                                <SelectTrigger className="bg-muted/20">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                                  <SelectItem value="finance">Finance (Economic Forensics)</SelectItem>
-                                  <SelectItem value="engineer">Engineer (SDK & Technical)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button className="w-full font-headline font-bold" onClick={handleInvite} disabled={sendingInvite || !inviteEmail.trim()}>
-                              {sendingInvite ? <Loader2 className="animate-spin mr-2" /> : <UserPlus className="mr-2" />}
-                              Send Institutional Invitation
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/10">
-                            <TableHead className="text-[10px] font-bold uppercase tracking-widest">User</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-widest">Role</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-widest text-right">Added</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold">{user?.displayName || "Lead Founder"}</span>
-                                <span className="text-[10px] text-muted-foreground">{user?.email}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] font-bold">OWNER</Badge></TableCell>
-                            <TableCell><Badge className="bg-green-100 text-green-700 text-[10px] border-none font-bold">ACTIVE</Badge></TableCell>
-                            <TableCell className="text-right text-[10px] font-mono text-muted-foreground">ROOT</TableCell>
-                          </TableRow>
-                          
-                          {members?.map((member) => (
-                            <TableRow key={member.id}>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-bold">{member.name || member.email.split('@')[0]}</span>
-                                  <span className="text-[10px] text-muted-foreground">{member.email}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell><Badge variant="outline" className="text-[10px] font-bold uppercase">{member.role}</Badge></TableCell>
-                              <TableCell><Badge className="bg-amber-100 text-amber-700 text-[10px] border-none font-bold uppercase">{member.status}</Badge></TableCell>
-                              <TableCell className="text-right text-[10px] font-mono text-muted-foreground">
-                                {new Date(member.createdAt).toLocaleDateString()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
+                  <Card className="border-none shadow-sm bg-white overflow-hidden p-12 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="p-4 bg-primary/10 text-primary rounded-full"><CreditCard size={48} /></div>
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-headline font-bold">Institutional Billing</h3>
+                      <p className="text-sm text-muted-foreground max-w-md">Assign funding sources and download deterministic cost invoices for your organization.</p>
+                    </div>
+                    <Button onClick={handleManageBilling} className="font-headline font-bold h-12 px-8">Configure Payment Methods</Button>
                   </Card>
                 </div>
 
