@@ -78,6 +78,8 @@ export default function LoginPage() {
                 width={80} 
                 height={80} 
                 data-ai-hint={logo.imageHint}
+                priority
+                unoptimized
                 className="object-contain rounded-2xl shadow-xl"
               />
             )}
