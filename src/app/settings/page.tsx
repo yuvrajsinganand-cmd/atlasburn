@@ -362,13 +362,27 @@ export default function SettingsPage() {
         <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
           <Tabs defaultValue="sdk" className="space-y-6">
             <TabsList className="bg-muted/50 p-1 w-full flex justify-start overflow-x-auto h-auto gap-1">
-              <TabsTrigger value="sdk" className="gap-2 shrink-0 py-2"><Terminal size={14} /> SDK Ingestion</TabsTrigger>
-              <TabsTrigger value="capabilities" className="gap-2 shrink-0 py-2"><Layers size={14} /> Capabilities</TabsTrigger>
-              <TabsTrigger value="account" className="gap-2 shrink-0 py-2"><User size={14} /> Account</TabsTrigger>
-              <TabsTrigger value="billing" className="gap-2 shrink-0 py-2"><CreditCard size={14} /> Billing & Access</TabsTrigger>
-              <TabsTrigger value="domains" className="gap-2 shrink-0 py-2"><Globe size={14} /> Domains</TabsTrigger>
-              <TabsTrigger value="audit" className="gap-2 shrink-0 py-2"><History size={14} /> Audit Log</TabsTrigger>
-              <TabsTrigger value="legal" className="gap-2 shrink-0 py-2"><FileText size={14} /> Legal</TabsTrigger>
+              <TabsTrigger value="sdk" className="gap-2 shrink-0 py-2 group">
+                <Terminal size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> SDK Ingestion
+              </TabsTrigger>
+              <TabsTrigger value="capabilities" className="gap-2 shrink-0 py-2 group">
+                <Layers size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Capabilities
+              </TabsTrigger>
+              <TabsTrigger value="account" className="gap-2 shrink-0 py-2 group">
+                <User size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Account
+              </TabsTrigger>
+              <TabsTrigger value="billing" className="gap-2 shrink-0 py-2 group">
+                <CreditCard size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Billing & Access
+              </TabsTrigger>
+              <TabsTrigger value="domains" className="gap-2 shrink-0 py-2 group">
+                <Globe size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Domains
+              </TabsTrigger>
+              <TabsTrigger value="audit" className="gap-2 shrink-0 py-2 group">
+                <History size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Audit Log
+              </TabsTrigger>
+              <TabsTrigger value="legal" className="gap-2 shrink-0 py-2 group">
+                <FileText size={14} className="transition-all duration-300 group-data-[state=active]:scale-125 group-data-[state=active]:text-primary" /> Legal
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="capabilities" className="space-y-6">
