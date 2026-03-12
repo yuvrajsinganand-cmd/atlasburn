@@ -205,6 +205,7 @@ export default function SettingsPage() {
   const handleUpdateOrg = () => {
     if (!orgRef || !user) return;
     setSavingOrg(true);
+    // Use set with merge to handle cases where the document doesn't exist yet
     setDocumentNonBlocking(orgRef, {
       name: orgName,
       updatedAt: new Date().toISOString()
@@ -239,10 +240,11 @@ export default function SettingsPage() {
       createdAt: new Date().toISOString()
     };
 
-    updateDocumentNonBlocking(orgRef, {
+    // Use set with merge to handle new organizations
+    setDocumentNonBlocking(orgRef, {
       allowedDomains: [...currentDomains, newEntry],
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
 
     setTimeout(() => {
       setNewDomain("");
@@ -260,7 +262,6 @@ export default function SettingsPage() {
       const result = await verifyDomainDns(domainToVerify, token);
       
       if (result.success) {
-        // Authoritative server check passed, now update Firestore using client auth
         const currentDomains = organization?.allowedDomains || [];
         const updatedDomains = currentDomains.map((d: any) => {
           if (d.domain === domainToVerify) {
@@ -269,10 +270,10 @@ export default function SettingsPage() {
           return d;
         });
 
-        updateDocumentNonBlocking(orgRef, { 
+        setDocumentNonBlocking(orgRef, { 
           allowedDomains: updatedDomains,
           updatedAt: new Date().toISOString()
-        });
+        }, { merge: true });
 
         toast({ title: "DNS Verified", description: `${domainToVerify} is now officially whitelisted.` });
         logAction("DNS_VERIFIED", `Ownership verified for domain ${domainToVerify}.`, "security", "success");
@@ -291,10 +292,10 @@ export default function SettingsPage() {
   const handleRemoveDomain = (domain: string) => {
     if (!orgRef || !organization?.allowedDomains) return;
     const updated = organization.allowedDomains.filter((d: any) => d.domain !== domain);
-    updateDocumentNonBlocking(orgRef, {
+    setDocumentNonBlocking(orgRef, {
       allowedDomains: updated,
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
     toast({ title: "Domain Removed", description: `${domain} removed from whitelist.` });
     logAction("DOMAIN_REMOVED", `Domain ${domain} removed from whitelist.`, "admin");
   };
@@ -496,13 +497,13 @@ const client = withAtlasBurn(llm, {
                             <CheckCircle2 size={14} className="text-green-600" />
                             <span className="text-xs font-bold text-green-700">Forensic Feed Online</span>
                           </div>
-                          <span className="text-[10px] font-mono text-green-600">v1.8.2</span>
+                          <span className="text-[10px] font-mono text-green-600">v1.9.1</span>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100">
                           <div className="flex items-center gap-2">
                             <AlertTriangle size={14} className="text-amber-600" />
-                            <span className="text-xs font-bold text-amber-700">Awaiting Integration</span>
+                            <span className="text-xs font-bold text-amber-700">Awaiting Ingestion</span>
                           </div>
                         </div>
                       )}

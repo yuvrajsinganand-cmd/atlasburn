@@ -111,7 +111,7 @@ export default function Dashboard() {
     
     const realDataExists = usageRecords && usageRecords.length > 0;
 
-    // 1. Prioritize Real Data
+    // 1. Prioritize Real Data (Deterministic)
     if (realDataExists) {
       return aggregateSnapshot(user?.uid || 'anonymous', usageRecords!, organization || {}, 30);
     }
@@ -163,7 +163,7 @@ export default function Dashboard() {
             />
             {activeSnapshot?.hasEvents && (
               <Badge variant="outline" className={`${isDemoMode && (!usageRecords || usageRecords.length === 0) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'} gap-1 uppercase text-[10px] font-bold`}>
-                <ShieldCheck size={12} /> {isDemoMode && (!usageRecords || usageRecords.length === 0) ? 'Full Runway Simulation' : 'Live Ingestion'}
+                <ShieldCheck size={12} /> {isDemoMode && (!usageRecords || usageRecords.length === 0) ? 'Runway Simulation' : 'Live SDK Ingestion'}
               </Badge>
             )}
           </div>
@@ -172,13 +172,18 @@ export default function Dashboard() {
         <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
           {!activeSnapshot || !activeSnapshot.hasEvents ? (
             <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-8 animate-in fade-in duration-700">
-              <div className="bg-primary/10 p-8 rounded-[2rem] text-primary">
-                <Lock size={64} />
+              <div className="relative">
+                <div className="bg-primary/10 p-8 rounded-[2rem] text-primary">
+                  <Lock size={64} />
+                </div>
+                <div className="absolute -bottom-2 -right-2 p-2 bg-background border rounded-full shadow-lg">
+                  <Loader2 className="animate-spin text-primary" size={24} />
+                </div>
               </div>
               <div className="space-y-4 max-w-xl">
-                <h2 className="text-4xl font-headline font-bold">Passive Mode: Awaiting Ingestion</h2>
+                <h2 className="text-4xl font-headline font-bold">Awaiting Ingestion Heartbeat</h2>
                 <p className="text-muted-foreground text-lg leading-relaxed">
-                  AtlasBurn is strictly deterministic. Live economic modeling and survival simulations are deactivated until a verified production SDK feed is detected.
+                  AtlasBurn is listening for real-time forensic metadata. Connect your production cluster via the SDK to activate deterministic modeling.
                 </p>
               </div>
               
@@ -187,7 +192,7 @@ export default function Dashboard() {
                   <Server className="text-primary group-hover:scale-110 transition-transform" size={48} />
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">Initialize SDK</h3>
-                    <p className="text-sm text-muted-foreground">Follow the integration protocol to connect your production cluster.</p>
+                    <p className="text-sm text-muted-foreground">The Dashboard will activate automatically upon the first token flush.</p>
                   </div>
                   <Button asChild variant="outline" className="w-full h-12 font-headline font-bold">
                     <Link href="/usage">Integration Protocol</Link>
@@ -264,7 +269,7 @@ export default function Dashboard() {
                       <p className="text-2xl font-headline font-bold text-primary">${simResult.result.p50Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                     </Card>
                     <Card className="p-6 border-none shadow-sm bg-white">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Full Survival Prob (12mo)</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Survival Prob (12mo)</p>
                       <p className="text-2xl font-headline font-bold text-green-600">{(simResult.result.survivalProbability * 100).toFixed(1)}%</p>
                     </Card>
                     <Card className="p-6 border-none shadow-sm bg-white border-l-4 border-destructive">
