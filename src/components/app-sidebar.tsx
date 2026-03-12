@@ -1,4 +1,3 @@
-
 "use client"
 
 import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical, FileText } from "lucide-react"
@@ -13,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useDemoMode } from "@/components/demo-provider"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
+import { cn } from "@/lib/utils"
 
 import {
   Sidebar,
@@ -66,16 +66,43 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-2">
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
-                <Link href={item.url}>
-                  <item.icon className={pathname === item.url ? "text-primary" : ""} size={18} />
-                  <span className="font-medium">{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isActive = pathname === item.url;
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={isActive} 
+                  tooltip={item.title}
+                  className="relative group overflow-hidden"
+                >
+                  <Link href={item.url} className="flex items-center w-full">
+                    {/* Drawing animation line */}
+                    <div 
+                      className={cn(
+                        "absolute left-0 top-0 w-1 bg-primary transition-all duration-500 ease-in-out origin-center",
+                        isActive ? "h-full scale-y-100 opacity-100" : "h-full scale-y-0 opacity-0"
+                      )} 
+                    />
+                    
+                    <item.icon 
+                      className={cn(
+                        "transition-all duration-300",
+                        isActive ? "text-primary scale-125 rotate-0" : "text-muted-foreground scale-100 group-hover:text-foreground"
+                      )} 
+                      size={18} 
+                    />
+                    <span className={cn(
+                      "font-medium transition-all duration-300 ml-2",
+                      isActive ? "text-primary font-bold translate-x-1" : "text-muted-foreground"
+                    )}>
+                      {item.title}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
 
         <SidebarSeparator className="my-4" />
@@ -105,9 +132,9 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 gap-4">
         {user && !user.isAnonymous ? (
           <div className="flex flex-col gap-4">
-            <Link href="/profile" className="flex items-center gap-3 px-2 hover:bg-sidebar-accent p-2 rounded-lg transition-colors">
-              <Avatar className="h-8 w-8 border border-primary/20">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs">
+            <Link href="/profile" className="flex items-center gap-3 px-2 hover:bg-sidebar-accent p-2 rounded-lg transition-colors group">
+              <Avatar className="h-8 w-8 border border-primary/20 transition-transform duration-300 group-hover:scale-110">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                   {user.email?.[0]?.toUpperCase() || "F"}
                 </AvatarFallback>
               </Avatar>
@@ -122,10 +149,10 @@ export function AppSidebar() {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="w-full justify-start text-muted-foreground hover:text-destructive group-data-[collapsible=icon]:px-2"
+              className="w-full justify-start text-muted-foreground hover:text-destructive group-data-[collapsible=icon]:px-2 transition-colors duration-300"
               onClick={() => auth && initiateSignOut(auth)}
             >
-              <LogOut className="h-4 w-4 mr-2" />
+              <LogOut className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
               <span className="group-data-[collapsible=icon]:hidden">Deauthorize</span>
             </Button>
           </div>
