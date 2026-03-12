@@ -109,17 +109,19 @@ export default function Dashboard() {
   const activeSnapshot = useMemo(() => {
     if (!mounted || loadingUsage) return null;
     
-    // 1. Prioritize Real Data if it exists
-    if (usageRecords && usageRecords.length > 0) {
-      return aggregateSnapshot(user?.uid || 'anonymous', usageRecords, organization || {}, 30);
+    const realDataExists = usageRecords && usageRecords.length > 0;
+
+    // 1. Prioritize Real Data
+    if (realDataExists) {
+      return aggregateSnapshot(user?.uid || 'anonymous', usageRecords!, organization || {}, 30);
     }
     
-    // 2. Only fallback to Demo Mode if explicitly toggled AND real data is empty
-    if (isDemoMode && usageRecords && usageRecords.length === 0) {
+    // 2. Fallback to Demo Mode ONLY if explicitly enabled AND no real data exists
+    if (isDemoMode && !realDataExists) {
       return getMockSnapshot();
     }
     
-    // 3. Otherwise return an empty snapshot (which will trigger Passive Mode UI)
+    // 3. Otherwise return an empty snapshot (Passive Mode)
     return {
       projectId: user?.uid || 'anonymous',
       isConnected: true,
@@ -136,7 +138,7 @@ export default function Dashboard() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-primary" size={32} />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Syncing Production Telemetry...</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Scanning Ingestion Feed...</p>
         </div>
       </div>
     );

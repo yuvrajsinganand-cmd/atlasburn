@@ -13,11 +13,22 @@ service cloud.firestore {
 
     /**
      * @description Organization level rules. 
+     * Uses string concatenation for robust path matching.
      */
     match /organizations/{orgId} {
-      allow read, write: if isOwner(orgId.replace('org_', '')) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+      
+      function isOrgOwner() {
+        return isSignedIn() && orgId == 'org_' + request.auth.uid;
+      }
+      
+      function isOrgMember() {
+        return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+      }
+
+      allow read, write: if isOrgOwner() || isOrgMember();
+      
       match /{allChildren=**} {
-        allow read, write: if isOwner(orgId.replace('org_', '')) || exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+        allow read, write: if isOrgOwner() || isOrgMember();
       }
     }
 
@@ -30,11 +41,9 @@ service cloud.firestore {
       match /aiSubscriptions/{subId} {
         allow read, write: if isOwner(userId);
 
-        // Usage records can only be read by the owner. 
-        // Ingestion API writes them via the service-side initializeApp flow.
         match /apiUsageRecords/{recordId} {
           allow read: if isOwner(userId);
-          allow write: if false; // Only written via secure ingestion flow
+          allow write: if false; 
         }
 
         match /ingestKeys/{keyId} {
@@ -44,7 +53,7 @@ service cloud.firestore {
 
         match /deduplicatedEvents/{eventId} {
           allow read: if isOwner(userId);
-          allow write: if false; // Ingestion-internal
+          allow write: if false;
         }
       }
 
