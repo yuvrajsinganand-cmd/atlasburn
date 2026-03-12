@@ -36,13 +36,19 @@ export default function ForensicLedger() {
   const { data: records, isLoading } = useCollection(ledgerQuery);
 
   const displayRecords = useMemo(() => {
-    if (!mounted) return [];
+    if (!mounted || isLoading) return [];
     
-    let base = records || [];
+    // 1. Prioritize Real Data
+    if (records && records.length > 0) {
+      return records.filter(r => 
+        r.featureId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.model?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
     
-    if (isDemoMode && (!records || records.length === 0)) {
-      // Synthetic Forensic Events for Demo
-      base = Array.from({ length: 20 }, (_, i) => ({
+    // 2. Fallback to Demo Data ONLY if enabled and real feed is empty
+    if (isDemoMode && records && records.length === 0) {
+      const synthetic = Array.from({ length: 20 }, (_, i) => ({
         id: `demo-${i}`,
         timestamp: new Date(Date.now() - i * 1000 * 60 * 15).toISOString(),
         model: i % 3 === 0 ? "o1-preview" : "gpt-4o",
@@ -53,13 +59,15 @@ export default function ForensicLedger() {
         eventId: `evt-${Math.random().toString(36).substring(7)}`,
         isRecursion: i < 5
       })) as any;
+
+      return synthetic.filter(r => 
+        r.featureId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.model?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
-    return base.filter(r => 
-      r.featureId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.model?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [records, searchTerm, isDemoMode, mounted]);
+    return [];
+  }, [records, searchTerm, isDemoMode, mounted, isLoading]);
 
   if (!mounted) return null;
 
@@ -130,7 +138,10 @@ export default function ForensicLedger() {
                   {isLoading && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-12">
-                        <Loader2 className="animate-spin mx-auto text-primary" />
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="animate-spin text-primary" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Parsing Audit Stream...</span>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}

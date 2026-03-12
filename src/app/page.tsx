@@ -104,20 +104,40 @@ export default function Dashboard() {
     return doc(firestore, 'organizations', `org_${user.uid}`);
   }, [firestore, user]);
 
-  const { data: organization, isLoading: loadingOrg } = useDoc(orgRef);
+  const { data: organization } = useDoc(orgRef);
 
   const activeSnapshot = useMemo(() => {
-    if (!mounted) return null;
-    if (isDemoMode && (!usageRecords || usageRecords.length === 0)) return getMockSnapshot();
-    if (!usageRecords) return null;
+    if (!mounted || loadingUsage) return null;
     
-    return aggregateSnapshot(user?.uid || 'anonymous', usageRecords, organization || {}, 30);
-  }, [usageRecords, organization, isDemoMode, mounted, user]);
+    // 1. Prioritize Real Data if it exists
+    if (usageRecords && usageRecords.length > 0) {
+      return aggregateSnapshot(user?.uid || 'anonymous', usageRecords, organization || {}, 30);
+    }
+    
+    // 2. Only fallback to Demo Mode if explicitly toggled AND real data is empty
+    if (isDemoMode && usageRecords && usageRecords.length === 0) {
+      return getMockSnapshot();
+    }
+    
+    // 3. Otherwise return an empty snapshot (which will trigger Passive Mode UI)
+    return {
+      projectId: user?.uid || 'anonymous',
+      isConnected: true,
+      hasEvents: false,
+      windowDays: 30,
+      usage: { totalCost: 0, promptTokens: 0, completionTokens: 0, requests: 0, byModel: {}, byFeature: {}, daily: [] },
+      economics: { mrr: organization?.monthlyRevenue || 0, capitalReserves: organization?.capitalReserves || 0 },
+      systemicRisk: { spikeAlerts: [] }
+    } as SdkProjectSnapshot;
+  }, [usageRecords, organization, isDemoMode, mounted, user, loadingUsage]);
 
   if (!mounted || isUserLoading || (loadingUsage && !isDemoMode && user)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="animate-spin text-primary" size={32} />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-primary" size={32} />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Syncing Production Telemetry...</p>
+        </div>
       </div>
     );
   }
@@ -161,7 +181,7 @@ export default function Dashboard() {
               </div>
               
               <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl">
-                <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all">
+                <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all text-left">
                   <Server className="text-primary group-hover:scale-110 transition-transform" size={48} />
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">Initialize SDK</h3>
@@ -172,7 +192,7 @@ export default function Dashboard() {
                   </Button>
                 </Card>
 
-                <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all">
+                <Card className="flex-1 p-8 border-none shadow-xl bg-white flex flex-col items-center gap-6 group hover:ring-2 hover:ring-primary/20 transition-all text-left">
                   <Activity className="text-muted-foreground group-hover:scale-110 transition-transform" size={48} />
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">System Credentials</h3>
