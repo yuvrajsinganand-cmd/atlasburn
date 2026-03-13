@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu, Clock, MousePointer2 } from "lucide-react"
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
@@ -46,8 +46,8 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
       completionTokens: 120000000,
       requests: 842000,
       byModel: {
-        "gpt-4o": { cost: 8400, prompt_tokens: 300000000, completion_tokens: 80000000, requests: 500000 },
-        "claude-3-5-sonnet": { cost: 4050.75, prompt_tokens: 150000000, completion_tokens: 40000000, requests: 342000 }
+        "gpt-4o": { cost: 8400, promptTokens: 300000000, completionTokens: 80000000, requests: 500000 },
+        "claude-3-5-sonnet": { cost: 4050.75, promptTokens: 150000000, completionTokens: 40000000, requests: 342000 }
       },
       byFeature: {
         "support-bot-alpha": { cost: 7200, requests: 400000, riskContribution: 0.58, status: 'BREACHED', trend: 4.2, costPerRequest: 0.018 },
@@ -168,6 +168,18 @@ export default function Dashboard() {
     return activeSnapshot.usage.daily[activeSnapshot.usage.daily.length - 1];
   }, [activeSnapshot]);
 
+  const burnRatePerMin = useMemo(() => {
+    if (!latestMetric?.cost) return 0;
+    const now = new Date();
+    const minutesElapsed = now.getHours() * 60 + now.getMinutes();
+    return latestMetric.cost / Math.max(minutesElapsed, 1);
+  }, [latestMetric]);
+
+  const globalCostPerRequest = useMemo(() => {
+    if (!activeSnapshot?.usage?.totalCost || !activeSnapshot?.usage?.requests) return 0;
+    return activeSnapshot.usage.totalCost / activeSnapshot.usage.requests;
+  }, [activeSnapshot]);
+
   if (!mounted || isUserLoading || (loadingUsage && !isDemoMode && user)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -180,10 +192,10 @@ export default function Dashboard() {
   }
 
   const metricConfig = {
-    cost: { label: "Deterministic Burn", color: "hsl(var(--primary))", unit: "$", description: "Visualizing daily capital outflow in USD." },
-    risk: { label: "Survival Probability", color: "hsl(var(--chart-5))", unit: "%", description: "Probabilistic health based on stochastic modeling." },
-    delta: { label: "Surprise Delta (VaR)", color: "hsl(var(--destructive))", unit: "$", description: "The P95 risk gap between expected and stress outcomes." },
-    volatility: { label: "Forensic Volatility", color: "hsl(var(--accent))", unit: "%", description: "Statistical variance in token consumption patterns." }
+    cost: { label: "Observed Burn", color: "hsl(var(--primary))", unit: "$", description: "Real-time AI API spend captured from telemetry events." },
+    risk: { label: "Budget Safety Forecast", color: "hsl(var(--chart-5))", unit: "%", description: "Probability that current usage patterns remain within budget. Computed using Monte Carlo simulation." },
+    delta: { label: "Worst Case Cost Risk", color: "hsl(var(--destructive))", unit: "$", description: "Estimated P95 cost spike based on stochastic simulation." },
+    volatility: { label: "Cost Instability Index", color: "hsl(var(--accent))", unit: "%", description: "Measures instability in AI usage patterns derived from telemetry." }
   };
 
   const budgetThreshold = organization?.fixedMonthlyBurn ? (organization.fixedMonthlyBurn / 30) : 100;
@@ -218,7 +230,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
+        <main className="p-6 space-y-12 max-w-7xl mx-auto w-full">
           {!activeSnapshot || !activeSnapshot.hasEvents ? (
             <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-8 animate-in fade-in duration-700">
               <div className="relative">
@@ -262,344 +274,359 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {activeSnapshot.systemicRisk.spikeAlerts.length > 0 && (
-                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
-                  {activeSnapshot.systemicRisk.spikeAlerts.map((alert, i) => (
-                    <Card key={i} className={`p-4 border-none shadow-md ${alert.severity === 'CRITICAL' ? 'bg-destructive/10 border-l-4 border-l-destructive' : 'bg-amber-50 border-l-4 border-l-amber-500'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${alert.severity === 'CRITICAL' ? 'bg-destructive/20 text-destructive' : 'bg-amber-100 text-amber-600'}`}>
-                            <ShieldAlert size={20} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold uppercase tracking-tight flex items-center gap-2">
-                              {alert.severity} GUARDRAIL BREACH: {alert.featureId}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{alert.message}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-muted-foreground uppercase">Projected Impact</p>
-                          <p className={`text-lg font-headline font-bold ${alert.severity === 'CRITICAL' ? 'text-destructive' : 'text-amber-600'}`}>
-                            +${alert.costImpact.toLocaleString()}<span className="text-[10px] font-normal">/mo</span>
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+              {/* SECTION 1: OBSERVED AI SPEND */}
+              <section className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div>
+                    <h2 className="text-lg font-headline font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                      <BarChart3 size={20} /> AI Spend — Observed (Real-Time)
+                    </h2>
+                    <p className="text-xs text-muted-foreground font-medium">Deterministic metrics captured directly from your SDK telemetry.</p>
+                  </div>
+                  <Badge variant="secondary" className="bg-primary/10 text-primary font-bold">REAL-TIME TELEMETRY</Badge>
                 </div>
-              )}
 
-              {activeSnapshot.runtimeSignals && (
-                <div className="animate-in slide-in-from-top-4 duration-700">
-                  <div className="flex items-center justify-between mb-4 px-1">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">AI Runtime Signals</h3>
-                    <Badge variant="outline" className="bg-primary/5 text-primary text-[9px] font-bold border-primary/10">LIVE TELEMETRY</Badge>
-                  </div>
-                  <RiskAlertBanner 
-                    var95={simResult?.status === 'READY' ? simResult.result.var95 : 0} 
-                    retryProb={activeSnapshot.systemicRisk.retryCascadeProb || 0} 
-                  />
-                  <RuntimeSignalsGrid signals={activeSnapshot.runtimeSignals} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="bg-white border-none shadow-sm p-6 relative overflow-hidden group">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Observed Spend Today</p>
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <Zap size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-primary">
+                      ${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-medium">Ground-truth capture for {new Date().toLocaleDateString()}</p>
+                  </Card>
+
+                  <Card className="bg-white border-none shadow-sm p-6 relative overflow-hidden group">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current Burn Rate</p>
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <Clock size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-foreground">
+                      ${burnRatePerMin.toFixed(4)} <span className="text-xs font-normal opacity-50 uppercase tracking-widest">/ min</span>
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-medium">Current velocity based on recent activity</p>
+                  </Card>
+
+                  <Card className="bg-white border-none shadow-sm p-6 relative overflow-hidden group">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Avg. Unit Economics</p>
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <MousePointer2 size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-foreground">
+                      {formatCostPerRequest(globalCostPerRequest)} <span className="text-xs font-normal opacity-50 uppercase tracking-widest">/ req</span>
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-medium">Blended average across all active features</p>
+                  </Card>
                 </div>
-              )}
 
-              {simResult?.status === 'NOT_READY' ? (
-                <Card className="p-12 border-dashed border-2 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="p-4 bg-amber-50 text-amber-600 rounded-full"><Zap size={40} /></div>
-                  <div className="space-y-1">
-                    <h3 className="text-xl font-headline font-bold text-amber-700">Incomplete Economic Context</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">The risk engine is missing: <span className="font-mono font-bold">{simResult.missing.join(', ')}</span>. Set these in your profile to run survival simulations.</p>
-                  </div>
-                  <Button asChild className="font-headline font-bold shadow-lg"><Link href="/profile">Set Economic Guardrails</Link></Button>
-                </Card>
-              ) : simResult?.status === 'READY' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <button 
-                      onClick={() => setActiveMetric('cost')}
-                      className={cn(
-                        "p-6 border rounded-xl text-left transition-all duration-300 group hover:shadow-md",
-                        activeMetric === 'cost' ? "bg-white border-primary shadow-lg ring-2 ring-primary/10" : "bg-white border-transparent"
-                      )}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Institutional Burn</p>
-                        <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'cost' ? "bg-primary text-white" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary")}>
-                          <Zap size={14} />
-                        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
+                    <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg font-headline flex items-center gap-2">
+                          Observed Spend Trends
+                          <span className="text-xs font-mono font-normal opacity-50 px-2 py-0.5 bg-muted rounded-full uppercase tracking-widest">{period === "1" ? "Today" : `${period}D Horizon`}</span>
+                        </CardTitle>
+                        <CardDescription>Visualizing deterministic capital outflow captured from telemetry.</CardDescription>
                       </div>
-                      <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'cost' ? "text-primary" : "text-foreground")}>
-                        ${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Deterministic real-time capture</p>
-                    </button>
-
-                    <button 
-                      onClick={() => setActiveMetric('risk')}
-                      className={cn(
-                        "p-6 border rounded-xl text-left transition-all duration-300 group hover:shadow-md",
-                        activeMetric === 'risk' ? "bg-white border-green-600 shadow-lg ring-2 ring-green-600/10" : "bg-white border-transparent"
-                      )}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Survival Health</p>
-                        <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'risk' ? "bg-green-600 text-white" : "bg-muted text-muted-foreground group-hover:bg-green-600/10 group-hover:text-green-600")}>
-                          <ShieldCheck size={14} />
-                        </div>
+                      <div className="flex flex-col items-end gap-3">
+                         <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
+                          <TabsList className="bg-transparent h-8 gap-1">
+                            <TabsTrigger value="1" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">Real-time</TabsTrigger>
+                            <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">7 Days</TabsTrigger>
+                            <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">14 Days</TabsTrigger>
+                            <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">This Month</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                         <div className="flex items-center gap-2">
+                            <Calendar size={14} className="text-muted-foreground" />
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(activeSnapshot.usage.daily[0]?.date || Date.now()).toLocaleDateString()} — {new Date().toLocaleDateString()}</span>
+                         </div>
                       </div>
-                      <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'risk' ? "text-green-600" : "text-foreground")}>
-                        {(simResult.result.survivalProbability * 100).toFixed(1)}%
-                      </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">10k Path Stochastic Result</p>
-                    </button>
+                    </CardHeader>
+                    <div className="h-[350px] w-full mt-6">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={activeSnapshot.usage.daily}>
+                          <defs>
+                            <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                          <XAxis 
+                            dataKey="date" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            fontSize={10} 
+                            tickFormatter={(str) => {
+                              const d = new Date(str);
+                              return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            }}
+                          />
+                          <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => `$${val}`} />
+                          
+                          <ReferenceLine 
+                            y={budgetThreshold} 
+                            stroke="hsl(var(--destructive))" 
+                            strokeDasharray="3 3" 
+                            label={{ 
+                              value: `GUARDRAIL: $${budgetThreshold.toFixed(0)}/DAY`, 
+                              position: 'insideBottomRight', 
+                              fill: 'hsl(var(--destructive))',
+                              fontSize: 9,
+                              fontWeight: 'bold',
+                              dy: -10
+                            }} 
+                          />
 
-                    <button 
-                      onClick={() => setActiveMetric('delta')}
-                      className={cn(
-                        "p-6 border rounded-xl text-left transition-all duration-300 group hover:shadow-md",
-                        activeMetric === 'delta' ? "bg-white border-destructive shadow-lg ring-2 ring-destructive/10" : "bg-white border-transparent"
-                      )}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-destructive uppercase tracking-widest">Today's Surprise Delta</p>
-                        <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'delta' ? "bg-destructive text-white" : "bg-muted text-muted-foreground group-hover:bg-destructive/10 group-hover:text-destructive")}>
-                          <TrendingUp size={14} />
-                        </div>
-                      </div>
-                      <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'delta' ? "text-destructive" : "text-foreground")}>
-                        ${(simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">P95 Simulated Stress Gap</p>
-                    </button>
-
-                    <button 
-                      onClick={() => setActiveMetric('volatility')}
-                      className={cn(
-                        "p-6 border rounded-xl text-left transition-all duration-300 group hover:shadow-md",
-                        activeMetric === 'volatility' ? "bg-white border-accent shadow-lg ring-2 ring-accent/10" : "bg-white border-transparent"
-                      )}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Forensic Volatility</p>
-                        <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'volatility' ? "bg-accent text-white" : "bg-muted text-muted-foreground group-hover:bg-accent/10 group-hover:text-accent")}>
-                          <BarChart3 size={14} />
-                        </div>
-                      </div>
-                      <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'volatility' ? "text-accent" : "text-foreground")}>
-                        {((latestMetric?.volatility || 0) * 100).toFixed(1)}%
-                      </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Active noise coefficient</p>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-                      <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg font-headline flex items-center gap-2">
-                            {metricConfig[activeMetric].label} 
-                            <span className="text-xs font-mono font-normal opacity-50 px-2 py-0.5 bg-muted rounded-full uppercase tracking-widest">{period === "1" ? "Today" : `${period}D Horizon`}</span>
-                          </CardTitle>
-                          <CardDescription>{metricConfig[activeMetric].description}</CardDescription>
-                        </div>
-                        <div className="flex flex-col items-end gap-3">
-                           <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
-                            <TabsList className="bg-transparent h-8 gap-1">
-                              <TabsTrigger value="1" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">Real-time</TabsTrigger>
-                              <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">7 Days</TabsTrigger>
-                              <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">14 Days</TabsTrigger>
-                              <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">This Month</TabsTrigger>
-                            </TabsList>
-                          </Tabs>
-                           <div className="flex items-center gap-2">
-                              <Calendar size={14} className="text-muted-foreground" />
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(activeSnapshot.usage.daily[0]?.date || Date.now()).toLocaleDateString()} — {new Date().toLocaleDateString()}</span>
-                           </div>
-                        </div>
-                      </CardHeader>
-                      <div className="h-[350px] w-full mt-6">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={activeSnapshot.usage.daily}>
-                            <defs>
-                              <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={metricConfig[activeMetric].color} stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor={metricConfig[activeMetric].color} stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                            <XAxis 
-                              dataKey="date" 
-                              axisLine={false} 
-                              tickLine={false} 
-                              fontSize={10} 
-                              tickFormatter={(str) => {
-                                const d = new Date(str);
-                                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                              }}
-                            />
-                            <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => activeMetric === 'cost' || activeMetric === 'delta' ? `$${val}` : `${(val * 100).toFixed(0)}%`} />
-                            
-                            {/* Budget Guardrail Line */}
-                            {activeMetric === 'cost' && (
-                              <ReferenceLine 
-                                y={budgetThreshold} 
-                                stroke="hsl(var(--destructive))" 
-                                strokeDasharray="3 3" 
-                                label={{ 
-                                  value: `GUARDRAIL: $${budgetThreshold.toFixed(0)}/DAY`, 
-                                  position: 'insideBottomRight', 
-                                  fill: 'hsl(var(--destructive))',
-                                  fontSize: 9,
-                                  fontWeight: 'bold',
-                                  dy: -10
-                                }} 
-                              />
-                            )}
-
-                            <Tooltip 
-                              content={({ active, payload, label }) => {
-                                if (active && payload && payload.length) {
-                                  const data = payload[0].payload;
-                                  return (
-                                    <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-2 min-w-[180px]">
-                                      <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{new Date(label).toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
-                                      <div className="flex justify-between gap-4">
-                                        <span className="font-bold uppercase" style={{ color: metricConfig[activeMetric].color }}>{activeMetric}:</span>
-                                        <span className="font-bold">
-                                          {activeMetric === 'cost' || activeMetric === 'delta' ? `$${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `${(Number(payload[0].value) * 100).toFixed(1)}%`}
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground uppercase">LOAD:</span>
-                                        <span className="font-bold">{data.requests?.toLocaleString()} REQS</span>
-                                      </div>
-                                      
-                                      {data.isAnomaly && activeMetric === 'cost' && (
-                                        <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
-                                          <div className="flex items-center gap-1 text-destructive font-bold uppercase text-[8px]">
-                                            <AlertCircle size={10} /> Deterministic Spike Detected
-                                          </div>
-                                          <p className="text-[9px] text-destructive leading-tight italic">
-                                            {data.anomalyDetails}
-                                          </p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              }}
-                            />
-                            <Area 
-                              type="monotone" 
-                              dataKey={activeMetric} 
-                              stroke={metricConfig[activeMetric].color} 
-                              fill="url(#colorMetric)" 
-                              strokeWidth={3} 
-                              animationDuration={1000}
-                              dot={(props) => {
-                                const { payload, cx, cy } = props;
-                                if (payload.isAnomaly && activeMetric === 'cost') {
-                                  return (
-                                    <circle 
-                                      key={`anomaly-${payload.date}`}
-                                      cx={cx} 
-                                      cy={cy} 
-                                      r={5} 
-                                      fill="hsl(var(--destructive))" 
-                                      stroke="white" 
-                                      strokeWidth={2} 
-                                      className="animate-pulse cursor-help"
-                                    />
-                                  );
-                                }
-                                return null as any;
-                              }}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </Card>
-
-                    <Card className="border-none shadow-sm bg-white p-6">
-                      <CardHeader className="px-0 pt-0">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg font-headline">Usage Attribution</CardTitle>
-                            <CardDescription>Risk distribution by feature.</CardDescription>
-                          </div>
-                          <TooltipProvider>
-                            <UITooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6"><Info size={14} /></Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-[200px]">
-                                Features responsible for over 50% of burn are flagged as high-risk drivers for the Surprise Delta.
-                              </TooltipContent>
-                            </UITooltip>
-                          </TooltipProvider>
-                        </div>
-                      </CardHeader>
-                      <div className="space-y-6 mt-6">
-                        {Object.entries(activeSnapshot.usage.byFeature || {}).sort((a, b) => b[1].cost - a[1].cost).map(([id, stats]) => (
-                          <div key={id} className="space-y-2">
-                            <div className="flex justify-between items-start">
-                              <div className="flex flex-col">
-                                <span className={`text-xs font-bold uppercase tracking-tight flex items-center gap-1 ${stats.status === 'BREACHED' ? 'text-destructive' : ''}`}>
-                                  {id}
-                                  {stats.status === 'BREACHED' && <ShieldAlert size={12} className="animate-pulse" />}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground">{stats.requests.toLocaleString()} Requests</span>
-                              </div>
-                              <div className="flex flex-col items-end text-right">
-                                <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })} total</span>
-                                <TooltipProvider>
-                                  <UITooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-[10px] text-muted-foreground font-medium cursor-help">
-                                        {formatCostPerRequest(stats.costPerRequest)} / req
+                          <Tooltip 
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-2 min-w-[180px]">
+                                    <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{new Date(label).toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="font-bold uppercase text-primary">OBSERVED:</span>
+                                      <span className="font-bold">
+                                        ${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                       </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left">
-                                      Average cost for each request executed by this feature. Helps identify inefficient or expensive AI features.
-                                    </TooltipContent>
-                                  </UITooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                            <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 || stats.status === 'BREACHED' ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
-                            <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
-                              <span>Risk Contribution</span>
-                              <span className="flex items-center gap-1">
-                                {(stats.riskContribution * 100).toFixed(0)}% 
-                                {stats.trend !== 0 && (
-                                  <span className={stats.trend > 0 ? 'text-destructive' : 'text-green-600'}>
-                                    ({stats.trend > 0 ? '+' : ''}{(stats.trend * 100).toFixed(0)}%)
-                                  </span>
-                                )}
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-muted-foreground uppercase">LOAD:</span>
+                                      <span className="font-bold">{data.requests?.toLocaleString()} REQS</span>
+                                    </div>
+                                    
+                                    {data.isAnomaly && (
+                                      <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
+                                        <div className="flex items-center gap-1 text-destructive font-bold uppercase text-[8px]">
+                                          <AlertCircle size={10} /> Deterministic Spike Detected
+                                        </div>
+                                        <p className="text-[9px] text-destructive leading-tight italic">
+                                          {data.anomalyDetails}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="cost" 
+                            stroke="hsl(var(--primary))" 
+                            fill="url(#colorMetric)" 
+                            strokeWidth={3} 
+                            animationDuration={1000}
+                            dot={(props) => {
+                              const { payload, cx, cy } = props;
+                              if (payload.isAnomaly) {
+                                return (
+                                  <circle 
+                                    key={`anomaly-${payload.date}`}
+                                    cx={cx} 
+                                    cy={cy} 
+                                    r={5} 
+                                    fill="hsl(var(--destructive))" 
+                                    stroke="white" 
+                                    strokeWidth={2} 
+                                    className="animate-pulse cursor-help"
+                                  />
+                                );
+                              }
+                              return null as any;
+                            }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card className="border-none shadow-sm bg-white p-6">
+                    <CardHeader className="px-0 pt-0">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg font-headline">Usage Attribution</CardTitle>
+                          <CardDescription>Ground-truth risk by feature.</CardDescription>
+                        </div>
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6"><Info size={14} /></Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[200px]">
+                              Features responsible for over 50% of burn are flagged as high-risk drivers for potential budget breaches.
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </div>
+                    </CardHeader>
+                    <div className="space-y-6 mt-6">
+                      {Object.entries(activeSnapshot.usage.byFeature || {}).sort((a, b) => b[1].cost - a[1].cost).map(([id, stats]) => (
+                        <div key={id} className="space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div className="flex flex-col">
+                              <span className={`text-xs font-bold uppercase tracking-tight flex items-center gap-1 ${stats.status === 'BREACHED' ? 'text-destructive' : ''}`}>
+                                {id}
+                                {stats.status === 'BREACHED' && <ShieldAlert size={12} className="animate-pulse" />}
                               </span>
+                              <span className="text-[10px] text-muted-foreground">{stats.requests.toLocaleString()} Requests</span>
+                            </div>
+                            <div className="flex flex-col items-end text-right">
+                              <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })} total</span>
+                              <TooltipProvider>
+                                <UITooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-[10px] text-muted-foreground font-medium cursor-help">
+                                      {formatCostPerRequest(stats.costPerRequest)} / req
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left">
+                                    Average cost for each request executed by this feature. Helps identify inefficient or expensive AI features.
+                                  </TooltipContent>
+                                </UITooltip>
+                              </TooltipProvider>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="mt-8 pt-6 border-t flex flex-col gap-2">
-                        <Button asChild variant="outline" className="w-full text-[10px] font-bold uppercase tracking-widest h-10 group">
-                          <Link href="/ledger">
-                            View Forensic Ledger
-                            <ArrowRight size={12} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                          </Link>
-                        </Button>
-                        <Button asChild variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest h-10">
-                          <Link href="/optimizer">
-                            Analyze Playbook
-                          </Link>
-                        </Button>
-                      </div>
-                    </Card>
-                  </div>
+                          <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 || stats.status === 'BREACHED' ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
+                          <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
+                            <span>Attribution</span>
+                            <span className="flex items-center gap-1">
+                              {(stats.riskContribution * 100).toFixed(0)}% 
+                              {stats.trend !== 0 && (
+                                <span className={stats.trend > 0 ? 'text-destructive' : 'text-green-600'}>
+                                  ({stats.trend > 0 ? '+' : ''}{(stats.trend * 100).toFixed(0)}%)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-8 pt-6 border-t flex flex-col gap-2">
+                      <Button asChild variant="outline" className="w-full text-[10px] font-bold uppercase tracking-widest h-10 group">
+                        <Link href="/ledger">
+                          View Forensic Ledger
+                          <ArrowRight size={12} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </Card>
                 </div>
-              )}
+              </section>
+
+              {/* SECTION 2: AI COST RISK FORECAST */}
+              <section className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div>
+                    <h2 className="text-lg font-headline font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                      <Activity size={20} /> AI Cost Risk Forecast
+                    </h2>
+                    <p className="text-xs text-muted-foreground font-medium">Stochastic outcomes derived from 10,000-path Monte Carlo simulations.</p>
+                  </div>
+                  <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 font-bold uppercase tracking-widest text-[10px]">
+                    <Cpu size={12} className="mr-1" /> MONTE CARLO ENGINE
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="bg-white border-none shadow-sm p-6 group hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Budget Safety Forecast</p>
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Info size={12} className="text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              Probability that current usage patterns remain within budget. Computed using 10,000 stochastic paths.
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-green-100 text-green-600">
+                        <ShieldCheck size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-green-600">
+                      {simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100).toFixed(1) : '---'}%
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-bold uppercase tracking-tighter italic">Forecast based on Monte Carlo simulation</p>
+                  </Card>
+
+                  <Card className="bg-white border-none shadow-sm p-6 group hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Worst Case Cost Risk</p>
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Info size={12} className="text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              Estimated P95 cost spike (Surprise Delta) based on stochastic simulation. This is your "Value at Risk".
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-destructive/10 text-destructive">
+                        <TrendingUp size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-destructive">
+                      ${simResult?.status === 'READY' ? (simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '---'}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-bold uppercase tracking-tighter italic">Forecast based on Monte Carlo simulation</p>
+                  </Card>
+
+                  <Card className="bg-white border-none shadow-sm p-6 group hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cost Instability Index</p>
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Info size={12} className="text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              Measures volatility in token consumption patterns. High volatility drives higher risk in survival paths.
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-accent/10 text-accent">
+                        <BarChart3 size={14} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-headline font-bold text-accent">
+                      {latestMetric?.volatility ? (latestMetric.volatility * 100).toFixed(1) : '---'}%
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-2 font-bold uppercase tracking-tighter italic">Risk simulation input parameter</p>
+                  </Card>
+                </div>
+
+                {activeSnapshot.runtimeSignals && (
+                  <div className="pt-4">
+                    <RiskAlertBanner 
+                      var95={simResult?.status === 'READY' ? simResult.result.var95 : 0} 
+                      retryProb={activeSnapshot.systemicRisk.retryCascadeProb || 0} 
+                    />
+                    <RuntimeSignalsGrid signals={activeSnapshot.runtimeSignals} />
+                  </div>
+                )}
+              </section>
             </>
           )}
         </main>
