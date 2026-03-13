@@ -92,7 +92,7 @@ export default function Dashboard() {
   const { isDemoMode } = useDemoMode();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
-  const [period, setPeriod] = useState<"7" | "14" | "30">("7");
+  const [period, setPeriod] = useState<"1" | "7" | "14" | "30">("7");
   const [activeMetric, setActiveMetric] = useState<"cost" | "risk" | "delta" | "volatility">("cost");
 
   useEffect(() => {
@@ -160,6 +160,11 @@ export default function Dashboard() {
       systemicRisk: { spikeAlerts: [] }
     } as SdkProjectSnapshot;
   }, [usageRecords, organization, isDemoMode, mounted, user, loadingUsage, period]);
+
+  const latestMetric = useMemo(() => {
+    if (!activeSnapshot?.usage?.daily || activeSnapshot.usage.daily.length === 0) return null;
+    return activeSnapshot.usage.daily[activeSnapshot.usage.daily.length - 1];
+  }, [activeSnapshot]);
 
   if (!mounted || isUserLoading || (loadingUsage && !isDemoMode && user)) {
     return (
@@ -305,15 +310,15 @@ export default function Dashboard() {
                       )}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">P50 Baseline Burn</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Institutional Burn</p>
                         <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'cost' ? "bg-primary text-white" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary")}>
                           <Zap size={14} />
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'cost' ? "text-primary" : "text-foreground")}>
-                        ${simResult.result.p50Burn.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        ${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Deterministic annual projection</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Deterministic real-time capture</p>
                     </button>
 
                     <button 
@@ -324,15 +329,15 @@ export default function Dashboard() {
                       )}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Survival Prob (12mo)</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Survival Health</p>
                         <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'risk' ? "bg-green-600 text-white" : "bg-muted text-muted-foreground group-hover:bg-green-600/10 group-hover:text-green-600")}>
                           <ShieldCheck size={14} />
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'risk' ? "text-green-600" : "text-foreground")}>
-                        {(simResult.result.survivalProbability * 100).toFixed(1)}%
+                        {((latestMetric?.risk || 0) * 100).toFixed(1)}%
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Stochastic path verification</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Spot health verification</p>
                     </button>
 
                     <button 
@@ -343,15 +348,15 @@ export default function Dashboard() {
                       )}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-destructive uppercase tracking-widest">Surprise Delta (VaR)</p>
+                        <p className="text-[10px] font-bold text-destructive uppercase tracking-widest">Today's Surprise Delta</p>
                         <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'delta' ? "bg-destructive text-white" : "bg-muted text-muted-foreground group-hover:bg-destructive/10 group-hover:text-destructive")}>
                           <TrendingUp size={14} />
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'delta' ? "text-destructive" : "text-foreground")}>
-                        ${simResult.result.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        ${(latestMetric?.delta || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">P95 stress-test variance</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Real-time stress variance</p>
                     </button>
 
                     <button 
@@ -362,15 +367,15 @@ export default function Dashboard() {
                       )}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Forensic Volatility</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Today's Forensic Volatility</p>
                         <div className={cn("p-1.5 rounded-lg transition-colors", activeMetric === 'volatility' ? "bg-accent text-white" : "bg-muted text-muted-foreground group-hover:bg-accent/10 group-hover:text-accent")}>
                           <BarChart3 size={14} />
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'volatility' ? "text-accent" : "text-foreground")}>
-                        {(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%
+                        {((latestMetric?.volatility || 0) * 100).toFixed(1)}%
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Operational noise coefficient</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Active noise coefficient</p>
                     </button>
                   </div>
 
@@ -380,13 +385,14 @@ export default function Dashboard() {
                         <div>
                           <CardTitle className="text-lg font-headline flex items-center gap-2">
                             {metricConfig[activeMetric].label} 
-                            <span className="text-xs font-mono font-normal opacity-50 px-2 py-0.5 bg-muted rounded-full uppercase tracking-widest">{period}D Horizon</span>
+                            <span className="text-xs font-mono font-normal opacity-50 px-2 py-0.5 bg-muted rounded-full uppercase tracking-widest">{period === "1" ? "Today" : `${period}D Horizon`}</span>
                           </CardTitle>
                           <CardDescription>{metricConfig[activeMetric].description}</CardDescription>
                         </div>
                         <div className="flex flex-col items-end gap-3">
                            <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
                             <TabsList className="bg-transparent h-8 gap-1">
+                              <TabsTrigger value="1" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">Real-time</TabsTrigger>
                               <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">7 Days</TabsTrigger>
                               <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">14 Days</TabsTrigger>
                               <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">This Month</TabsTrigger>
