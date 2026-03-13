@@ -90,6 +90,10 @@ export function aggregateSnapshot(
     const feature = featureMap[fid];
     feature.riskContribution = totalCost > 0 ? (feature.cost / totalCost) : 0;
     
+    // Phase 1 Unit Economics: Cost Per Request
+    // TODO Phase 2: Replace costPerRequest with costPerExecution once executionId tracking is implemented in the SDK.
+    feature.costPerRequest = feature.requests > 0 ? (feature.cost / feature.requests) : 0;
+
     if (feature.history.length > 10) {
       const recent = feature.history.slice(0, 5).reduce((a: number, b: number) => a + b, 0) / 5;
       const baseline = feature.history.slice(5, 25).reduce((a: number, b: number) => a + b, 0) / Math.max(1, Math.min(20, feature.history.length - 5));

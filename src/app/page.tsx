@@ -50,9 +50,9 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
         "claude-3-5-sonnet": { cost: 4050.75, prompt_tokens: 150000000, completion_tokens: 40000000, requests: 342000 }
       },
       byFeature: {
-        "support-bot-alpha": { cost: 7200, requests: 400000, riskContribution: 0.58, status: 'BREACHED', trend: 4.2 },
-        "document-analysis": { cost: 3100, requests: 200000, riskContribution: 0.25, status: 'PROTECTED', trend: -0.1 },
-        "realtime-chat": { cost: 2150.75, requests: 242000, riskContribution: 0.17, status: 'PROTECTED', trend: 0.05 }
+        "support-bot-alpha": { cost: 7200, requests: 400000, riskContribution: 0.58, status: 'BREACHED', trend: 4.2, costPerRequest: 0.018 },
+        "document-analysis": { cost: 3100, requests: 200000, riskContribution: 0.25, status: 'PROTECTED', trend: -0.1, costPerRequest: 0.0155 },
+        "realtime-chat": { cost: 2150.75, requests: 242000, riskContribution: 0.17, status: 'PROTECTED', trend: 0.05, costPerRequest: 0.0089 }
       },
       daily: Array.from({ length: windowDays }, (_, i) => {
         const baseCost = 300 + Math.random() * 200;
@@ -187,6 +187,12 @@ export default function Dashboard() {
   };
 
   const budgetThreshold = organization?.fixedMonthlyBurn ? (organization.fixedMonthlyBurn / 30) : 100;
+
+  const formatCostPerRequest = (val: number | undefined) => {
+    if (!val || val === 0) return 'N/A';
+    if (val < 1) return `$${val.toFixed(4)}`;
+    return `$${val.toFixed(2)}`;
+  }
 
   return (
     <SidebarProvider>
@@ -538,7 +544,7 @@ export default function Dashboard() {
                       <div className="space-y-6 mt-6">
                         {Object.entries(activeSnapshot.usage.byFeature || {}).sort((a, b) => b[1].cost - a[1].cost).map(([id, stats]) => (
                           <div key={id} className="space-y-2">
-                            <div className="flex justify-between items-end">
+                            <div className="flex justify-between items-start">
                               <div className="flex flex-col">
                                 <span className={`text-xs font-bold uppercase tracking-tight flex items-center gap-1 ${stats.status === 'BREACHED' ? 'text-destructive' : ''}`}>
                                   {id}
@@ -546,7 +552,21 @@ export default function Dashboard() {
                                 </span>
                                 <span className="text-[10px] text-muted-foreground">{stats.requests.toLocaleString()} Requests</span>
                               </div>
-                              <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <div className="flex flex-col items-end text-right">
+                                <span className="text-sm font-headline font-bold">${stats.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })} total</span>
+                                <TooltipProvider>
+                                  <UITooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-[10px] text-muted-foreground font-medium cursor-help">
+                                        {formatCostPerRequest(stats.costPerRequest)} / req
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left">
+                                      Average cost for each request executed by this feature. Helps identify inefficient or expensive AI features.
+                                    </TooltipContent>
+                                  </UITooltip>
+                                </TooltipProvider>
+                              </div>
                             </div>
                             <Progress value={stats.riskContribution * 100} className={`h-1 ${stats.riskContribution > 0.4 || stats.status === 'BREACHED' ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'}`} />
                             <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
