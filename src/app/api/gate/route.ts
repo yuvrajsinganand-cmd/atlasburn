@@ -24,7 +24,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
     }
 
-    const configRef = doc(db, 'organizations', `org_${projectId}`, 'guardrailConfig');
+    // FIXED: Use even number of segments
+    const configRef = doc(db, 'organizations', `org_${projectId}`, 'guardrail', 'config');
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {

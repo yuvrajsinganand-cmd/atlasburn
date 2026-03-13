@@ -57,7 +57,8 @@ export default function GuardrailsPage() {
 
   const configRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, "organizations", `org_${user.uid}`, "guardrailConfig");
+    // FIXED: Use even number of segments
+    return doc(firestore, "organizations", `org_${user.uid}`, "guardrail", "config");
   }, [firestore, user]);
 
   const { data: config, isLoading: loadingConfig } = useDoc(configRef);

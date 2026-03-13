@@ -89,7 +89,8 @@ export async function POST(request: Request) {
     }
 
     // 4. Guardrail Evaluation
-    const configRef = doc(db, 'organizations', orgId, 'guardrailConfig');
+    // FIXED: Use even number of segments
+    const configRef = doc(db, 'organizations', orgId, 'guardrail', 'config');
     const configSnap = await getDoc(configRef);
     
     if (configSnap.exists()) {
