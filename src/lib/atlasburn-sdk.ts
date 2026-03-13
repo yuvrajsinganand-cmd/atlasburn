@@ -5,6 +5,12 @@
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
  * forensic metadata to the AtlasBurn control plane.
+ * 
+ * THE 4 LAWS OF SDK SAFETY:
+ * 1. Never crash host app
+ * 2. Never block host request
+ * 3. Never leak secrets
+ * 4. Always fail silently
  */
 
 export interface AtlasBurnSDKOptions {
@@ -20,6 +26,9 @@ export interface AtlasBurnMetadata {
   userTier?: string;  
 }
 
+/**
+ * Universal UUID generator for forensic event tracking.
+ */
 function generateForensicId(): string {
   try {
     if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -41,12 +50,13 @@ class AtlasBurnIngestor {
         ? `${window.location.origin}/api/ingest` 
         : ''),
       batchSize: 5,
-      maxQueueSize: 200,
+      maxQueueSize: 200, // Bounded memory
       ...options
     };
   }
 
   public enqueue(event: any) {
+    // Law 1 & 4: Drop oldest if queue is full to prevent memory growth/crashes
     if (this.queue.length >= (this.options.maxQueueSize || 200)) {
       this.queue.shift(); 
     }
@@ -56,6 +66,7 @@ class AtlasBurnIngestor {
       eventId: generateForensicId(),
     });
 
+    // Law 2: Trigger flush but NEVER await it in the caller's thread
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -71,7 +82,8 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      console.warn('AtlasBurn SDK: Background ingestion failed.', err);
+      // Law 4: Always fail silently. Log locally but don't rethrow.
+      console.warn('AtlasBurn SDK: Background ingestion failed. Host app unaffected.');
     } finally {
       this.isProcessing = false;
     }
@@ -92,10 +104,11 @@ class AtlasBurnIngestor {
       });
 
       if (!response.ok) {
-        throw new Error(`AtlasBurn Ingest Failure: Status ${response.status}`);
+        throw new Error(`Status ${response.status}`);
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
+        // Law 4: Silent exponential backoff
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
@@ -116,19 +129,25 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
+      // Law 2: Execute host request FIRST
       const response = await client.chat(payload);
-      const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
-
-      globalIngestor?.enqueue({
-        model: payload.model,
-        featureId: payload.featureId || 'default',
-        userTier: payload.userTier || 'standard',
-        usage: {
-          prompt_tokens: usage.prompt_tokens,
-          completion_tokens: usage.completion_tokens,
-        },
-        timestamp: new Date().toISOString(),
-      });
+      
+      // Law 4: Sanitize and fire-and-forget ingestion
+      try {
+        const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
+        globalIngestor?.enqueue({
+          model: payload.model,
+          featureId: payload.featureId || 'default',
+          userTier: payload.userTier || 'standard',
+          usage: {
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: usage.completion_tokens,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e) {
+        // Law 1: Never let telemetry logic crash the chat response
+      }
 
       return response;
     },

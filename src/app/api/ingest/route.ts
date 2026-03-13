@@ -13,18 +13,21 @@ function getDb() {
   return getFirestore(app);
 }
 
-const MAX_EVENTS_PER_BATCH = 50;
-
+/**
+ * AtlasBurn Hardened Ingestion API
+ * Implements: Idempotency (deduping), Auth validation, and Guardrail evaluation.
+ */
 export async function POST(request: Request) {
   try {
     const db = getDb();
     const body = await request.json();
-    const { apiKey, projectId, events, event } = body;
+    const { apiKey, projectId, events } = body;
 
     if (!apiKey || !projectId) {
       return NextResponse.json({ error: 'Unauthorized: Missing Key or Project ID.' }, { status: 401 });
     }
 
+    // 1. Auth Validation (Verify Ingest Key)
     const hashedKey = hashIngestKey(apiKey);
     const subsQuery = query(collection(db, 'users', projectId, 'aiSubscriptions'), limit(20));
     const subSnap = await getDocs(subsQuery);
@@ -51,7 +54,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: Invalid Ingest Key.' }, { status: 403 });
     }
 
-    const rawEvents = Array.isArray(events) ? events : (event ? [event] : []);
+    // 2. Process Batch with Idempotency
+    const rawEvents = Array.isArray(events) ? events : [];
     if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found.' });
 
     const batch = writeBatch(db);
@@ -59,17 +63,21 @@ export async function POST(request: Request) {
     const usagePath = `organizations/${orgId}/usageRecords`;
     const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
 
-    const newRecords = [];
+    const processedRecords = [];
 
     for (const evt of rawEvents) {
+      // Basic Validation
       if (!evt.model || !evt.usage || !evt.eventId) continue;
 
+      // Idempotency Check (Dedupe)
       const dedupeRef = doc(db, dedupePath, evt.eventId);
       const dedupeSnap = await getDoc(dedupeRef);
       if (dedupeSnap.exists()) continue;
 
+      // Normalization & Forensic Mapping
       const normalized = normalizeUsage(evt.model, evt.usage.prompt_tokens, evt.usage.completion_tokens);
       const newRecordRef = doc(collection(db, usagePath));
+      
       const recordData = {
         timestamp: evt.timestamp || new Date().toISOString(),
         inputTokens: evt.usage.prompt_tokens,
@@ -85,11 +93,10 @@ export async function POST(request: Request) {
 
       batch.set(newRecordRef, recordData);
       batch.set(dedupeRef, { createdAt: serverTimestamp() });
-      newRecords.push(recordData);
+      processedRecords.push(recordData);
     }
 
-    // 4. Guardrail Evaluation
-    // FIXED: Use even number of segments
+    // 3. Guardrail Evaluation (Phase 1)
     const configRef = doc(db, 'organizations', orgId, 'guardrail', 'config');
     const configSnap = await getDoc(configRef);
     
@@ -97,7 +104,7 @@ export async function POST(request: Request) {
       const config = configSnap.data() as GuardrailConfig;
       
       if (config.enabled) {
-        // Fetch recent context for evaluation
+        // Fetch context for real-time evaluation
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const lastHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         
@@ -125,7 +132,7 @@ export async function POST(request: Request) {
             });
           }
 
-          // Log Breach
+          // Log Breach Incident
           const breachRef = doc(collection(db, 'organizations', orgId, 'breaches'));
           batch.set(breachRef, {
             timestamp: new Date().toISOString(),
@@ -139,13 +146,15 @@ export async function POST(request: Request) {
       }
     }
 
+    // Update Key Metadata
     const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
     batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 
     await batch.commit();
 
-    return NextResponse.json({ status: 'success', count: rawEvents.length });
+    return NextResponse.json({ status: 'success', count: processedRecords.length });
   } catch (err: any) {
+    // Fail Safely: The host app must never crash if AtlasBurn ingestion fails
     console.error('Atlas Ingest Failure:', err);
     return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
   }
