@@ -1,3 +1,4 @@
+
 /**
  * AtlasBurn Forensic SDK - Institutional v1.1.0
  * 
@@ -13,27 +14,24 @@
  */
 
 export interface AtlasBurnSDKOptions {
-  apiKey: string;    // Raw Ingest Key (Stored in .env)
-  projectId: string; // Your AtlasBurn Project ID
-  ingestUrl?: string; // The absolute URL of your AtlasBurn deployment
+  apiKey: string;    
+  projectId: string; 
+  ingestUrl?: string; 
   batchSize?: number;
   maxQueueSize?: number;
 }
 
 export interface AtlasBurnMetadata {
-  featureId?: string; // Product feature attribution
-  userTier?: string;  // Customer segment attribution
+  featureId?: string; 
+  userTier?: string;  
 }
 
-/**
- * Universal UUID generator for forensic event tracking and replay protection.
- */
 function generateForensicId(): string {
   try {
     if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
       return globalThis.crypto.randomUUID();
     }
-  } catch (e) { /* Fallback for legacy environments */ }
+  } catch (e) { }
   return `abn-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
 
@@ -49,13 +47,12 @@ class AtlasBurnIngestor {
         ? `${window.location.origin}/api/ingest` 
         : ''),
       batchSize: 5,
-      maxQueueSize: 200, // Bounded memory to prevent host app exhaustion
+      maxQueueSize: 200, 
       ...options
     };
   }
 
   public enqueue(event: any) {
-    // Law 1 & 4: Drop oldest if queue is full to prevent memory growth/crashes during outages
     if (this.queue.length >= (this.options.maxQueueSize || 200)) {
       this.queue.shift(); 
     }
@@ -65,7 +62,6 @@ class AtlasBurnIngestor {
       eventId: generateForensicId(),
     });
 
-    // Law 2: Trigger flush but NEVER await it in the caller's thread
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -81,7 +77,6 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      // Law 4: Always fail silently. 
       console.warn('AtlasBurn SDK: Background ingestion failed. Host app unaffected.');
     } finally {
       this.isProcessing = false;
@@ -107,7 +102,6 @@ class AtlasBurnIngestor {
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
-        // Law 4: Silent exponential backoff for background retries
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
@@ -119,10 +113,6 @@ class AtlasBurnIngestor {
 
 let globalIngestor: AtlasBurnIngestor | null = null;
 
-/**
- * Wraps an LLM client with AtlasBurn Forensic Intelligence.
- * Complies with the 4 Laws of SDK Safety.
- */
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   if (!globalIngestor) {
     globalIngestor = new AtlasBurnIngestor(options);
@@ -132,10 +122,8 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
-      // Law 2: Execute host request FIRST to minimize latency
       const response = await client.chat(payload);
       
-      // Law 4: Sanitize and fire-and-forget ingestion
       try {
         const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
         globalIngestor?.enqueue({
@@ -148,9 +136,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
           },
           timestamp: new Date().toISOString(),
         });
-      } catch (e) {
-        // Law 1: Never let telemetry logic crash the chat response
-      }
+      } catch (e) { }
 
       return response;
     },

@@ -66,7 +66,6 @@ export async function POST(request: Request) {
     const processedRecords = [];
 
     for (const evt of rawEvents) {
-      // Basic Validation
       if (!evt.model || !evt.usage || !evt.eventId) continue;
 
       // Idempotency Check (Dedupe)
@@ -97,6 +96,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Guardrail Evaluation (Phase 1)
+    // FIXED: Use even number of segments
     const configRef = doc(db, 'organizations', orgId, 'guardrail', 'config');
     const configSnap = await getDoc(configRef);
     
@@ -104,7 +104,6 @@ export async function POST(request: Request) {
       const config = configSnap.data() as GuardrailConfig;
       
       if (config.enabled) {
-        // Fetch context for real-time evaluation
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const lastHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         
@@ -154,7 +153,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: 'success', count: processedRecords.length });
   } catch (err: any) {
-    // Fail Safely: The host app must never crash if AtlasBurn ingestion fails
     console.error('Atlas Ingest Failure:', err);
     return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
   }

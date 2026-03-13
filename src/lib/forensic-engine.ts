@@ -91,7 +91,6 @@ export function aggregateSnapshot(
     feature.riskContribution = totalCost > 0 ? (feature.cost / totalCost) : 0;
     
     // Phase 1 Unit Economics: Cost Per Request
-    // TODO Phase 2: Replace costPerRequest with costPerExecution once executionId tracking is implemented in the SDK.
     feature.costPerRequest = feature.requests > 0 ? (feature.cost / feature.requests) : 0;
 
     if (feature.history.length > 10) {
@@ -120,7 +119,7 @@ export function aggregateSnapshot(
   if (varianceResult.status === 'READY') {
     const { dailyMean, stdDev } = varianceResult.result;
     dailyArray = dailyArray.map(d => {
-      const isAnomaly = d.cost > (dailyMean + 2 * stdDev) && d.cost > 5; // Must be at least $5 to count as anomaly
+      const isAnomaly = d.cost > (dailyMean + 2 * stdDev) && d.cost > 5;
       return {
         ...d,
         isAnomaly,

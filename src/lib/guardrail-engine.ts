@@ -6,8 +6,6 @@
  * Phase 1: Static thresholds only.
  */
 
-import { type UsageRecord } from '@/types/usage';
-
 export type GuardrailMode = 'alert' | 'soft_stop' | 'hard_stop';
 export type GuardrailStatus = 'active' | 'throttled' | 'suspended';
 
