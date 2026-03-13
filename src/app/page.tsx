@@ -191,13 +191,6 @@ export default function Dashboard() {
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Forensic Command</h1>
           </div>
           <div className="flex items-center gap-6">
-            <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
-              <TabsList className="bg-transparent h-8 gap-1">
-                <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">7 Days</TabsTrigger>
-                <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">14 Days</TabsTrigger>
-                <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">This Month</TabsTrigger>
-              </TabsList>
-            </Tabs>
             <SystemPulse 
               hasData={!!activeSnapshot?.hasEvents}
               breachProb={simResult?.status === 'READY' ? simResult.result.survivalProbability : 0}
@@ -391,7 +384,14 @@ export default function Dashboard() {
                           </CardTitle>
                           <CardDescription>{metricConfig[activeMetric].description}</CardDescription>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-3">
+                           <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
+                            <TabsList className="bg-transparent h-8 gap-1">
+                              <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">7 Days</TabsTrigger>
+                              <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">14 Days</TabsTrigger>
+                              <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">This Month</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
                            <div className="flex items-center gap-2">
                               <Calendar size={14} className="text-muted-foreground" />
                               <span className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(activeSnapshot.usage.daily[0]?.date).toLocaleDateString()} — {new Date().toLocaleDateString()}</span>
