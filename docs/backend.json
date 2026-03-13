@@ -44,6 +44,35 @@
       },
       "required": ["id", "name"]
     },
+    "GuardrailConfig": {
+      "title": "GuardrailConfig",
+      "type": "object",
+      "description": "Configuration for the Auto Kill safety system.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "dailyBudgetUsd": { "type": "number" },
+        "hourlyBudgetUsd": { "type": "number" },
+        "perFeatureBudgetUsd": { "type": "number" },
+        "maxRetryCascadeRisk": { "type": "number" },
+        "maxLoopRiskScore": { "type": "number" },
+        "mode": { "type": "string", "enum": ["alert", "soft_stop", "hard_stop"] },
+        "status": { "type": "string", "enum": ["active", "throttled", "suspended"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "GuardrailBreach": {
+      "title": "GuardrailBreach",
+      "type": "object",
+      "description": "Record of a safety threshold violation.",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "triggerType": { "type": "string" },
+        "observedValue": { "type": "number" },
+        "thresholdValue": { "type": "number" },
+        "actionTaken": { "type": "string" },
+        "featureId": { "type": "string" }
+      }
+    },
     "Feature": {
       "title": "Feature",
       "type": "object",
@@ -97,6 +126,14 @@
     "/organizations/{orgId}": {
       "schema": "#/backend/entities/Organization",
       "description": "Economic root."
+    },
+    "/organizations/{orgId}/guardrailConfig": {
+      "schema": "#/backend/entities/GuardrailConfig",
+      "description": "Auto Kill safety parameters."
+    },
+    "/organizations/{orgId}/breaches/{breachId}": {
+      "schema": "#/backend/entities/GuardrailBreach",
+      "description": "Safety violation ledger."
     },
     "/organizations/{orgId}/users/{userId}": {
       "schema": "#/backend/entities/UserProfile",

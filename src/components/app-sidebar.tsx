@@ -1,6 +1,7 @@
+
 "use client"
 
-import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical, FileText } from "lucide-react"
+import { LayoutDashboard, LogOut, LogIn, Settings, Database, ShieldCheck, ShieldAlert, Server, Zap, FlaskConical, FileText, ShieldHalf } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -28,6 +29,7 @@ import {
 const items = [
   { title: "Economic Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Forensic Ledger", url: "/ledger", icon: FileText },
+  { title: "Safety Guardrails", url: "/guardrails", icon: ShieldHalf },
   { title: "Integration Guide", url: "/usage", icon: Server },
   { title: "Model Intelligence", url: "/catalog", icon: Database },
   { title: "Audit & Optimize", url: "/optimizer", icon: Zap },
@@ -77,7 +79,6 @@ export function AppSidebar() {
                   className="relative group overflow-hidden"
                 >
                   <Link href={item.url} className="flex items-center w-full">
-                    {/* Drawing animation line */}
                     <div 
                       className={cn(
                         "absolute left-0 top-0 w-1 bg-primary transition-all duration-500 ease-in-out origin-center",

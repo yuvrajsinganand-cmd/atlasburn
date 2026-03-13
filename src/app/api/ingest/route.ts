@@ -1,14 +1,13 @@
 
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { normalizeUsage } from '@/lib/normalization-engine';
 import { hashIngestKey } from '@/lib/crypto';
+import { evaluateGuardrails, type GuardrailConfig } from '@/lib/guardrail-engine';
+import { deriveSignalsFromRecords } from '@/lib/runtime-signals';
 
-/**
- * Robust Firebase Initialization for API Routes
- */
 function getDb() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   return getFirestore(app);
@@ -16,10 +15,6 @@ function getDb() {
 
 const MAX_EVENTS_PER_BATCH = 50;
 
-/**
- * AtlasBurn Ingestion API
- * Captures request-level tokens and attributes them to Features and User Tiers.
- */
 export async function POST(request: Request) {
   try {
     const db = getDb();
@@ -30,14 +25,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Missing Key or Project ID.' }, { status: 401 });
     }
 
-    // 1. Auth: Verify Hashed Key against the Organization path
     const hashedKey = hashIngestKey(apiKey);
-    const subsQuery = query(
-      collection(db, 'users', projectId, 'aiSubscriptions'),
-      limit(20)
-    );
-    
+    const subsQuery = query(collection(db, 'users', projectId, 'aiSubscriptions'), limit(20));
     const subSnap = await getDocs(subsQuery);
+    
     let targetSubId = null;
     let targetKeyId = null;
 
@@ -60,30 +51,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: Invalid Ingest Key.' }, { status: 403 });
     }
 
-    // 2. Parse Events
     const rawEvents = Array.isArray(events) ? events : (event ? [event] : []);
-    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found in payload.' });
-    if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
-      return NextResponse.json({ error: 'Batch too large' }, { status: 413 });
-    }
+    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found.' });
 
-    // 3. Batched Atomic Ingestion with Economic Attribution
     const batch = writeBatch(db);
-    const usagePath = `organizations/org_${projectId}/usageRecords`;
-    const dedupePath = `organizations/org_${projectId}/deduplicatedEvents`;
+    const orgId = `org_${projectId}`;
+    const usagePath = `organizations/${orgId}/usageRecords`;
+    const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
+
+    const newRecords = [];
 
     for (const evt of rawEvents) {
       if (!evt.model || !evt.usage || !evt.eventId) continue;
 
-      // Replay Protection
       const dedupeRef = doc(db, dedupePath, evt.eventId);
       const dedupeSnap = await getDoc(dedupeRef);
       if (dedupeSnap.exists()) continue;
 
       const normalized = normalizeUsage(evt.model, evt.usage.prompt_tokens, evt.usage.completion_tokens);
       const newRecordRef = doc(collection(db, usagePath));
-
-      batch.set(newRecordRef, {
+      const recordData = {
         timestamp: evt.timestamp || new Date().toISOString(),
         inputTokens: evt.usage.prompt_tokens,
         outputTokens: evt.usage.completion_tokens,
@@ -94,12 +81,63 @@ export async function POST(request: Request) {
         userTier: evt.userTier || 'pro',
         eventId: evt.eventId,
         apiCallType: 'production_sdk_call'
-      });
+      };
 
+      batch.set(newRecordRef, recordData);
       batch.set(dedupeRef, { createdAt: serverTimestamp() });
+      newRecords.push(recordData);
     }
 
-    // Update Key Metadata
+    // 4. Guardrail Evaluation
+    const configRef = doc(db, 'organizations', orgId, 'guardrailConfig');
+    const configSnap = await getDoc(configRef);
+    
+    if (configSnap.exists()) {
+      const config = configSnap.data() as GuardrailConfig;
+      
+      if (config.enabled) {
+        // Fetch recent context for evaluation
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const lastHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        
+        const contextQuery = query(
+          collection(db, usagePath),
+          where('timestamp', '>=', yesterday),
+          orderBy('timestamp', 'desc'),
+          limit(500)
+        );
+        const contextSnap = await getDocs(contextQuery);
+        const contextRecords = contextSnap.docs.map(d => d.data());
+        
+        const hourlyRecords = contextRecords.filter(r => r.timestamp >= lastHour);
+        const signals = deriveSignalsFromRecords(contextRecords);
+        
+        const breach = evaluateGuardrails(config, contextRecords, hourlyRecords, signals);
+        
+        if (breach.isBreached) {
+          const action = config.mode === 'hard_stop' ? 'suspended' : config.mode === 'soft_stop' ? 'throttled' : 'active';
+          
+          if (action !== config.status) {
+            batch.update(configRef, { 
+              status: action,
+              updatedAt: new Date().toISOString() 
+            });
+          }
+
+          // Log Breach
+          const breachRef = doc(collection(db, 'organizations', orgId, 'breaches'));
+          batch.set(breachRef, {
+            timestamp: new Date().toISOString(),
+            triggerType: breach.triggerType,
+            observedValue: breach.observedValue,
+            thresholdValue: breach.thresholdValue,
+            actionTaken: config.mode,
+            status: 'logged'
+          });
+        }
+      }
+    }
+
     const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
     batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 
