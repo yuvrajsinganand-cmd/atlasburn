@@ -61,13 +61,15 @@ export function aggregateSnapshot(
     if (!dailyMap[date]) dailyMap[date] = { date, cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
     
     const model = r.model || 'unknown';
-    if (!modelMap[model]) modelMap[model] = { cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
+    if (! modelMap[model]) modelMap[model] = { cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
 
     const featureId = r.featureId || 'default';
     if (!featureMap[featureId]) featureMap[featureId] = { cost: 0, requests: 0, riskContribution: 0, status: 'PROTECTED', trend: 0, history: [] };
 
     dailyMap[date].cost += r.cost || 0;
     dailyMap[date].requests += 1;
+    dailyMap[date].promptTokens += r.inputTokens || 0;
+    dailyMap[date].completionTokens += r.outputTokens || 0;
     
     modelMap[model].cost += r.cost || 0;
     modelMap[model].requests += 1;
@@ -107,8 +109,21 @@ export function aggregateSnapshot(
     delete feature.history;
   });
 
-  const dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+  let dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
   const varianceResult = calculateUsageVariance(dailyArray);
+
+  // Mark Daily Anomalies based on statistical variance
+  if (varianceResult.status === 'READY') {
+    const { dailyMean, stdDev } = varianceResult.result;
+    dailyArray = dailyArray.map(d => {
+      const isAnomaly = d.cost > (dailyMean + 2 * stdDev) && d.cost > 5; // Must be at least $5 to count as anomaly
+      return {
+        ...d,
+        isAnomaly,
+        anomalyDetails: isAnomaly ? `Token Burst: +${(((d.cost - dailyMean) / dailyMean) * 100).toFixed(0)}% vs mean` : null
+      };
+    });
+  }
 
   return {
     projectId,

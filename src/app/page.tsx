@@ -7,12 +7,12 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3 } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle } from "lucide-react"
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts"
 import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
@@ -56,16 +56,18 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
       },
       daily: Array.from({ length: windowDays }, (_, i) => {
         const baseCost = 300 + Math.random() * 200;
+        const isAnomaly = i === Math.floor(windowDays / 2);
         return {
           date: new Date(Date.now() - (windowDays - 1 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          cost: baseCost,
+          cost: isAnomaly ? 850 : baseCost,
           promptTokens: 10000000,
           completionTokens: 2000000,
           requests: 20000 + Math.floor(Math.random() * 5000),
-          // Derived metrics for graphing
           risk: Math.max(0, 1 - (baseCost / 600)),
           delta: baseCost * (0.1 + Math.random() * 0.2),
-          volatility: 0.1 + Math.random() * 0.1
+          volatility: 0.1 + Math.random() * 0.1,
+          isAnomaly,
+          anomalyDetails: isAnomaly ? "Support-bot-alpha retry cascade: +420% token burst" : null
         };
       })
     },
@@ -131,10 +133,8 @@ export default function Dashboard() {
 
     const realDataExists = filteredRecords.length > 0;
 
-    // 1. Prioritize Real Data (Deterministic)
     if (realDataExists) {
       const snap = aggregateSnapshot(user?.uid || 'anonymous', filteredRecords, organization || {}, windowDays);
-      // Inject derived time-series data for the extra graphs
       snap.usage.daily = snap.usage.daily.map(d => ({
         ...d,
         risk: Math.max(0, 1 - (d.cost / (snap.economics.currentDailyBurn || 1) * 0.5)),
@@ -144,12 +144,10 @@ export default function Dashboard() {
       return snap;
     }
     
-    // 2. Fallback to Demo Mode ONLY if explicitly enabled AND no real data exists
     if (isDemoMode && !realDataExists) {
       return getMockSnapshot(windowDays);
     }
     
-    // 3. Otherwise return an empty snapshot (Passive Mode)
     return {
       projectId: user?.uid || 'anonymous',
       isConnected: true,
@@ -185,6 +183,8 @@ export default function Dashboard() {
     delta: { label: "Surprise Delta (VaR)", color: "hsl(var(--destructive))", unit: "$", description: "The P95 risk gap between expected and stress outcomes." },
     volatility: { label: "Forensic Volatility", color: "hsl(var(--accent))", unit: "%", description: "Statistical variance in token consumption patterns." }
   };
+
+  const budgetThreshold = 100; // Deterministic daily budget line
 
   return (
     <SidebarProvider>
@@ -425,11 +425,30 @@ export default function Dashboard() {
                               }}
                             />
                             <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => activeMetric === 'cost' || activeMetric === 'delta' ? `$${val}` : `${(val * 100).toFixed(0)}%`} />
+                            
+                            {/* Budget Guardrail Line */}
+                            {activeMetric === 'cost' && (
+                              <ReferenceLine 
+                                y={budgetThreshold} 
+                                stroke="hsl(var(--destructive))" 
+                                strokeDasharray="3 3" 
+                                label={{ 
+                                  value: `GUARDRAIL: $${budgetThreshold}/DAY`, 
+                                  position: 'insideBottomRight', 
+                                  fill: 'hsl(var(--destructive))',
+                                  fontSize: 9,
+                                  fontWeight: 'bold',
+                                  dy: -10
+                                }} 
+                              />
+                            )}
+
                             <Tooltip 
                               content={({ active, payload, label }) => {
                                 if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
                                   return (
-                                    <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-1">
+                                    <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-2 min-w-[180px]">
                                       <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{new Date(label).toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
                                       <div className="flex justify-between gap-4">
                                         <span className="font-bold uppercase" style={{ color: metricConfig[activeMetric].color }}>{activeMetric}:</span>
@@ -439,8 +458,19 @@ export default function Dashboard() {
                                       </div>
                                       <div className="flex justify-between gap-4">
                                         <span className="text-muted-foreground uppercase">LOAD:</span>
-                                        <span className="font-bold">{payload[0].payload.requests?.toLocaleString()} REQS</span>
+                                        <span className="font-bold">{data.requests?.toLocaleString()} REQS</span>
                                       </div>
+                                      
+                                      {data.isAnomaly && activeMetric === 'cost' && (
+                                        <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
+                                          <div className="flex items-center gap-1 text-destructive font-bold uppercase text-[8px]">
+                                            <AlertCircle size={10} /> Forensic Anomaly
+                                          </div>
+                                          <p className="text-[9px] text-destructive leading-tight italic">
+                                            {data.anomalyDetails}
+                                          </p>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 }
@@ -454,6 +484,24 @@ export default function Dashboard() {
                               fill="url(#colorMetric)" 
                               strokeWidth={3} 
                               animationDuration={1000}
+                              dot={(props) => {
+                                const { payload, cx, cy } = props;
+                                if (payload.isAnomaly && activeMetric === 'cost') {
+                                  return (
+                                    <circle 
+                                      key={`anomaly-${payload.date}`}
+                                      cx={cx} 
+                                      cy={cy} 
+                                      r={5} 
+                                      fill="hsl(var(--destructive))" 
+                                      stroke="white" 
+                                      strokeWidth={2} 
+                                      className="animate-pulse cursor-help"
+                                    />
+                                  );
+                                }
+                                return null as any;
+                              }}
                             />
                           </AreaChart>
                         </ResponsiveContainer>
