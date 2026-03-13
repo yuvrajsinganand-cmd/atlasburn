@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu } from "lucide-react"
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
@@ -159,6 +159,10 @@ export default function Dashboard() {
     } as SdkProjectSnapshot;
   }, [usageRecords, organization, isDemoMode, mounted, user, loadingUsage, period]);
 
+  const simResult = useMemo(() => {
+    return activeSnapshot?.hasEvents ? runInstitutionalSimulation(activeSnapshot) : null;
+  }, [activeSnapshot]);
+
   const latestMetric = useMemo(() => {
     if (!activeSnapshot?.usage?.daily || activeSnapshot.usage.daily.length === 0) return null;
     return activeSnapshot.usage.daily[activeSnapshot.usage.daily.length - 1];
@@ -175,8 +179,6 @@ export default function Dashboard() {
     );
   }
 
-  const simResult = activeSnapshot?.hasEvents ? runInstitutionalSimulation(activeSnapshot) : null;
-
   const metricConfig = {
     cost: { label: "Deterministic Burn", color: "hsl(var(--primary))", unit: "$", description: "Visualizing daily capital outflow in USD." },
     risk: { label: "Survival Probability", color: "hsl(var(--chart-5))", unit: "%", description: "Probabilistic health based on stochastic modeling." },
@@ -184,7 +186,7 @@ export default function Dashboard() {
     volatility: { label: "Forensic Volatility", color: "hsl(var(--accent))", unit: "%", description: "Statistical variance in token consumption patterns." }
   };
 
-  const budgetThreshold = 100; // Deterministic daily budget line
+  const budgetThreshold = organization?.fixedMonthlyBurn ? (organization.fixedMonthlyBurn / 30) : 100;
 
   return (
     <SidebarProvider>
@@ -196,10 +198,16 @@ export default function Dashboard() {
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Forensic Command</h1>
           </div>
           <div className="flex items-center gap-6">
+            {simResult?.status === 'READY' && (
+              <Badge variant="outline" className="hidden md:flex bg-primary/5 text-primary border-primary/20 gap-2 px-3 py-1 uppercase text-[10px] font-bold tracking-widest transition-all">
+                <Cpu size={12} className="animate-pulse" />
+                Monte Carlo Engine: Active
+              </Badge>
+            )}
             <SystemPulse 
               hasData={!!activeSnapshot?.hasEvents}
-              breachProb={simResult?.status === 'READY' ? simResult.result.survivalProbability : 0}
-              p95BurnDelta={activeSnapshot?.usage?.totalCost ? activeSnapshot.usage.totalCost * 0.1 : 0}
+              breachProb={simResult?.status === 'READY' ? (1 - simResult.result.survivalProbability) : 0}
+              p95BurnDelta={simResult?.status === 'READY' ? simResult.result.var95 : 0}
             />
           </div>
         </header>
@@ -335,9 +343,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'risk' ? "text-green-600" : "text-foreground")}>
-                        {((latestMetric?.risk || 0) * 100).toFixed(1)}%
+                        {(simResult.result.survivalProbability * 100).toFixed(1)}%
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Spot health verification</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">10k Path Stochastic Result</p>
                     </button>
 
                     <button 
@@ -354,9 +362,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <p className={cn("text-2xl font-headline font-bold transition-colors", activeMetric === 'delta' ? "text-destructive" : "text-foreground")}>
-                        ${(latestMetric?.delta || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        ${(simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">Real-time stress variance</p>
+                      <p className="text-[9px] text-muted-foreground mt-2 font-medium">P95 Simulated Stress Gap</p>
                     </button>
 
                     <button 
@@ -400,7 +408,7 @@ export default function Dashboard() {
                           </Tabs>
                            <div className="flex items-center gap-2">
                               <Calendar size={14} className="text-muted-foreground" />
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(activeSnapshot.usage.daily[0]?.date).toLocaleDateString()} — {new Date().toLocaleDateString()}</span>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(activeSnapshot.usage.daily[0]?.date || Date.now()).toLocaleDateString()} — {new Date().toLocaleDateString()}</span>
                            </div>
                         </div>
                       </CardHeader>
@@ -433,7 +441,7 @@ export default function Dashboard() {
                                 stroke="hsl(var(--destructive))" 
                                 strokeDasharray="3 3" 
                                 label={{ 
-                                  value: `GUARDRAIL: $${budgetThreshold}/DAY`, 
+                                  value: `GUARDRAIL: $${budgetThreshold.toFixed(0)}/DAY`, 
                                   position: 'insideBottomRight', 
                                   fill: 'hsl(var(--destructive))',
                                   fontSize: 9,
@@ -464,7 +472,7 @@ export default function Dashboard() {
                                       {data.isAnomaly && activeMetric === 'cost' && (
                                         <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
                                           <div className="flex items-center gap-1 text-destructive font-bold uppercase text-[8px]">
-                                            <AlertCircle size={10} /> Forensic Anomaly
+                                            <AlertCircle size={10} /> Deterministic Spike Detected
                                           </div>
                                           <p className="text-[9px] text-destructive leading-tight italic">
                                             {data.anomalyDetails}
