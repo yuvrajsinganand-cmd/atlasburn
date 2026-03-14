@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu, Clock, MousePointer2, Repeat, Maximize, Layers } from "lucide-react"
+import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu, Clock, MousePointer2, Repeat, Maximize, Layers, TrendingDown, Target } from "lucide-react"
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
@@ -27,6 +27,7 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip"
 import { aggregateSnapshot } from "@/lib/forensic-engine"
+import { cn } from "@/lib/utils"
 
 const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
   const signals = generateMockSignals();
@@ -198,6 +199,18 @@ export default function Dashboard() {
     return `$${val.toFixed(2)}`;
   }
 
+  const getMetricColor = (val: number, threshold: number, reverse: boolean = false) => {
+    const ratio = val / threshold;
+    if (reverse) {
+      if (ratio > 0.9) return "text-green-600 bg-green-50 border-green-100";
+      if (ratio > 0.7) return "text-amber-600 bg-amber-50 border-amber-100";
+      return "text-destructive bg-destructive/5 border-destructive/10";
+    }
+    if (ratio < 0.5) return "text-green-600 bg-green-50 border-green-100";
+    if (ratio < 0.8) return "text-amber-600 bg-amber-50 border-amber-100";
+    return "text-destructive bg-destructive/5 border-destructive/10";
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -245,50 +258,88 @@ export default function Dashboard() {
           ) : (
             <>
               {/* SECTION 1: OBSERVED AI SPEND */}
-              <section className="space-y-6">
+              <section className="space-y-8">
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <h2 className="text-lg font-headline font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                       <BarChart3 size={20} /> AI Spend — Observed (Real-Time)
                     </h2>
-                    <p className="text-xs text-muted-foreground font-medium">Deterministic operational metrics captured directly from SDK telemetry.</p>
+                    <p className="text-xs text-muted-foreground font-medium">Ground-truth operational metrics captured directly from SDK telemetry.</p>
                   </div>
                   <Badge variant="secondary" className="bg-primary/10 text-primary font-bold">REAL-TIME TELEMETRY</Badge>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Spend Today</p>
-                    <p className="text-xl font-headline font-bold text-primary">${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Card 1: Observed Spend Today */}
+                  <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(latestMetric?.cost || 0, budgetThreshold))}>
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Activity size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Observed Spend Today</p>
+                        <p className="text-4xl font-headline font-bold">${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] font-medium opacity-60 italic">Real-time pulse vs ${budgetThreshold} limit</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Burn Rate</p>
-                    <p className="text-xl font-headline font-bold">${burnRatePerMin.toFixed(4)} <span className="text-[8px] opacity-50 uppercase">/ min</span></p>
+
+                  {/* Card 2: Burn Rate */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><TrendingUp size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Burn Rate</p>
+                        <p className="text-4xl font-headline font-bold text-foreground">${burnRatePerMin.toFixed(4)} <span className="text-sm font-normal opacity-50 uppercase">/ min</span></p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Current operational velocity</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Cost / Req</p>
-                    <p className="text-xl font-headline font-bold">{formatCostPerRequest(globalCostPerRequest)}</p>
+
+                  {/* Card 3: Retry Cascade Risk */}
+                  <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(activeSnapshot.runtimeSignals?.retryRate || 0, 0.05))}>
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Repeat size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Retry Cascade Risk</p>
+                        <p className="text-4xl font-headline font-bold">{(activeSnapshot.runtimeSignals?.retryRate ? activeSnapshot.runtimeSignals.retryRate * 100 : 0).toFixed(1)}%</p>
+                        <p className="text-[10px] font-medium opacity-60 italic">Systemic recursion probability</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Throughput</p>
-                    <p className="text-xl font-headline font-bold text-foreground">{(activeSnapshot.usage.requestsPerSecond).toFixed(1)} <span className="text-[8px] opacity-50 uppercase">rps</span></p>
+
+                  {/* Card 4: Cost Per Request */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><MousePointer2 size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cost per Request</p>
+                        <p className="text-4xl font-headline font-bold text-foreground">{formatCostPerRequest(globalCostPerRequest)}</p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Global unit economics</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Model Mix</p>
-                      <Layers size={10} className="text-muted-foreground" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <p className="text-xl font-headline font-bold">65%</p>
-                      <span className="text-[8px] font-bold text-muted-foreground uppercase">Reasoning</span>
-                    </div>
+
+                  {/* Card 5: Throughput */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><Server size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Throughput (RPS)</p>
+                        <p className="text-4xl font-headline font-bold text-foreground">{(activeSnapshot.usage.requestsPerSecond).toFixed(1)} <span className="text-sm font-normal opacity-50 uppercase">req/s</span></p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Live ingestion heartbeat</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2 group hover:ring-1 hover:ring-destructive/30 transition-all">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Retry Risk</p>
-                      <Repeat size={10} className="text-destructive" />
-                    </div>
-                    <p className="text-xl font-headline font-bold text-destructive">{(activeSnapshot.runtimeSignals?.retryRate ? activeSnapshot.runtimeSignals.retryRate * 100 : 0).toFixed(1)}%</p>
+
+                  {/* Card 6: Model Mix */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><Layers size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Model Mix Exposure</p>
+                        <p className="text-4xl font-headline font-bold text-foreground">65% <span className="text-sm font-normal opacity-50 uppercase">Reasoning</span></p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Cost weighting bias</p>
+                      </div>
+                    </CardContent>
                   </Card>
                 </div>
 
@@ -389,7 +440,7 @@ export default function Dashboard() {
               </section>
 
               {/* SECTION 2: AI COST RISK FORECAST */}
-              <section className="space-y-6">
+              <section className="space-y-8">
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <h2 className="text-lg font-headline font-bold uppercase tracking-widest text-accent flex items-center gap-2">
@@ -402,44 +453,79 @@ export default function Dashboard() {
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Safety Forecast</p>
-                    <p className="text-xl font-headline font-bold text-green-600">{simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100).toFixed(1) : '---'}%</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Card 7: Budget Safety Forecast */}
+                  <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100) : 0, 80, true))}>
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><ShieldCheck size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Budget Safety Forecast</p>
+                        <p className="text-4xl font-headline font-bold">{simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100).toFixed(1) : '---'}%</p>
+                        <p className="text-[10px] font-medium opacity-60 italic">Probability of capital security</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Worst Case Risk</p>
-                    <p className="text-xl font-headline font-bold text-destructive">${simResult?.status === 'READY' ? (simResult.result.p95Burn).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+
+                  {/* Card 8: Worst Case Risk (P95) */}
+                  <Card className="border shadow-md bg-white border-destructive/20 bg-destructive/5">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-destructive/10 text-destructive rounded-2xl shadow-inner"><ShieldAlert size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-destructive/70">Worst Case Cost Risk (VaR)</p>
+                        <p className="text-4xl font-headline font-bold text-destructive">${simResult?.status === 'READY' ? (simResult.result.p95Burn).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                        <p className="text-[10px] font-medium text-destructive/60 italic">P95 stochastic projection</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Surprise Delta</p>
-                    <p className="text-xl font-headline font-bold text-accent">${simResult?.status === 'READY' ? (simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+
+                  {/* Card 9: AI Budget Runway */}
+                  <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(activeSnapshot.economics.budgetRunwayDays || 0, 30, true))}>
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Clock size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">AI Budget Runway</p>
+                        <p className="text-4xl font-headline font-bold">
+                          {activeSnapshot.economics.budgetRunwayDays || '∞'} <span className="text-sm font-normal opacity-50 uppercase">days</span>
+                        </p>
+                        <p className="text-[10px] font-medium opacity-60 italic">Until capital reserves breach</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2 group hover:ring-1 hover:ring-primary/30 transition-all">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Budget Runway</p>
-                      <Clock size={10} className="text-primary" />
-                    </div>
-                    <p className="text-xl font-headline font-bold text-foreground">
-                      {activeSnapshot.economics.budgetRunwayDays || '∞'} <span className="text-[8px] opacity-50 uppercase">days</span>
-                    </p>
+
+                  {/* Card 10: Token Volatility Index */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-accent/5 text-accent rounded-2xl shadow-inner"><Maximize size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-accent/70">Token Volatility Index</p>
+                        <p className="text-4xl font-headline font-bold text-accent">{(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Loop detection drift</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Token Volatility</p>
-                      <Maximize size={10} className="text-muted-foreground" />
-                    </div>
-                    <p className="text-xl font-headline font-bold text-accent">{(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
+
+                  {/* Card 11: Surprise Delta */}
+                  <Card className="border shadow-md bg-white">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-accent/5 text-accent rounded-2xl shadow-inner"><Zap size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-accent/70">Surprise Delta</p>
+                        <p className="text-4xl font-headline font-bold text-accent">${simResult?.status === 'READY' ? (simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                        <p className="text-[10px] font-medium text-muted-foreground italic">Stochastic variance at risk</p>
+                      </div>
+                    </CardContent>
                   </Card>
-                  <Card className="bg-white border-none shadow-sm p-4 space-y-2 group hover:ring-1 hover:ring-amber-500/30 transition-all">
-                    <div className="flex justify-between items-center">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Scenario Impact</p>
-                      <TrendingUp size={10} className="text-amber-600" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <p className="text-xl font-headline font-bold text-amber-600">+${activeSnapshot.systemicRisk.scenarioImpactUsd?.toLocaleString()}</p>
-                      <span className="text-[7px] font-bold text-muted-foreground uppercase">@ 2x LOAD</span>
-                    </div>
+
+                  {/* Card 12: Scenario Impact */}
+                  <Card className="border shadow-md bg-white border-amber-200 bg-amber-50/50">
+                    <CardContent className="p-6 flex items-start gap-4">
+                      <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl shadow-inner"><Target size={24} /></div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Scenario Impact (Surge)</p>
+                        <p className="text-4xl font-headline font-bold text-amber-600">+${activeSnapshot.systemicRisk.scenarioImpactUsd?.toLocaleString()}</p>
+                        <p className="text-[10px] font-medium text-amber-600/70 italic">Value at Risk @ 2x Load</p>
+                      </div>
+                    </CardContent>
                   </Card>
                 </div>
 
