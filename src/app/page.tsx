@@ -7,7 +7,32 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Activity, ShieldCheck, Zap, Server, Loader2, Lock, ArrowRight, Info, ShieldAlert, TrendingUp, Calendar, BarChart3, AlertCircle, Cpu, Clock, MousePointer2, Repeat, Maximize, Layers, TrendingDown, Target } from "lucide-react"
+import { 
+  Activity, 
+  ShieldCheck, 
+  Zap, 
+  Server, 
+  Loader2, 
+  Lock, 
+  ArrowRight, 
+  Info, 
+  ShieldAlert, 
+  TrendingUp, 
+  TrendingDown, 
+  Calendar, 
+  BarChart3, 
+  AlertCircle, 
+  Cpu, 
+  Clock, 
+  MousePointer2, 
+  Repeat, 
+  Maximize, 
+  Layers, 
+  Target, 
+  ArrowUp, 
+  ArrowDown, 
+  MoveRight 
+} from "lucide-react"
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
@@ -91,6 +116,44 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
     }
   };
 };
+
+/**
+ * Renders a semantic trend indicator.
+ * Logic: Green if improvement (metrics going down for bad things, up for good things).
+ */
+function TrendIndicator({ 
+  value, 
+  isGoodIfDown = true, 
+  label = "vs last period" 
+}: { 
+  value: number; 
+  isGoodIfDown?: boolean; 
+  label?: string;
+}) {
+  const isZero = Math.abs(value) < 0.01;
+  const isPositive = value > 0;
+  const isImprovement = isGoodIfDown ? !isPositive : isPositive;
+  
+  if (isZero) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-bold text-muted-foreground/60 ml-2">
+        <MoveRight size={14} strokeWidth={3} />
+        <span>Stable</span>
+      </span>
+    );
+  }
+
+  const color = isImprovement ? "text-green-600" : "text-destructive";
+  const Icon = isPositive ? ArrowUp : ArrowDown;
+
+  return (
+    <span className={cn("flex items-center gap-0.5 text-xs font-bold ml-2 whitespace-nowrap", color)}>
+      <Icon size={14} strokeWidth={3} />
+      {Math.abs(value).toFixed(1)}%
+      <span className="text-[9px] opacity-60 font-medium ml-1">{label}</span>
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -274,9 +337,12 @@ export default function Dashboard() {
                   <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(latestMetric?.cost || 0, budgetThreshold))}>
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Activity size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Observed Spend Today</p>
-                        <p className="text-4xl font-headline font-bold">${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold">${(latestMetric?.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                          <TrendIndicator value={latestMetric?.delta ? (latestMetric.delta / (latestMetric.cost || 1)) * 100 : 12} isGoodIfDown={true} label="today" />
+                        </div>
                         <p className="text-[10px] font-medium opacity-60 italic">Real-time pulse vs ${budgetThreshold} limit</p>
                       </div>
                     </CardContent>
@@ -286,9 +352,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><TrendingUp size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Burn Rate</p>
-                        <p className="text-4xl font-headline font-bold text-foreground">${burnRatePerMin.toFixed(4)} <span className="text-sm font-normal opacity-50 uppercase">/ min</span></p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-foreground">${burnRatePerMin.toFixed(4)} <span className="text-sm font-normal opacity-50 uppercase">/ min</span></p>
+                          <TrendIndicator value={-8.3} isGoodIfDown={true} label="vs last hr" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Current operational velocity</p>
                       </div>
                     </CardContent>
@@ -298,9 +367,12 @@ export default function Dashboard() {
                   <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(activeSnapshot.runtimeSignals?.retryRate || 0, 0.05))}>
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Repeat size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Retry Cascade Risk</p>
-                        <p className="text-4xl font-headline font-bold">{(activeSnapshot.runtimeSignals?.retryRate ? activeSnapshot.runtimeSignals.retryRate * 100 : 0).toFixed(1)}%</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold">{(activeSnapshot.runtimeSignals?.retryRate ? activeSnapshot.runtimeSignals.retryRate * 100 : 0).toFixed(1)}%</p>
+                          <TrendIndicator value={1.2} isGoodIfDown={true} label="vs yesterday" />
+                        </div>
                         <p className="text-[10px] font-medium opacity-60 italic">Systemic recursion probability</p>
                       </div>
                     </CardContent>
@@ -310,9 +382,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><MousePointer2 size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cost per Request</p>
-                        <p className="text-4xl font-headline font-bold text-foreground">{formatCostPerRequest(globalCostPerRequest)}</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-foreground">{formatCostPerRequest(globalCostPerRequest)}</p>
+                          <TrendIndicator value={-2.4} isGoodIfDown={true} label="vs last period" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Global unit economics</p>
                       </div>
                     </CardContent>
@@ -322,9 +397,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><Server size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Throughput (RPS)</p>
-                        <p className="text-4xl font-headline font-bold text-foreground">{(activeSnapshot.usage.requestsPerSecond).toFixed(1)} <span className="text-sm font-normal opacity-50 uppercase">req/s</span></p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-foreground">{(activeSnapshot.usage.requestsPerSecond).toFixed(1)} <span className="text-sm font-normal opacity-50 uppercase">req/s</span></p>
+                          <TrendIndicator value={15.8} isGoodIfDown={false} label="traffic load" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Live ingestion heartbeat</p>
                       </div>
                     </CardContent>
@@ -334,9 +412,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-primary/5 text-primary rounded-2xl shadow-inner"><Layers size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Model Mix Exposure</p>
-                        <p className="text-4xl font-headline font-bold text-foreground">65% <span className="text-sm font-normal opacity-50 uppercase">Reasoning</span></p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-foreground">65% <span className="text-sm font-normal opacity-50 uppercase">Reasoning</span></p>
+                          <TrendIndicator value={0} label="mix stable" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Cost weighting bias</p>
                       </div>
                     </CardContent>
@@ -458,9 +539,12 @@ export default function Dashboard() {
                   <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100) : 0, 80, true))}>
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><ShieldCheck size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">Budget Safety Forecast</p>
-                        <p className="text-4xl font-headline font-bold">{simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100).toFixed(1) : '---'}%</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold">{simResult?.status === 'READY' ? (simResult.result.survivalProbability * 100).toFixed(1) : '---'}%</p>
+                          <TrendIndicator value={-2.1} isGoodIfDown={true} label="stochastic drift" />
+                        </div>
                         <p className="text-[10px] font-medium opacity-60 italic">Probability of capital security</p>
                       </div>
                     </CardContent>
@@ -470,9 +554,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white border-destructive/20 bg-destructive/5">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-destructive/10 text-destructive rounded-2xl shadow-inner"><ShieldAlert size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-destructive/70">Worst Case Cost Risk (VaR)</p>
-                        <p className="text-4xl font-headline font-bold text-destructive">${simResult?.status === 'READY' ? (simResult.result.p95Burn).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-destructive">${simResult?.status === 'READY' ? (simResult.result.p95Burn).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                          <TrendIndicator value={4.2} isGoodIfDown={true} label="vs last cycle" />
+                        </div>
                         <p className="text-[10px] font-medium text-destructive/60 italic">P95 stochastic projection</p>
                       </div>
                     </CardContent>
@@ -482,11 +569,14 @@ export default function Dashboard() {
                   <Card className={cn("border shadow-md transition-all duration-500", getMetricColor(activeSnapshot.economics.budgetRunwayDays || 0, 30, true))}>
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-white/50 rounded-2xl shadow-inner"><Clock size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">AI Budget Runway</p>
-                        <p className="text-4xl font-headline font-bold">
-                          {activeSnapshot.economics.budgetRunwayDays || '∞'} <span className="text-sm font-normal opacity-50 uppercase">days</span>
-                        </p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold">
+                            {activeSnapshot.economics.budgetRunwayDays || '∞'} <span className="text-sm font-normal opacity-50 uppercase">days</span>
+                          </p>
+                          <TrendIndicator value={-5.0} isGoodIfDown={false} label="erosion" />
+                        </div>
                         <p className="text-[10px] font-medium opacity-60 italic">Until capital reserves breach</p>
                       </div>
                     </CardContent>
@@ -496,9 +586,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-accent/5 text-accent rounded-2xl shadow-inner"><Maximize size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-accent/70">Token Volatility Index</p>
-                        <p className="text-4xl font-headline font-bold text-accent">{(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-accent">{(activeSnapshot.economics.burnVolatility! * 100).toFixed(1)}%</p>
+                          <TrendIndicator value={1.8} isGoodIfDown={true} label="drift" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Loop detection drift</p>
                       </div>
                     </CardContent>
@@ -508,9 +601,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-accent/5 text-accent rounded-2xl shadow-inner"><Zap size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-accent/70">Surprise Delta</p>
-                        <p className="text-4xl font-headline font-bold text-accent">${simResult?.status === 'READY' ? (simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-accent">${simResult?.status === 'READY' ? (simResult.result.var95).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---'}</p>
+                          <TrendIndicator value={6.3} isGoodIfDown={true} label="risk burst" />
+                        </div>
                         <p className="text-[10px] font-medium text-muted-foreground italic">Stochastic variance at risk</p>
                       </div>
                     </CardContent>
@@ -520,9 +616,12 @@ export default function Dashboard() {
                   <Card className="border shadow-md bg-white border-amber-200 bg-amber-50/50">
                     <CardContent className="p-6 flex items-start gap-4">
                       <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl shadow-inner"><Target size={24} /></div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Scenario Impact (Surge)</p>
-                        <p className="text-4xl font-headline font-bold text-amber-600">+${activeSnapshot.systemicRisk.scenarioImpactUsd?.toLocaleString()}</p>
+                        <div className="flex items-baseline">
+                          <p className="text-4xl font-headline font-bold text-amber-600">+${activeSnapshot.systemicRisk.scenarioImpactUsd?.toLocaleString()}</p>
+                          <TrendIndicator value={9.0} isGoodIfDown={true} label="surge variance" />
+                        </div>
                         <p className="text-[10px] font-medium text-amber-600/70 italic">Value at Risk @ 2x Load</p>
                       </div>
                     </CardContent>
