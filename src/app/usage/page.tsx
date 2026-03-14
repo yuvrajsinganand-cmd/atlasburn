@@ -1,4 +1,3 @@
-
 "use client"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
@@ -212,9 +211,9 @@ export default function OnboardingPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                      <Zap size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-xs text-amber-200/80 leading-relaxed font-medium">
+                    <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-200 shadow-sm">
+                      <Zap size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-900 leading-relaxed font-semibold">
                         Save this key in your <strong>.env</strong> file immediately. For security integrity, it will not be displayed again once you refresh this terminal.
                       </p>
                     </div>
