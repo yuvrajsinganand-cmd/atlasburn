@@ -38,7 +38,10 @@ import {
   Smartphone,
   Cpu,
   Lock,
-  Layers
+  Layers,
+  Activity,
+  Server,
+  ArrowUpRight
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { useUser, useFirestore, useMemoFirebase, useDoc, useAuth, useCollection } from "@/firebase"
@@ -55,14 +58,13 @@ import { verifyDomainDns } from "./actions"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { aggregateSnapshot } from "@/lib/forensic-engine"
+import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   
-  const [copiedId, setCopiedId] = useState(false);
-  const [origin, setOrigin] = useState("");
   const [mounted, setMounted] = useState(false);
 
   // Account State
@@ -84,9 +86,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') {
-      setOrigin(window.location.origin);
-    }
   }, []);
 
   useEffect(() => {
@@ -178,15 +177,6 @@ export default function SettingsPage() {
     });
   };
 
-  const copyProjectId = () => {
-    if (!user) return;
-    navigator.clipboard.writeText(user.uid);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
-    toast({ title: "Project ID Copied", description: "Use this value for 'projectId' in SDK initialization." });
-    logAction("PROJECT_ID_COPIED", "User copied the global project ID.", "security");
-  };
-
   const handleUpdateProfile = async () => {
     if (!auth.currentUser) return;
     setSavingAccount(true);
@@ -205,7 +195,6 @@ export default function SettingsPage() {
   const handleUpdateOrg = () => {
     if (!orgRef || !user) return;
     setSavingOrg(true);
-    // Use set with merge to handle cases where the document doesn't exist yet
     setDocumentNonBlocking(orgRef, {
       name: orgName,
       updatedAt: new Date().toISOString()
@@ -240,7 +229,6 @@ export default function SettingsPage() {
       createdAt: new Date().toISOString()
     };
 
-    // Use set with merge to handle new organizations
     setDocumentNonBlocking(orgRef, {
       allowedDomains: [...currentDomains, newEntry],
       updatedAt: new Date().toISOString()
@@ -338,11 +326,6 @@ export default function SettingsPage() {
     deleteDocumentNonBlocking(memberRef);
     toast({ title: "Member Removed", description: "Institutional access revoked." });
     logAction("MEMBER_REMOVED", `Revoked access for member ${memberId}`, "access", "success");
-  };
-
-  const handleManageBilling = () => {
-    toast({ title: "Billing Control Plane", description: "Redirecting to billing manager..." });
-    logAction("BILLING_MANAGER_OPENED", "User opened the billing configuration dashboard.", "billing");
   };
 
   if (!mounted) return null;
@@ -443,73 +426,78 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="sdk" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <Card className="border-none shadow-sm bg-white overflow-hidden">
-                    <CardHeader className="bg-primary/5 border-b">
-                      <CardTitle className="text-xl font-headline flex items-center gap-2 text-primary">
-                        <Zap size={20} /> AtlasBurn Forensic SDK
+              <div className="grid grid-cols-1 gap-6">
+                <Card className="border-none shadow-sm bg-white overflow-hidden">
+                  <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between py-6">
+                    <div className="space-y-1">
+                      <CardTitle className="text-2xl font-headline flex items-center gap-2 text-primary">
+                        <Server size={24} /> Ingestion Control Plane
                       </CardTitle>
-                      <CardDescription>Connect other products to this control plane for unified burn visibility.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-6">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Global Project ID</p>
-                          <Button variant="ghost" size="sm" onClick={copyProjectId} className="h-6 gap-1 text-[10px] font-bold uppercase">
-                            {copiedId ? <CheckCircle2 size={12} className="text-green-600" /> : <Copy size={12} />}
-                            {copiedId ? "Copied" : "Copy"}
-                          </Button>
-                        </div>
-                        <div className="bg-zinc-950 text-zinc-50 p-4 rounded-xl font-mono text-xs flex justify-between items-center">
-                          <span className="opacity-70">projectId:</span>
-                          <span className="text-primary-foreground font-bold">{user?.uid || 'ID_NOT_FOUND'}</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Cross-Product Ingest URL</p>
-                        <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed border-l-4 border-primary">
-{`import { withAtlasBurn } from "@atlasburn/sdk";
-const client = withAtlasBurn(llm, {
-  apiKey: "YOUR_ATLASBURN_KEY",
-  projectId: "${user?.uid || 'PROJECT_ID'}",
-  ingestUrl: "${origin}/api/ingest" 
-});`}
-                        </pre>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                <div className="space-y-6">
-                  <Card className="border-none shadow-sm bg-white">
-                    <CardHeader>
-                      <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Ingest Health</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {loadingSnapshot ? (
-                        <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-                          <Loader2 className="animate-spin h-3 w-3" /> Analyzing...
-                        </div>
-                      ) : snapshot?.hasEvents ? (
-                        <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 size={14} className="text-green-600" />
-                            <span className="text-xs font-bold text-green-700">Forensic Feed Online</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-green-600">v1.9.1</span>
+                      <CardDescription>Real-time telemetry status from your production AI cluster.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {snapshot?.hasEvents ? (
+                        <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full border border-green-100">
+                          <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                          <span className="text-xs font-bold text-green-700 uppercase tracking-widest">Verified Online</span>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle size={14} className="text-amber-600" />
-                            <span className="text-xs font-bold text-amber-700">Awaiting Ingestion</span>
-                          </div>
+                        <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-full border border-amber-100">
+                          <div className="h-3 w-3 bg-amber-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                          <span className="text-xs font-bold text-amber-700 uppercase tracking-widest">Awaiting Heartbeat</span>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-b">
+                      <div className="p-8 space-y-2">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Clock size={16} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Last Ingestion Pulse</span>
+                        </div>
+                        <p className="text-2xl font-headline font-bold">
+                          {loadingSnapshot ? "Scanning..." : snapshot?.usage?.daily?.[snapshot.usage.daily.length-1]?.date ? new Date(snapshot.usage.daily[snapshot.usage.daily.length-1].date).toLocaleTimeString() : "No pulses detected"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground italic">Automatic server-side resolution active.</p>
+                      </div>
+                      <div className="p-8 space-y-2">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Activity size={16} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Forensic Volume</span>
+                        </div>
+                        <p className="text-2xl font-headline font-bold">
+                          {snapshot?.usage?.requests?.toLocaleString() || "0"} <span className="text-sm font-normal opacity-50">Events</span>
+                        </p>
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-green-600">
+                          <ArrowUpRight size={12} /> Live stream active
+                        </div>
+                      </div>
+                      <div className="p-8 space-y-2">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Cpu size={16} />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">SDK Environment</span>
+                        </div>
+                        <p className="text-2xl font-headline font-bold">Node.js / Edge</p>
+                        <Badge variant="outline" className="text-[9px] font-bold border-primary/20 text-primary bg-primary/5">SECURE PARASITE v1.2.0</Badge>
+                      </div>
+                    </div>
+                    <div className="p-8 bg-zinc-950 text-zinc-400">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2 text-primary">
+                          <ShieldCheck size={18} />
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-100">Deterministic Protection</h4>
+                        </div>
+                        <Button variant="link" asChild className="p-0 h-auto text-primary font-bold text-[10px]">
+                          <a href="/usage">View Integration Protocol</a>
+                        </Button>
+                      </div>
+                      <p className="text-xs leading-relaxed max-w-2xl">
+                        Your SDK is configured for <span className="text-zinc-100 font-bold">Silent Ingestion</span>. All telemetry is hashed via HMAC-SHA-256 and flushes in the background to ensure zero impact on your application's latency. Project context is resolved server-side using your validated API Key.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -703,7 +691,7 @@ const client = withAtlasBurn(llm, {
                       <h3 className="text-2xl font-headline font-bold">Institutional Billing</h3>
                       <p className="text-sm text-muted-foreground max-w-md">Assign funding sources and download deterministic cost invoices for your organization.</p>
                     </div>
-                    <Button onClick={handleManageBilling} className="font-headline font-bold h-12 px-8">Configure Payment Methods</Button>
+                    <Button className="font-headline font-bold h-12 px-8">Configure Payment Methods</Button>
                   </Card>
                 </div>
 
@@ -729,7 +717,7 @@ const client = withAtlasBurn(llm, {
                           <div className="h-full bg-white transition-all duration-500" style={{ width: `${usagePercentage}%` }} />
                         </div>
                       </div>
-                      <Button variant="secondary" className="w-full font-bold" onClick={handleManageBilling}>Manage Billing</Button>
+                      <Button variant="secondary" className="w-full font-bold">Manage Billing</Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -765,15 +753,6 @@ const client = withAtlasBurn(llm, {
                     <div className="space-y-2">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest px-1">Managed Domains</p>
                       <div className="border rounded-xl divide-y">
-                        <div className="p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Shield className="text-green-600" size={14} />
-                            <span className="text-sm font-mono">{origin.replace(/https?:\/\//, '')}</span>
-                            <Badge variant="outline" className="text-[9px] font-bold">DEFAULT</Badge>
-                          </div>
-                          <Badge className="bg-green-100 text-green-700 border-none text-[9px]">VERIFIED</Badge>
-                        </div>
-
                         {organization?.allowedDomains?.map((entry: any) => (
                           <div key={entry.domain} className="p-0">
                             <div className="p-4 flex items-center justify-between group">
