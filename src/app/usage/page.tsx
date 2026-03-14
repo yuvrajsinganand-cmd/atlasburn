@@ -33,6 +33,7 @@ import Link from "next/link"
 import { useState, useMemo, useEffect } from "react"
 import { getKeyMaterial } from "@/app/settings/actions"
 import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function OnboardingPage() {
   const { user } = useUser()
@@ -122,6 +123,7 @@ export default function OnboardingPage() {
     navigator.clipboard.writeText(text);
     setter(true);
     setTimeout(() => setter(false), 2000);
+    toast({ title: "Copied to clipboard" });
   };
 
   if (!mounted) return null;
@@ -166,38 +168,59 @@ export default function OnboardingPage() {
                 <CardDescription>Create an API key to authenticate telemetry ingestion from your application.</CardDescription>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
-              {!apiKey ? (
-                <Button onClick={handleGenerateKey} disabled={generatingKey} size="lg" className="font-headline font-bold">
+            <CardContent className="p-6 space-y-6">
+              <div className="flex flex-col gap-4">
+                <Button 
+                  onClick={handleGenerateKey} 
+                  disabled={generatingKey} 
+                  variant={apiKey ? "outline" : "default"}
+                  size="lg" 
+                  className={cn("font-headline font-bold w-fit", !apiKey && "shadow-lg")}
+                >
                   {generatingKey ? <Loader2 className="animate-spin mr-2" /> : <Key className="mr-2" />}
-                  Get API Key
+                  {apiKey ? "Generate New Key" : "Get API Key"}
                 </Button>
-              ) : (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  <div className="p-4 bg-zinc-950 rounded-xl border border-zinc-800 space-y-2">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500 tracking-widest">Your Private Key</p>
-                    <div className="flex items-center justify-between gap-4">
-                      <code className="text-primary-foreground font-mono text-sm break-all">
-                        {showKey ? apiKey : '••••••••••••••••••••••••••••••••'}
-                      </code>
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => setShowKey(!showKey)} className="text-zinc-400 hover:text-white">
-                          {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(apiKey, (v) => {})} className="text-zinc-400 hover:text-white">
-                          <Copy size={16} />
-                        </Button>
+
+                {apiKey && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div className="relative group p-6 bg-zinc-950 rounded-[2rem] border border-primary/20 shadow-[0_0_30px_-10px_rgba(139,92,246,0.3)] transition-all overflow-hidden">
+                      <div className="absolute inset-0 bg-primary/5 pointer-events-none" />
+                      <div className="relative z-10 space-y-3">
+                        <p className="text-[10px] font-bold uppercase text-primary tracking-[0.2em]">Institutional Private Key</p>
+                        <div className="flex items-center justify-between gap-6">
+                          <code className="text-primary-foreground font-mono text-lg break-all selection:bg-primary/30">
+                            {showKey ? apiKey : '••••••••••••••••••••••••••••••••••••••••'}
+                          </code>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setShowKey(!showKey)} 
+                              className="text-zinc-400 hover:text-primary hover:bg-primary/10 rounded-full h-10 w-10"
+                            >
+                              {showKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => copyToClipboard(apiKey, (v) => {})} 
+                              className="text-zinc-400 hover:text-primary hover:bg-primary/10 rounded-full h-10 w-10"
+                            >
+                              <Copy size={20} />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-start gap-3 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                      <Zap size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-200/80 leading-relaxed font-medium">
+                        Save this key in your <strong>.env</strong> file immediately. For security integrity, it will not be displayed again once you refresh this terminal.
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                    <Zap size={14} className="text-amber-600 mt-0.5" />
-                    <p className="text-xs text-amber-800 leading-relaxed font-medium">
-                      Save this key in your <strong>.env</strong> file. It will not be displayed again for security reasons.
-                    </p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
 
