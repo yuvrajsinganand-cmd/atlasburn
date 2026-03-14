@@ -119,6 +119,14 @@ export default function Dashboard() {
 
   const { data: organization } = useDoc(orgRef);
 
+  // Fetch Guardrail Config for the graph threshold
+  const guardrailRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "organizations", `org_${user.uid}`, "guardrail", "config");
+  }, [firestore, user]);
+
+  const { data: guardrailConfig } = useDoc(guardrailRef);
+
   const activeSnapshot = useMemo(() => {
     if (!mounted || loadingUsage) return null;
     
@@ -180,6 +188,13 @@ export default function Dashboard() {
     return activeSnapshot.usage.totalCost / activeSnapshot.usage.requests;
   }, [activeSnapshot]);
 
+  const budgetThreshold = useMemo(() => {
+    if (guardrailConfig?.enabled && guardrailConfig.dailyBudgetUsd) {
+      return guardrailConfig.dailyBudgetUsd;
+    }
+    return organization?.fixedMonthlyBurn ? (organization.fixedMonthlyBurn / 30) : 100;
+  }, [guardrailConfig, organization]);
+
   if (!mounted || isUserLoading || (loadingUsage && !isDemoMode && user)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -190,15 +205,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const metricConfig = {
-    cost: { label: "Observed Burn", color: "hsl(var(--primary))", unit: "$", description: "Real-time AI API spend captured from telemetry events." },
-    risk: { label: "Budget Safety Forecast", color: "hsl(var(--chart-5))", unit: "%", description: "Probability that current usage patterns remain within budget. Computed using Monte Carlo simulation." },
-    delta: { label: "Worst Case Cost Risk", color: "hsl(var(--destructive))", unit: "$", description: "Estimated P95 cost spike based on stochastic simulation." },
-    volatility: { label: "Cost Instability Index", color: "hsl(var(--accent))", unit: "%", description: "Measures instability in AI usage patterns derived from telemetry." }
-  };
-
-  const budgetThreshold = organization?.fixedMonthlyBurn ? (organization.fixedMonthlyBurn / 30) : 100;
 
   const formatCostPerRequest = (val: number | undefined) => {
     if (!val || val === 0) return 'N/A';
