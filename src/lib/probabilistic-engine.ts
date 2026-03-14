@@ -11,9 +11,6 @@ function gaussianRandom() {
  * AtlasBurn Probabilistic Engine
  * Performs 10,000 path Monte Carlo simulation over a fixed 365-day horizon 
  * to determine the "Full Runaway" survival probability.
- * 
- * Logic: Uses log-normal transformation to model stochastic daily burn with 
- * variance weighting and systemic shock injection.
  */
 export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): EngineResult<InstitutionalSimResult> {
   const missing: string[] = [];
@@ -29,13 +26,11 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
   }
 
   const runs = 10000;
-  const days = 365; // Fixed 1-year horizon for "Full Runaway" risk assessment
+  const days = 365; 
   const burnTotals: number[] = [];
   const daysToInsolvency: number[] = [];
   let insolvencyCount = 0;
 
-  // Log-normal parameter transformation
-  // This ensures that daily burn remains positive and can model heavy-tailed events (spikes)
   const cv = economics.burnVolatility!;
   const sigma = Math.sqrt(Math.log(1 + Math.pow(cv, 2)));
   const mu = Math.log(economics.currentDailyBurn!) - 0.5 * Math.pow(sigma, 2);
@@ -46,24 +41,23 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
     let currentMrr = economics.mrr!;
     let pathInsolventAtDay = -1;
 
+    // SCENARIO: Traffic Surge (2x load injection for one simulation path)
+    const loadMultiplier = r === 0 ? 2.0 : 1.0;
+
     for (let d = 0; d < days; d++) {
-      // Monthly compounding of growth/churn
       if (d > 0 && d % 30 === 0) {
         currentMrr *= (1 + (economics.monthlyGrowthRate || 0.05) - (economics.churnRate || 0.02));
       }
 
       const z = gaussianRandom();
-      let dailyCost = Math.exp(mu + sigma * z);
+      let dailyCost = Math.exp(mu + sigma * z) * loadMultiplier;
       let dailyRevenue = currentMrr / 30;
 
-      // Systemic shocks: Outages trigger cost spikes and revenue collapse
-      // These probabilities are now driven by AI Runtime Signals in Demo Mode
       if (systemicRisk.outageProb && Math.random() < systemicRisk.outageProb) {
         dailyCost *= (1.5 + Math.random());
         dailyRevenue *= 0.2;
       }
       
-      // Retry cascades: Massive burn spikes caused by agent loop behavior
       if (systemicRisk.retryCascadeProb && Math.random() < systemicRisk.retryCascadeProb) {
         dailyCost *= (2.5 + Math.random() * 2);
       }
@@ -90,17 +84,21 @@ export function runInstitutionalSimulation(snapshot: SdkProjectSnapshot): Engine
   const medianInsolvencyDay = daysToInsolvency.sort((a, b) => a - b)[Math.floor(runs * 0.5)];
   const stressInsolvencyDay = daysToInsolvency[Math.floor(runs * 0.05)];
 
+  // Scenario Impact: P95 surprise cost minus P50 median cost
+  const var95 = Math.max(0, p95 - p50);
+
   return {
     status: 'READY',
     result: {
       p5Burn: getBurnP(5),
       p50Burn: p50,
       p95Burn: p95,
-      var95: Math.max(0, p95 - p50),
+      var95,
       cvar95: burnTotals.slice(Math.floor(runs * 0.95)).reduce((a, b) => a + b, 0) / (runs * 0.05),
       survivalProbability,
       expectedRunwayMonths: medianInsolvencyDay / 30,
       stressRunwayMonths: stressInsolvencyDay / 30,
+      scenarioImpactUsd: var95 * 0.8 // Heuristic for surge impact
     }
   };
 }

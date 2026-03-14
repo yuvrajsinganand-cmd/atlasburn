@@ -26,8 +26,9 @@ export function generateMockSignals(): RuntimeSignals {
     loopProbability: 0.012, // 1.2% risk of infinite loop detected by forensics
     contextExpansionRate: 1.4, // multiplier per turn
     modelMix: {
-      "Reasoning (o1/Sonnet)": 0.65,
-      "Efficiency (4o-mini/Haiku)": 0.35
+      "gpt-4o": 0.35,
+      "claude-3-5": 0.50,
+      "o1-preview": 0.15
     }
   };
 }
@@ -53,8 +54,18 @@ export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
   const anomalousCount = records.filter(r => (r.cost || 0) > 1.0).length;
   const retryRate = anomalousCount / records.length;
 
+  // Model Mix Calculation
+  const modelCounts: Record<string, number> = {};
+  records.forEach(r => {
+    const m = r.model || 'unknown';
+    modelCounts[m] = (modelCounts[m] || 0) + 1;
+  });
+  const modelMix: Record<string, number> = {};
+  Object.entries(modelCounts).forEach(([m, count]) => {
+    modelMix[m] = count / records.length;
+  });
+
   // Calculate request rate over the last observed window
-  // Ensure we only use records with valid timestamps to avoid NaN in JSON serialization
   const timestamps = records
     .map(r => r.timestamp ? new Date(r.timestamp).getTime() : NaN)
     .filter(t => !isNaN(t))
@@ -66,16 +77,13 @@ export function deriveSignalsFromRecords(records: any[]): RuntimeSignals {
     requestRate = windowMs > 0 ? (records.length / (windowMs / 1000)) : 0;
   }
 
-  // Final safety check: ensure all values are finite for JSON serialization
   return {
     tokenVolume: isFinite(totalTokens) ? totalTokens : 0,
     requestRate: isFinite(requestRate) ? Math.min(requestRate, 100) : 0,
     retryRate: isFinite(retryRate) ? retryRate : 0,
     loopProbability: isFinite(retryRate * 0.8) ? retryRate * 0.8 : 0,
     contextExpansionRate: 1.2,
-    modelMix: {
-      "Production Mix": 1.0
-    }
+    modelMix
   };
 }
 

@@ -25,6 +25,7 @@ export function aggregateSnapshot(
         promptTokens: 0,
         completionTokens: 0,
         requests: 0,
+        requestsPerSecond: 0,
         byModel: {},
         byFeature: {},
         daily: []
@@ -89,14 +90,11 @@ export function aggregateSnapshot(
   Object.keys(featureMap).forEach(fid => {
     const feature = featureMap[fid];
     feature.riskContribution = totalCost > 0 ? (feature.cost / totalCost) : 0;
-    
-    // Phase 1 Unit Economics: Cost Per Request
     feature.costPerRequest = feature.requests > 0 ? (feature.cost / feature.requests) : 0;
 
     if (feature.history.length > 10) {
       const recent = feature.history.slice(0, 5).reduce((a: number, b: number) => a + b, 0) / 5;
       const baseline = feature.history.slice(5, 25).reduce((a: number, b: number) => a + b, 0) / Math.max(1, Math.min(20, feature.history.length - 5));
-      
       feature.trend = baseline > 0 ? (recent - baseline) / baseline : 0;
       
       if (feature.trend > 2.0) { 
@@ -128,6 +126,9 @@ export function aggregateSnapshot(
     });
   }
 
+  const dailyBurn = varianceResult.status === 'READY' ? varianceResult.result.dailyMean : (totalCost / Math.max(1, dailyArray.length));
+  const budgetRunwayDays = orgData.capitalReserves && dailyBurn > 0 ? (orgData.capitalReserves / dailyBurn) : undefined;
+
   return {
     projectId,
     isConnected: true,
@@ -139,6 +140,7 @@ export function aggregateSnapshot(
       promptTokens: totalPrompt,
       completionTokens: totalCompletion,
       requests: records.length,
+      requestsPerSecond: runtimeSignals.requestRate,
       byModel: modelMap,
       byFeature: featureMap,
       daily: dailyArray,
@@ -146,10 +148,12 @@ export function aggregateSnapshot(
     economics: {
       mrr: orgData.monthlyRevenue || 0,
       capitalReserves: orgData.capitalReserves || 0,
-      currentDailyBurn: varianceResult.status === 'READY' ? varianceResult.result.dailyMean : (totalCost / dailyArray.length || 0),
+      currentDailyBurn: dailyBurn,
       burnVolatility: varianceResult.status === 'READY' ? varianceResult.result.cv : signalImpacts.burnVolatility,
       monthlyGrowthRate: 0.05,
       churnRate: 0.03,
+      projectedMonthlyBill: dailyBurn * 30,
+      budgetRunwayDays
     },
     systemicRisk: {
       outageProb: signalImpacts.outageProb,

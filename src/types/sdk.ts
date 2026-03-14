@@ -12,9 +12,10 @@ export type SdkProjectSnapshot = {
     promptTokens: number;
     completionTokens: number;
     requests: number;
+    requestsPerSecond: number;
     byModel: Record<string, { cost: number; promptTokens: number; completionTokens: number; requests: number; avgLatencyMs?: number }>;
     byFeature: Record<string, { cost: number; requests: number; riskContribution: number; status: 'PROTECTED' | 'BREACHED'; trend: number; costPerRequest?: number }>;
-    daily: Array<{ date: string; cost: number; promptTokens: number; completionTokens: number; requests: number }>;
+    daily: Array<{ date: string; cost: number; promptTokens: number; completionTokens: number; requests: number; risk?: number; delta?: number; volatility?: number; isAnomaly?: boolean; anomalyDetails?: string | null }>;
   };
 
   economics: {
@@ -24,11 +25,14 @@ export type SdkProjectSnapshot = {
     churnRate?: number;
     monthlyGrowthRate?: number;
     capitalReserves?: number;
+    projectedMonthlyBill?: number;
+    budgetRunwayDays?: number;
   };
 
   systemicRisk: {
     outageProb?: number;
     retryCascadeProb?: number;
+    scenarioImpactUsd?: number;
     spikeAlerts: Array<{ featureId: string; severity: 'CRITICAL' | 'WARNING'; message: string; costImpact: number }>;
   };
 
@@ -56,4 +60,5 @@ export interface InstitutionalSimResult {
   survivalProbability: number;
   expectedRunwayMonths: number;
   stressRunwayMonths: number;
+  scenarioImpactUsd: number;
 }
