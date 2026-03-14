@@ -81,6 +81,7 @@ export default function OnboardingPage() {
       const subId = "default_production_ingest";
       const keysCol = collection(firestore, 'users', user.uid, 'aiSubscriptions', subId, 'ingestKeys');
       
+      // Revoke old active keys
       const activeKeysQuery = query(keysCol, where('status', '==', 'active'));
       const activeSnap = await getDocs(activeKeysQuery);
       
@@ -89,8 +90,9 @@ export default function OnboardingPage() {
         batch.update(kDoc.ref, { status: 'revoked', revokedAt: new Date().toISOString() });
       });
       
+      // Create new active key
       const newKeyRef = doc(keysCol);
-      batch.set(newRecordRef, {
+      batch.set(newKeyRef, {
         hash: material.hash,
         prefix: material.prefix,
         status: 'active',
@@ -105,6 +107,7 @@ export default function OnboardingPage() {
       setShowKey(true);
       toast({ title: "API Key Generated", description: "Save this key in your .env file immediately." });
     } catch (e: any) {
+      console.error("Key Generation Error:", e);
       toast({ variant: "destructive", title: "Generation Failed", description: "Could not initialize forensic key." });
     } finally {
       setGeneratingKey(false);
@@ -132,7 +135,7 @@ export default function OnboardingPage() {
             <SidebarTrigger className="-ml-1" />
             <h1 className="font-headline text-xl font-bold uppercase tracking-tight text-primary">Integration Protocol</h1>
           </div>
-          <Badge variant="outline" className={`${connectionStatus.color} border-none gap-2 px-3 py-1 uppercase text-[10px] font-bold tracking-widest transition-all duration-500 shadow-sm`}>
+          <Badge variant="outline" className={cn(connectionStatus.color, "border-none gap-2 px-3 py-1 uppercase text-[10px] font-bold tracking-widest transition-all duration-500 shadow-sm")}>
             <StatusIcon size={12} className={loadingStatus ? "animate-spin" : ""} />
             Feed: {connectionStatus.label}
           </Badge>
