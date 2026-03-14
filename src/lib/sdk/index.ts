@@ -1,22 +1,15 @@
 
 /**
- * AtlasBurn Forensic SDK - Institutional v1.1.0
+ * AtlasBurn Forensic SDK - Institutional v1.2.0
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
- * This SDK wraps any LLM client (OpenAI, Anthropic, etc.) and forwards 
- * forensic metadata to the AtlasBurn control plane.
- * 
- * THE 4 LAWS OF SDK SAFETY:
- * 1. Never crash host app
- * 2. Never block host request
- * 3. Never leak secrets
- * 4. Always fail silently
+ * Now supporting 2-Step Simplified Install & Auto-Detection Mode.
  */
 
 export interface AtlasBurnSDKOptions {
   apiKey: string;    
-  projectId: string; 
-  ingestUrl?: string; 
+  projectId?: string; // Optional: Resolved server-side if omitted
+  ingestUrl?: string; // Optional: Defaults to AtlasBurn production
   batchSize?: number;
   maxQueueSize?: number;
 }
@@ -25,6 +18,8 @@ export interface AtlasBurnMetadata {
   featureId?: string; 
   userTier?: string;  
 }
+
+const DEFAULT_INGEST_URL = "https://app.atlasburn.com/api/ingest";
 
 function generateForensicId(): string {
   try {
@@ -43,9 +38,7 @@ class AtlasBurnIngestor {
 
   constructor(options: AtlasBurnSDKOptions) {
     this.options = {
-      ingestUrl: options.ingestUrl || (typeof window !== 'undefined' 
-        ? `${window.location.origin}/api/ingest` 
-        : ''),
+      ingestUrl: options.ingestUrl || DEFAULT_INGEST_URL,
       batchSize: 5,
       maxQueueSize: 200, 
       ...options
@@ -77,7 +70,7 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      console.warn('AtlasBurn SDK: Background ingestion failed. Host app unaffected.');
+      // Fail silently to never break the host application
     } finally {
       this.isProcessing = false;
     }
@@ -92,7 +85,7 @@ class AtlasBurnIngestor {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: this.options.apiKey,
-          projectId: this.options.projectId,
+          projectId: this.options.projectId, // Can be undefined, resolved server-side
           events: events
         }),
       });
@@ -113,10 +106,18 @@ class AtlasBurnIngestor {
 
 let globalIngestor: AtlasBurnIngestor | null = null;
 
-export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
-  if (!globalIngestor) {
+export function getIngestor(options?: AtlasBurnSDKOptions) {
+  if (!globalIngestor && options) {
     globalIngestor = new AtlasBurnIngestor(options);
   }
+  return globalIngestor;
+}
+
+/**
+ * Wraps an LLM client with AtlasBurn Forensic Intelligence.
+ */
+export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
+  const ingestor = getIngestor(options);
 
   return {
     async chat(
@@ -126,7 +127,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
       
       try {
         const usage = response.usage || { prompt_tokens: 0, completion_tokens: 0 };
-        globalIngestor?.enqueue({
+        ingestor?.enqueue({
           model: payload.model,
           featureId: payload.featureId || 'default',
           userTier: payload.userTier || 'standard',
@@ -142,7 +143,47 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     },
     
     async flush() {
-      await globalIngestor?.flush();
+      await ingestor?.flush();
     }
   };
+}
+
+/**
+ * EXPERIMENTAL: Automatically detects and instruments OpenAI, Anthropic, and Gemini usage.
+ */
+export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
+  const ingestor = getIngestor(options);
+  if (!ingestor) return;
+
+  if (typeof globalThis !== 'undefined' && globalThis.fetch) {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      const url = args[0]?.toString() || "";
+
+      // Best-effort detection of AI provider patterns
+      try {
+        if (url.includes("api.openai.com") || url.includes("api.anthropic.com") || url.includes("generativelanguage.googleapis.com")) {
+          const clone = response.clone();
+          const data = await clone.json();
+          
+          if (data.usage) {
+            ingestor.enqueue({
+              model: data.model || "detected-model",
+              featureId: "auto-detect",
+              usage: {
+                prompt_tokens: data.usage.prompt_tokens || data.usage.input_tokens || 0,
+                completion_tokens: data.usage.completion_tokens || data.usage.output_tokens || 0,
+              },
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+      } catch (e) {
+        // Silently fail to ensure production safety
+      }
+
+      return response;
+    };
+  }
 }
