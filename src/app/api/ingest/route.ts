@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
@@ -14,8 +13,20 @@ function getDb() {
 }
 
 /**
+ * Sanitizes input strings to prevent XML/HTML injection.
+ */
+function sanitizeInput(val: any): string {
+  if (typeof val !== 'string') return String(val || '');
+  return val
+    .replace(/[<>]/g, '') // Remove < and >
+    .replace(/["']/g, '') // Remove quotes
+    .replace(/[&]/g, '') // Remove &
+    .substring(0, 100); // Bounded length
+}
+
+/**
  * AtlasBurn Hardened Ingestion API
- * Implements: Idempotency (deduping), Auth validation, and Guardrail evaluation.
+ * Implements: HMAC-SHA-256 validation, Idempotency (deduping), and Sanitization.
  */
 export async function POST(request: Request) {
   try {
@@ -27,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Missing Key or Project ID.' }, { status: 401 });
     }
 
-    // 1. Auth Validation (Verify Ingest Key)
+    // 1. Auth Validation (Verify Ingest Key via HMAC-SHA-256)
     const hashedKey = hashIngestKey(apiKey);
     const subsQuery = query(collection(db, 'users', projectId, 'aiSubscriptions'), limit(20));
     const subSnap = await getDocs(subsQuery);
@@ -54,7 +65,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: Invalid Ingest Key.' }, { status: 403 });
     }
 
-    // 2. Process Batch with Idempotency
+    // 2. Process Batch with Idempotency & Sanitization
     const rawEvents = Array.isArray(events) ? events : [];
     if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found.' });
 
@@ -79,14 +90,14 @@ export async function POST(request: Request) {
       
       const recordData = {
         timestamp: evt.timestamp || new Date().toISOString(),
-        inputTokens: evt.usage.prompt_tokens,
-        outputTokens: evt.usage.completion_tokens,
-        cost: normalized.costUsd,
-        model: normalized.model,
-        provider: normalized.provider,
-        featureId: evt.featureId || 'default_feature',
-        userTier: evt.userTier || 'pro',
-        eventId: evt.eventId,
+        inputTokens: Number(evt.usage.prompt_tokens) || 0,
+        outputTokens: Number(evt.usage.completion_tokens) || 0,
+        cost: Number(normalized.costUsd) || 0,
+        model: sanitizeInput(normalized.model),
+        provider: sanitizeInput(normalized.provider),
+        featureId: sanitizeInput(evt.featureId || 'default_feature'),
+        userTier: sanitizeInput(evt.userTier || 'pro'),
+        eventId: sanitizeInput(evt.eventId),
         apiCallType: 'production_sdk_call'
       };
 
@@ -95,8 +106,7 @@ export async function POST(request: Request) {
       processedRecords.push(recordData);
     }
 
-    // 3. Guardrail Evaluation (Phase 1)
-    // FIXED: Use even number of segments
+    // 3. Guardrail Evaluation
     const configRef = doc(db, 'organizations', orgId, 'guardrail', 'config');
     const configSnap = await getDoc(configRef);
     
@@ -131,7 +141,6 @@ export async function POST(request: Request) {
             });
           }
 
-          // Log Breach Incident
           const breachRef = doc(collection(db, 'organizations', orgId, 'breaches'));
           batch.set(breachRef, {
             timestamp: new Date().toISOString(),
@@ -145,7 +154,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Update Key Metadata
     const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
     batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 

@@ -8,25 +8,18 @@ import {
   Terminal, 
   ShieldCheck, 
   Key, 
-  Globe, 
-  Lock, 
-  Cpu, 
-  Server, 
   Copy, 
   CheckCircle2, 
-  Package, 
   Activity, 
   Loader2, 
   ChevronRight,
-  Code2,
-  Settings2,
   Zap,
-  RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  ShieldAlert
 } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, getDocs, where, doc, updateDoc, addDoc, writeBatch } from "firebase/firestore"
+import { collection, query, orderBy, limit, getDocs, where, doc, writeBatch } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useMemo, useEffect } from "react"
@@ -49,6 +42,11 @@ export default function OnboardingPage() {
   
   useEffect(() => {
     setMounted(true)
+    // Persist key within session so it doesn't disappear on navigation
+    const cachedKey = localStorage.getItem('atlasburn_session_key');
+    if (cachedKey) {
+      setApiKey(cachedKey);
+    }
   }, [])
 
   const usageQuery = useMemoFirebase(() => {
@@ -79,14 +77,10 @@ export default function OnboardingPage() {
     if (!user || !firestore) return;
     setGeneratingKey(true);
     try {
-      // 1. Get secure material from server
       const material = await getKeyMaterial();
-      
-      // 2. Perform Firestore operations on client (where authenticated)
       const subId = "default_production_ingest";
       const keysCol = collection(firestore, 'users', user.uid, 'aiSubscriptions', subId, 'ingestKeys');
       
-      // Revoke existing active keys
       const activeKeysQuery = query(keysCol, where('status', '==', 'active'));
       const activeSnap = await getDocs(activeKeysQuery);
       
@@ -95,7 +89,6 @@ export default function OnboardingPage() {
         batch.update(kDoc.ref, { status: 'revoked', revokedAt: new Date().toISOString() });
       });
       
-      // Create new key doc
       const newKeyRef = doc(keysCol);
       batch.set(newKeyRef, {
         hash: material.hash,
@@ -108,17 +101,19 @@ export default function OnboardingPage() {
       await batch.commit();
 
       setApiKey(material.rawKey);
+      localStorage.setItem('atlasburn_session_key', material.rawKey);
       setShowKey(true);
       toast({ title: "API Key Generated", description: "Save this key in your .env file immediately." });
     } catch (e: any) {
       console.error("Key Generation Error:", e);
-      toast({ variant: "destructive", title: "Generation Failed", description: "Could not initialize forensic key. Check network permissions." });
+      toast({ variant: "destructive", title: "Generation Failed", description: "Could not initialize forensic key." });
     } finally {
       setGeneratingKey(false);
     }
   };
 
   const copyToClipboard = (text: string, setter: (v: boolean) => void) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setter(true);
     setTimeout(() => setter(false), 2000);
@@ -164,7 +159,7 @@ export default function OnboardingPage() {
                   <Badge className="bg-primary h-6 w-6 rounded-full flex items-center justify-center p-0 font-bold">1</Badge>
                   <CardTitle className="text-lg font-headline">Generate AtlasBurn API Key</CardTitle>
                 </div>
-                <CardDescription>Create an API key to authenticate telemetry ingestion from your application.</CardDescription>
+                <CardDescription>Create a secure HMAC-SHA-256 key to authenticate telemetry ingestion.</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
@@ -202,7 +197,7 @@ export default function OnboardingPage() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              onClick={() => copyToClipboard(apiKey, (v) => {})} 
+                              onClick={() => copyToClipboard(apiKey!, (v) => {})} 
                               className="text-zinc-400 hover:text-primary hover:bg-primary/10 rounded-full h-10 w-10"
                             >
                               <Copy size={20} />
@@ -214,7 +209,7 @@ export default function OnboardingPage() {
                     <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-200 shadow-sm">
                       <Zap size={16} className="text-amber-600 mt-0.5 shrink-0" />
                       <p className="text-xs text-amber-900 leading-relaxed font-semibold">
-                        Save this key in your <strong>.env</strong> file immediately. For security integrity, it will not be displayed again once you refresh this terminal.
+                        Save this key in your <strong>.env</strong> file immediately. For security integrity, it will not be displayed again once you clear your session or refresh.
                       </p>
                     </div>
                   </div>
@@ -228,7 +223,7 @@ export default function OnboardingPage() {
             <CardHeader className="bg-muted/30 border-b">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="bg-background h-6 w-6 rounded-full flex items-center justify-center p-0 font-bold border-muted-foreground/30">2</Badge>
-                <CardTitle className="text-lg font-headline">Install Institutional SDK</CardTitle>
+                <CardTitle className="text-lg font-headline">Install AtlasBurn SDK</CardTitle>
               </div>
               <CardDescription>Install the AtlasBurn Forensic SDK used to capture and stream AI usage telemetry.</CardDescription>
             </CardHeader>
@@ -265,7 +260,7 @@ ATLASBURN_PROJECT_ID=${projectId}
 ATLASBURN_INGEST_URL=${ingestUrl}
 OPENAI_API_KEY=your_openai_key`}
               </pre>
-              <p className="text-[10px] text-muted-foreground italic">Note: Your projectId is automatically generated when your project is created.</p>
+              <p className="text-[10px] text-muted-foreground italic">Note: Your projectId is automatically generated and unique to your institutional account.</p>
             </CardContent>
           </Card>
 
@@ -315,7 +310,7 @@ const openai = withAtlasBurn(new OpenAI(), {
             <CardContent className="p-8">
               <div className="flex flex-col items-center text-center space-y-6">
                 <div className={`p-6 rounded-[2rem] transition-all duration-700 ${lastUsage?.length ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                  {lastUsage?.length ? <CheckCircle2 size={64} /> : <RefreshCw size={64} className="animate-spin-slow" />}
+                  {lastUsage?.length ? <CheckCircle2 size={64} /> : <Activity size={64} className="animate-pulse" />}
                 </div>
                 <div className="space-y-2 max-w-sm">
                   <h3 className="font-headline font-bold text-xl">
