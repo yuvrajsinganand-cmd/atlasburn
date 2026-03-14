@@ -1,16 +1,10 @@
+
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, limit, writeBatch, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { adminDb, FieldValue } from '@/lib/firebase-admin';
 import { normalizeUsage } from '@/lib/normalization-engine';
 import { hashIngestKey } from '@/lib/crypto';
-import { evaluateGuardrails, type GuardrailConfig } from '@/lib/guardrail-engine';
+import { evaluateGuardrails } from '@/lib/guardrail-engine';
 import { deriveSignalsFromRecords } from '@/lib/runtime-signals';
-
-function getDb() {
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  return getFirestore(app);
-}
 
 /**
  * Sanitizes input strings to prevent XML/HTML injection.
@@ -25,12 +19,14 @@ function sanitizeInput(val: any): string {
 }
 
 /**
- * AtlasBurn Hardened Ingestion API
- * Implements: HMAC-SHA-256 validation, Idempotency (deduping), and Sanitization.
+ * AtlasBurn Hardened Ingestion API (Admin SDK Version)
+ * Implements: HMAC-SHA-256 validation, Idempotency, and Sanitization.
+ * 
+ * Bypasses client security rules to ensure reliable telemetry even 
+ * when user sessions are absent.
  */
 export async function POST(request: Request) {
   try {
-    const db = getDb();
     const body = await request.json();
     const { apiKey, projectId, events } = body;
 
@@ -38,25 +34,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Missing Key or Project ID.' }, { status: 401 });
     }
 
-    // 1. Auth Validation (Verify Ingest Key via HMAC-SHA-256)
+    // 1. Auth Validation (Verify Ingest Key via Admin SDK)
     const hashedKey = hashIngestKey(apiKey);
-    const subsQuery = query(collection(db, 'users', projectId, 'aiSubscriptions'), limit(20));
-    const subSnap = await getDocs(subsQuery);
+    const subsSnap = await adminDb.collection('users').doc(projectId).collection('aiSubscriptions').limit(20).get();
     
     let targetSubId = null;
     let targetKeyId = null;
 
-    for (const sub of subSnap.docs) {
-      const keysSubQuery = query(
-        collection(db, 'users', projectId, 'aiSubscriptions', sub.id, 'ingestKeys'),
-        where('hash', '==', hashedKey),
-        where('status', '==', 'active'),
-        limit(1)
-      );
-      const keySnap = await getDocs(keysSubQuery);
-      if (!keySnap.empty) {
-        targetSubId = sub.id;
-        targetKeyId = keySnap.docs[0].id;
+    for (const subDoc of subsSnap.docs) {
+      const keysSnap = await adminDb.collection('users').doc(projectId)
+        .collection('aiSubscriptions').doc(subDoc.id)
+        .collection('ingestKeys')
+        .where('hash', '==', hashedKey)
+        .where('status', '==', 'active')
+        .limit(1)
+        .get();
+        
+      if (!keysSnap.empty) {
+        targetSubId = subDoc.id;
+        targetKeyId = keysSnap.docs[0].id;
         break;
       }
     }
@@ -65,11 +61,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: Invalid Ingest Key.' }, { status: 403 });
     }
 
-    // 2. Process Batch with Idempotency & Sanitization
+    // 2. Process Batch with Idempotency
     const rawEvents = Array.isArray(events) ? events : [];
     if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found.' });
 
-    const batch = writeBatch(db);
+    const batch = adminDb.batch();
     const orgId = `org_${projectId}`;
     const usagePath = `organizations/${orgId}/usageRecords`;
     const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
@@ -80,13 +76,13 @@ export async function POST(request: Request) {
       if (!evt.model || !evt.usage || !evt.eventId) continue;
 
       // Idempotency Check (Dedupe)
-      const dedupeRef = doc(db, dedupePath, evt.eventId);
-      const dedupeSnap = await getDoc(dedupeRef);
-      if (dedupeSnap.exists()) continue;
+      const dedupeRef = adminDb.collection(dedupePath).doc(evt.eventId);
+      const dedupeSnap = await dedupeRef.get();
+      if (dedupeSnap.exists) continue;
 
-      // Normalization & Forensic Mapping
+      // Normalization & Mapping
       const normalized = normalizeUsage(evt.model, evt.usage.prompt_tokens, evt.usage.completion_tokens);
-      const newRecordRef = doc(collection(db, usagePath));
+      const newRecordRef = adminDb.collection(usagePath).doc();
       
       const recordData = {
         timestamp: evt.timestamp || new Date().toISOString(),
@@ -102,30 +98,28 @@ export async function POST(request: Request) {
       };
 
       batch.set(newRecordRef, recordData);
-      batch.set(dedupeRef, { createdAt: serverTimestamp() });
+      batch.set(dedupeRef, { createdAt: FieldValue.serverTimestamp() });
       processedRecords.push(recordData);
     }
 
     // 3. Guardrail Evaluation
-    const configRef = doc(db, 'organizations', orgId, 'guardrail', 'config');
-    const configSnap = await getDoc(configRef);
+    const configRef = adminDb.collection('organizations').doc(orgId).collection('guardrail').doc('config');
+    const configSnap = await configRef.get();
     
-    if (configSnap.exists()) {
-      const config = configSnap.data() as GuardrailConfig;
+    if (configSnap.exists) {
+      const config = configSnap.data() as any;
       
       if (config.enabled) {
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const lastHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         
-        const contextQuery = query(
-          collection(db, usagePath),
-          where('timestamp', '>=', yesterday),
-          orderBy('timestamp', 'desc'),
-          limit(500)
-        );
-        const contextSnap = await getDocs(contextQuery);
+        const contextSnap = await adminDb.collection(usagePath)
+          .where('timestamp', '>=', yesterday)
+          .orderBy('timestamp', 'desc')
+          .limit(500)
+          .get();
+          
         const contextRecords = contextSnap.docs.map(d => d.data());
-        
         const hourlyRecords = contextRecords.filter(r => r.timestamp >= lastHour);
         const signals = deriveSignalsFromRecords(contextRecords);
         
@@ -141,7 +135,7 @@ export async function POST(request: Request) {
             });
           }
 
-          const breachRef = doc(collection(db, 'organizations', orgId, 'breaches'));
+          const breachRef = adminDb.collection('organizations').doc(orgId).collection('breaches').doc();
           batch.set(breachRef, {
             timestamp: new Date().toISOString(),
             triggerType: breach.triggerType,
@@ -154,14 +148,19 @@ export async function POST(request: Request) {
       }
     }
 
-    const keyRef = doc(db, 'users', projectId, 'aiSubscriptions', targetSubId, 'ingestKeys', targetKeyId!);
+    // 4. Update Key Last Used Metadata
+    const keyRef = adminDb.collection('users').doc(projectId)
+      .collection('aiSubscriptions').doc(targetSubId)
+      .collection('ingestKeys').doc(targetKeyId!);
+      
     batch.update(keyRef, { lastUsedAt: new Date().toISOString() });
 
     await batch.commit();
 
     return NextResponse.json({ status: 'success', count: processedRecords.length });
   } catch (err: any) {
-    console.error('Atlas Ingest Failure:', err);
-    return NextResponse.json({ error: 'Internal Server Error', details: err.message }, { status: 500 });
+    console.error('Atlas Ingest Critical Failure:', err);
+    // Maintain security by not leaking specific error details to potentially malicious clients
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
