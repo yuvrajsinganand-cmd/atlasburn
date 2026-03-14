@@ -27,11 +27,11 @@ import {
   EyeOff
 } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, getDocs, where } from "firebase/firestore"
+import { collection, query, orderBy, limit, getDocs, where, doc, updateDoc, addDoc, writeBatch } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useMemo, useEffect } from "react"
-import { rotateIngestKey } from "@/app/settings/actions"
+import { getKeyMaterial } from "@/app/settings/actions"
 import { toast } from "@/hooks/use-toast"
 
 export default function OnboardingPage() {
@@ -76,17 +76,43 @@ export default function OnboardingPage() {
   }, [lastUsage, loadingStatus]);
 
   const handleGenerateKey = async () => {
-    if (!user) return;
+    if (!user || !firestore) return;
     setGeneratingKey(true);
     try {
-      // For the onboarding flow, we associate the key with a 'default' subscription entry
-      // In a real app, you'd select which tool this key is for.
-      const result = await rotateIngestKey(user.uid, "default_production_ingest");
-      setApiKey(result.rawKey);
+      // 1. Get secure material from server
+      const material = await getKeyMaterial();
+      
+      // 2. Perform Firestore operations on client (where authenticated)
+      const subId = "default_production_ingest";
+      const keysCol = collection(firestore, 'users', user.uid, 'aiSubscriptions', subId, 'ingestKeys');
+      
+      // Revoke existing active keys
+      const activeKeysQuery = query(keysCol, where('status', '==', 'active'));
+      const activeSnap = await getDocs(activeKeysQuery);
+      
+      const batch = writeBatch(firestore);
+      activeSnap.docs.forEach(kDoc => {
+        batch.update(kDoc.ref, { status: 'revoked', revokedAt: new Date().toISOString() });
+      });
+      
+      // Create new key doc
+      const newKeyRef = doc(keysCol);
+      batch.set(newKeyRef, {
+        hash: material.hash,
+        prefix: material.prefix,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null
+      });
+      
+      await batch.commit();
+
+      setApiKey(material.rawKey);
       setShowKey(true);
       toast({ title: "API Key Generated", description: "Save this key in your .env file immediately." });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Generation Failed", description: "Could not initialize forensic key." });
+    } catch (e: any) {
+      console.error("Key Generation Error:", e);
+      toast({ variant: "destructive", title: "Generation Failed", description: "Could not initialize forensic key. Check network permissions." });
     } finally {
       setGeneratingKey(false);
     }

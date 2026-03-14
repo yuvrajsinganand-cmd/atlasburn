@@ -13,7 +13,6 @@ service cloud.firestore {
 
     /**
      * @description Organization level rules. 
-     * Uses robust string concatenation for ownership verification.
      */
     match /organizations/{orgId} {
       
@@ -25,20 +24,55 @@ service cloud.firestore {
         return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
       }
 
-      // Root org document access - Use allow read, write for simplicity in prototype
-      allow read, write: if isOrgOwner() || isOrgMember();
+      // Allow reads only for members
+      allow read: if isOrgOwner() || isOrgMember();
       
-      // All telemetry, breaches, and audit logs
+      // Allow root document writes for owners
+      allow write: if isOrgOwner();
+
+      // INGESTION PATHS: Allow writes for telemetry and audit logs
+      // These are targets for the Ingest API which may not have a request.auth context
+      match /usageRecords/{recordId} {
+        allow read: if isOrgOwner() || isOrgMember();
+        allow write: if true; 
+      }
+
+      match /auditLogs/{logId} {
+        allow read: if isOrgOwner() || isOrgMember();
+        allow write: if true;
+      }
+
+      match /breaches/{breachId} {
+        allow read: if isOrgOwner() || isOrgMember();
+        allow write: if true;
+      }
+
+      match /guardrail/config {
+        allow read: if isOrgOwner() || isOrgMember();
+        allow write: if isOrgOwner();
+      }
+
       match /{allChildren=**} {
-        allow read, write: if isOrgOwner() || isOrgMember();
+        allow read: if isOrgOwner() || isOrgMember();
+        allow write: if isOrgOwner();
       }
     }
 
     /**
-     * @description Root User level rules for subscriptions and profile.
+     * @description User level rules for subscriptions and keys.
      */
     match /users/{userId} {
       allow read, write: if isOwner(userId);
+
+      match /aiSubscriptions/{subId} {
+        allow read, write: if isOwner(userId);
+        
+        match /ingestKeys/{keyId} {
+          // Allow writes for the Ingest API to update 'lastUsedAt'
+          allow read: if isOwner(userId);
+          allow write: if isOwner(userId) || request.auth == null;
+        }
+      }
 
       match /{allChildren=**} {
         allow read, write: if isOwner(userId);
