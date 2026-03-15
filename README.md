@@ -8,7 +8,7 @@ The AtlasBurn SDK is located in `src/lib/sdk`. To release a new version to the N
 
 ### 1. Prerequisites
 - Ensure you have an active account at [npmjs.com](https://www.npmjs.com/).
-- Ensure the `version` in `src/lib/sdk/package.json` is bumped (e.g., `1.3.1`) if you've made changes since the last release.
+- Ensure the `version` in `src/lib/sdk/package.json` is bumped (e.g., `1.3.2`) if you've made changes since the last release.
 
 ### 2. Login to NPM
 Run this in your terminal and follow the browser or command-line prompts:

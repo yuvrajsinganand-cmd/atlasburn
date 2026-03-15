@@ -1,10 +1,23 @@
 {
   "name": "@atlasburn/sdk",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Institutional Forensic SDK for AI Governance and Burn Monitoring. Implements the 4 Laws of SDK Safety with 2-Step simplified setup, Auto-Detection, and Instant Verification.",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
