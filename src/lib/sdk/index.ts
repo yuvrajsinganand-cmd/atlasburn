@@ -1,5 +1,5 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.3.0
+ * AtlasBurn Forensic SDK - Institutional v1.3.1
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * THE 4 LAWS OF SDK SAFETY:
@@ -8,10 +8,10 @@
  * 3. Never leak secrets
  * 4. Always fail silently
  * 
- * New in v1.3.0: 
- * - Standard 2-Step Setup (apiKey only required)
- * - Server-side Project Resolution (projectId is now optional)
- * - Enhanced Auto-Detection for OpenAI, Anthropic, and Gemini
+ * v1.3.1: 
+ * - Hardened Auto-Detection for OpenAI, Anthropic, and Gemini.
+ * - Unified singleton management for coexisting manual/auto modes.
+ * - Added default metadata support for auto-instrumentation.
  */
 
 export interface AtlasBurnSDKOptions {
@@ -20,6 +20,7 @@ export interface AtlasBurnSDKOptions {
   ingestUrl?: string; // Optional: Defaults to AtlasBurn production
   batchSize?: number;
   maxQueueSize?: number;
+  metadata?: AtlasBurnMetadata; // Optional: Default metadata for all events
 }
 
 export interface AtlasBurnMetadata {
@@ -57,17 +58,19 @@ class AtlasBurnIngestor {
   }
 
   public enqueue(event: any) {
-    // Law 1: Prevent memory leaks by bounding the queue
     if (this.queue.length >= (this.options.maxQueueSize || 200)) {
       this.queue.shift(); 
     }
     
-    this.queue.push({
+    // Merge global metadata if available
+    const mergedEvent = {
+      ...this.options.metadata,
       ...event,
       eventId: generateForensicId(),
-    });
+    };
 
-    // Law 2: Trigger non-blocking flush
+    this.queue.push(mergedEvent);
+
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -83,7 +86,7 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      // Law 4: Always fail silently to ensure host app stability
+      // Law 4: Silent fail
     } finally {
       this.isProcessing = false;
     }
@@ -98,7 +101,7 @@ class AtlasBurnIngestor {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: this.options.apiKey,
-          projectId: this.options.projectId, // Optional: Resolved server-side
+          projectId: this.options.projectId,
           events: events
         }),
       });
@@ -108,7 +111,6 @@ class AtlasBurnIngestor {
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
-        // Exponential backoff for telemetry reliability
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
@@ -120,9 +122,6 @@ class AtlasBurnIngestor {
 
 let globalIngestor: AtlasBurnIngestor | null = null;
 
-/**
- * Internal singleton getter for the ingestor.
- */
 export function getIngestor(options?: AtlasBurnSDKOptions) {
   if (!globalIngestor && options) {
     globalIngestor = new AtlasBurnIngestor(options);
@@ -132,8 +131,6 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
 
 /**
  * withAtlasBurn - The Official Stable Wrapper
- * 
- * Wraps an LLM client (e.g. OpenAI) to provide deterministic usage capture.
  */
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -142,7 +139,6 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
-      // Law 2: Process original request first
       const response = await client.chat(payload);
       
       try {
@@ -157,9 +153,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
           },
           timestamp: new Date().toISOString(),
         });
-      } catch (e) { 
-        // Law 1: Protect host response from telemetry failures
-      }
+      } catch (e) { }
 
       return response;
     },
@@ -172,9 +166,6 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
 
 /**
  * initAtlasBurnAuto - Experimental Auto-Detection
- * 
- * Automatically instruments OpenAI, Anthropic, and Gemini calls 
- * via global fetch interception.
  */
 export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -187,30 +178,41 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
       const url = args[0]?.toString() || "";
 
       try {
-        // Detect major AI provider endpoints
         const isAI = url.includes("api.openai.com") || 
                      url.includes("api.anthropic.com") || 
                      url.includes("generativelanguage.googleapis.com");
 
-        if (isAI) {
+        if (isAI && response.headers.get("content-type")?.includes("application/json")) {
           const clone = response.clone();
           const data = await clone.json();
           
+          let tokens = { prompt: 0, completion: 0 };
+          let model = data.model || "detected-model";
+
+          // 1. OpenAI / Generic
           if (data.usage) {
+            tokens.prompt = data.usage.prompt_tokens || data.usage.input_tokens || 0;
+            tokens.completion = data.usage.completion_tokens || data.usage.output_tokens || 0;
+          } 
+          // 2. Google Gemini
+          else if (data.usageMetadata) {
+            tokens.prompt = data.usageMetadata.promptTokenCount || 0;
+            tokens.completion = data.usageMetadata.candidatesTokenCount || 0;
+          }
+
+          if (tokens.prompt > 0 || tokens.completion > 0) {
             ingestor.enqueue({
-              model: data.model || "detected-model",
+              model,
               featureId: "auto-detect",
               usage: {
-                prompt_tokens: data.usage.prompt_tokens || data.usage.input_tokens || 0,
-                completion_tokens: data.usage.completion_tokens || data.usage.output_tokens || 0,
+                prompt_tokens: tokens.prompt,
+                completion_tokens: tokens.completion,
               },
               timestamp: new Date().toISOString(),
             });
           }
         }
-      } catch (e) {
-        // Law 4: Silent fail
-      }
+      } catch (e) { }
 
       return response;
     };
