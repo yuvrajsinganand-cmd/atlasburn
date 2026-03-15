@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const hashedKey = hashIngestKey(apiKey);
     let resolvedProjectId = projectId;
 
-    // 1. Resolve Project context if not provided (Step 2 Simplified Path)
+    // 1. Resolve Project context if not provided
     if (!resolvedProjectId) {
       const keysSnap = await adminDb.collectionGroup('ingestKeys')
         .where('hash', '==', hashedKey)
@@ -74,6 +74,9 @@ export async function POST(request: Request) {
       const dedupeSnap = await dedupeRef.get();
       if (dedupeSnap.exists) continue;
 
+      // Check if it's a verification event
+      const isVerification = evt.apiCallType === 'verification' || evt.type === 'atlasburn_verification';
+
       // Normalization & Mapping
       const normalized = normalizeUsage(evt.model, evt.usage.prompt_tokens, evt.usage.completion_tokens);
       const newRecordRef = adminDb.collection(usagePath).doc();
@@ -82,13 +85,13 @@ export async function POST(request: Request) {
         timestamp: evt.timestamp || new Date().toISOString(),
         inputTokens: Number(evt.usage.prompt_tokens) || 0,
         outputTokens: Number(evt.usage.completion_tokens) || 0,
-        cost: Number(normalized.costUsd) || 0,
+        cost: isVerification ? 0.00001 : (Number(normalized.costUsd) || 0),
         model: sanitizeInput(normalized.model),
         provider: sanitizeInput(normalized.provider),
         featureId: sanitizeInput(evt.featureId || 'default_feature'),
         userTier: sanitizeInput(evt.userTier || 'pro'),
         eventId: sanitizeInput(evt.eventId),
-        apiCallType: 'production_sdk_call'
+        apiCallType: isVerification ? 'verification' : (evt.apiCallType || 'production_sdk_call')
       };
 
       batch.set(newRecordRef, recordData);
@@ -96,11 +99,13 @@ export async function POST(request: Request) {
       processedRecords.push(recordData);
     }
 
-    // 3. Guardrail Evaluation
+    // 3. Guardrail Evaluation (Skip for pure verification pulses)
     const configRef = adminDb.collection('organizations').doc(orgId).collection('guardrail').doc('config');
     const configSnap = await configRef.get();
     
-    if (configSnap.exists) {
+    const realUsageEvents = processedRecords.filter(r => r.apiCallType !== 'verification');
+
+    if (configSnap.exists && realUsageEvents.length > 0) {
       const config = configSnap.data() as any;
       
       if (config.enabled) {

@@ -22,9 +22,16 @@ We have provided a convenience script in the root `package.json` to handle the d
 npm run sdk:publish
 ```
 
-This command will:
-1. Navigate to the SDK distribution folder.
-2. Publish the package as `@atlasburn/sdk` with public access.
+### 4. Verify Installation
+Confirm your integration is active by running the verification utility:
+```typescript
+import { verifyAtlasBurn } from "@atlasburn/sdk";
+
+await verifyAtlasBurn({
+  apiKey: process.env.ATLASBURN_KEY,
+  debug: true // Optional: see detailed flush logs
+});
+```
 
 ---
 

@@ -271,6 +271,24 @@ initAtlasBurnAuto({
                   </TabsContent>
                 </Tabs>
 
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-green-600 tracking-widest">
+                    <ShieldCheck size={12} /> Verification Utility
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Instantly confirm your SDK is linked to the forensic cloud by running the verification command.
+                  </p>
+                  <pre className="p-6 bg-zinc-900 text-zinc-400 rounded-2xl font-mono text-xs overflow-x-auto leading-relaxed border border-zinc-800">
+{`import { verifyAtlasBurn } from "@atlasburn/sdk";
+
+// Call this to confirm connection
+await verifyAtlasBurn({
+  apiKey: process.env.ATLASBURN_KEY,
+  debug: true 
+});`}
+                  </pre>
+                </div>
+
                 <div className="flex items-center gap-2 p-4 bg-primary/5 rounded-xl border border-primary/10">
                   <Activity size={16} className="text-primary" />
                   <p className="text-xs text-muted-foreground italic leading-tight">
@@ -310,7 +328,7 @@ initAtlasBurnAuto({
                   <p className="text-muted-foreground leading-relaxed">
                     {lastUsage?.length 
                       ? "Telemetry is streaming flawlessly to the forensic control plane. Your dashboard is now live." 
-                      : "Send a test request through your integrated client. AtlasBurn will automatically detect the telemetry flush."}
+                      : "Send a test request through your integrated client or use verifyAtlasBurn(). AtlasBurn will automatically detect the telemetry flush."}
                   </p>
                 </div>
                 {lastUsage?.length && (

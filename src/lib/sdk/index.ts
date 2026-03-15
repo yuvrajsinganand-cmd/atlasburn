@@ -1,3 +1,4 @@
+
 /**
  * AtlasBurn Forensic SDK - Institutional v1.3.1
  * 
@@ -12,6 +13,7 @@
  * - Hardened Auto-Detection for OpenAI, Anthropic, and Gemini.
  * - Unified singleton management for coexisting manual/auto modes.
  * - Added default metadata support for auto-instrumentation.
+ * - Added verifyAtlasBurn() for instant verification pulses.
  */
 
 export interface AtlasBurnSDKOptions {
@@ -21,6 +23,7 @@ export interface AtlasBurnSDKOptions {
   batchSize?: number;
   maxQueueSize?: number;
   metadata?: AtlasBurnMetadata; // Optional: Default metadata for all events
+  debug?: boolean; // Optional: Verbose logging for flushes
 }
 
 export interface AtlasBurnMetadata {
@@ -71,6 +74,10 @@ class AtlasBurnIngestor {
 
     this.queue.push(mergedEvent);
 
+    if (this.options.debug) {
+      console.log(`[AtlasBurn] Event enqueued: ${mergedEvent.model} (${mergedEvent.eventId})`);
+    }
+
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -83,10 +90,19 @@ class AtlasBurnIngestor {
     const eventsToProcess = [...this.queue];
     this.queue = [];
 
+    if (this.options.debug) {
+      console.log(`[AtlasBurn] Flushing ${eventsToProcess.length} events to ${this.options.ingestUrl}...`);
+    }
+
     try {
       await this.sendWithRetry(eventsToProcess, 0);
+      if (this.options.debug) {
+        console.log(`[AtlasBurn] Flush successful.`);
+      }
     } catch (err) {
-      // Law 4: Silent fail
+      if (this.options.debug) {
+        console.warn(`[AtlasBurn] Flush failed after retries.`, err);
+      }
     } finally {
       this.isProcessing = false;
     }
@@ -127,6 +143,41 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
     globalIngestor = new AtlasBurnIngestor(options);
   }
   return globalIngestor;
+}
+
+/**
+ * verifyAtlasBurn - Institutional Verification Utility
+ * Sends a safe synthetic event to confirm ingestion authority.
+ */
+export async function verifyAtlasBurn(options: AtlasBurnSDKOptions) {
+  const ingestor = getIngestor(options);
+  if (!ingestor) return;
+
+  if (options.debug) {
+    console.log("[AtlasBurn] Initializing verification pulse...");
+  }
+
+  ingestor.enqueue({
+    model: "atlasburn-verification-pulse",
+    type: "atlasburn_verification",
+    apiCallType: "verification",
+    usage: {
+      prompt_tokens: 42,
+      completion_tokens: 0,
+    },
+    timestamp: new Date().toISOString(),
+    featureId: "sdk-verification",
+    metadata: {
+      environment: "verification",
+      sdkVersion: "1.3.1"
+    }
+  });
+
+  // Explicitly trigger flush for verification
+  await ingestor.flush();
+
+  console.log("%cAtlasBurn verification event sent ✓", "color: #8b5cf6; font-weight: bold;");
+  console.log("Check your forensic command dashboard to confirm verification.");
 }
 
 /**
