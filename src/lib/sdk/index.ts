@@ -1,4 +1,3 @@
-
 /**
  * AtlasBurn Forensic SDK - Institutional v1.3.0
  * 
@@ -10,14 +9,14 @@
  * 4. Always fail silently
  * 
  * New in v1.3.0: 
- * - Standard 2-Step Setup (apiKey only)
- * - Server-side Project Resolution
- * - Enhanced Auto-Detection for OpenAI/Anthropic/Gemini
+ * - Standard 2-Step Setup (apiKey only required)
+ * - Server-side Project Resolution (projectId is now optional)
+ * - Enhanced Auto-Detection for OpenAI, Anthropic, and Gemini
  */
 
 export interface AtlasBurnSDKOptions {
   apiKey: string;    
-  projectId?: string; // Optional: Resolved server-side if omitted
+  projectId?: string; // Optional: Resolved server-side via apiKey if omitted
   ingestUrl?: string; // Optional: Defaults to AtlasBurn production
   batchSize?: number;
   maxQueueSize?: number;
@@ -30,6 +29,9 @@ export interface AtlasBurnMetadata {
 
 const DEFAULT_INGEST_URL = "https://app.atlasburn.com/api/ingest";
 
+/**
+ * Generates a unique forensic ID for event deduplication.
+ */
 function generateForensicId(): string {
   try {
     if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -55,6 +57,7 @@ class AtlasBurnIngestor {
   }
 
   public enqueue(event: any) {
+    // Law 1: Prevent memory leaks by bounding the queue
     if (this.queue.length >= (this.options.maxQueueSize || 200)) {
       this.queue.shift(); 
     }
@@ -64,6 +67,7 @@ class AtlasBurnIngestor {
       eventId: generateForensicId(),
     });
 
+    // Law 2: Trigger non-blocking flush
     if (this.queue.length >= (this.options.batchSize || 5)) {
       this.flush();
     }
@@ -79,7 +83,7 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      // Fail silently per Law 4
+      // Law 4: Always fail silently to ensure host app stability
     } finally {
       this.isProcessing = false;
     }
@@ -94,7 +98,7 @@ class AtlasBurnIngestor {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: this.options.apiKey,
-          projectId: this.options.projectId, // Can be undefined, resolved server-side
+          projectId: this.options.projectId, // Optional: Resolved server-side
           events: events
         }),
       });
@@ -104,6 +108,7 @@ class AtlasBurnIngestor {
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
+        // Exponential backoff for telemetry reliability
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
@@ -115,6 +120,9 @@ class AtlasBurnIngestor {
 
 let globalIngestor: AtlasBurnIngestor | null = null;
 
+/**
+ * Internal singleton getter for the ingestor.
+ */
 export function getIngestor(options?: AtlasBurnSDKOptions) {
   if (!globalIngestor && options) {
     globalIngestor = new AtlasBurnIngestor(options);
@@ -123,8 +131,9 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
 }
 
 /**
- * Wraps an LLM client with AtlasBurn Forensic Intelligence.
- * Recommended integration path.
+ * withAtlasBurn - The Official Stable Wrapper
+ * 
+ * Wraps an LLM client (e.g. OpenAI) to provide deterministic usage capture.
  */
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -148,7 +157,9 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
           },
           timestamp: new Date().toISOString(),
         });
-      } catch (e) { }
+      } catch (e) { 
+        // Law 1: Protect host response from telemetry failures
+      }
 
       return response;
     },
@@ -160,8 +171,10 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
 }
 
 /**
- * EXPERIMENTAL: Automatically detects and instruments OpenAI, Anthropic, and Gemini usage.
- * Best-effort observability with zero manual wrapping.
+ * initAtlasBurnAuto - Experimental Auto-Detection
+ * 
+ * Automatically instruments OpenAI, Anthropic, and Gemini calls 
+ * via global fetch interception.
  */
 export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -173,9 +186,13 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
       const response = await originalFetch(...args);
       const url = args[0]?.toString() || "";
 
-      // Detection signatures for major providers
       try {
-        if (url.includes("api.openai.com") || url.includes("api.anthropic.com") || url.includes("generativelanguage.googleapis.com")) {
+        // Detect major AI provider endpoints
+        const isAI = url.includes("api.openai.com") || 
+                     url.includes("api.anthropic.com") || 
+                     url.includes("generativelanguage.googleapis.com");
+
+        if (isAI) {
           const clone = response.clone();
           const data = await clone.json();
           
@@ -192,7 +209,7 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
           }
         }
       } catch (e) {
-        // Law 4: Silent fail ensures host app stability
+        // Law 4: Silent fail
       }
 
       return response;
