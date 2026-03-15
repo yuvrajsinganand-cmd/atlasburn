@@ -29,7 +29,6 @@ import { useState, useEffect, useMemo } from "react"
 import { getKeyMaterial } from "@/app/settings/actions"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function OnboardingPage() {
   const { user } = useUser()
@@ -204,13 +203,13 @@ export default function OnboardingPage() {
                 <div className="space-y-4">
                   <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Terminal</p>
                   <div className="bg-zinc-900 p-5 rounded-xl flex items-center justify-between group">
-                    <code className="text-primary-foreground font-mono text-sm">npm install @atlasburn/sdk</code>
+                    <code className="text-primary-foreground font-mono text-sm">npm install @atlasburn/sdk@latest</code>
                     <Button variant="ghost" size="icon" onClick={() => copyToClipboard("npm install @atlasburn/sdk")} className="text-zinc-500 group-hover:text-primary"><Copy size={16} /></Button>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Integration Snippet</p>
+                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Integration Snippet (Stable)</p>
                   <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-primary leading-relaxed">
 {`import { withAtlasBurn } from "@atlasburn/sdk";
 import OpenAI from "openai";
@@ -225,6 +224,21 @@ const openai = withAtlasBurn(new OpenAI(), {
                       Note: <span className="font-bold">projectId</span> and <span className="font-bold">ingestUrl</span> are now resolved automatically by our server-side authority.
                     </p>
                   </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical size={18} className="text-primary" />
+                    <p className="text-sm font-bold uppercase tracking-widest text-primary">Experimental: Auto-Detect Mode</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Monitor OpenAI, Anthropic, and Gemini usage with zero manual wrapping.</p>
+                  <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-accent leading-relaxed">
+{`import { initAtlasBurnAuto } from "@atlasburn/sdk";
+
+initAtlasBurnAuto({
+  apiKey: process.env.ATLASBURN_KEY
+});`}
+                  </pre>
                 </div>
               </CardContent>
             </Card>

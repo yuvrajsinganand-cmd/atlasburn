@@ -1,9 +1,18 @@
 
 /**
- * AtlasBurn Forensic SDK - Institutional v1.2.0
+ * AtlasBurn Forensic SDK - Institutional v1.3.0
  * 
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
- * Now supporting 2-Step Simplified Install & Auto-Detection Mode.
+ * THE 4 LAWS OF SDK SAFETY:
+ * 1. Never crash host app
+ * 2. Never block host request
+ * 3. Never leak secrets
+ * 4. Always fail silently
+ * 
+ * New in v1.3.0: 
+ * - Standard 2-Step Setup (apiKey only)
+ * - Server-side Project Resolution
+ * - Enhanced Auto-Detection for OpenAI/Anthropic/Gemini
  */
 
 export interface AtlasBurnSDKOptions {
@@ -70,7 +79,7 @@ class AtlasBurnIngestor {
     try {
       await this.sendWithRetry(eventsToProcess, 0);
     } catch (err) {
-      // Fail silently to never break the host application
+      // Fail silently per Law 4
     } finally {
       this.isProcessing = false;
     }
@@ -115,6 +124,7 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
 
 /**
  * Wraps an LLM client with AtlasBurn Forensic Intelligence.
+ * Recommended integration path.
  */
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -123,6 +133,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
+      // Law 2: Process original request first
       const response = await client.chat(payload);
       
       try {
@@ -132,8 +143,8 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
           featureId: payload.featureId || 'default',
           userTier: payload.userTier || 'standard',
           usage: {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
+            prompt_tokens: usage.prompt_tokens || usage.input_tokens || 0,
+            completion_tokens: usage.completion_tokens || usage.output_tokens || 0,
           },
           timestamp: new Date().toISOString(),
         });
@@ -150,6 +161,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
 
 /**
  * EXPERIMENTAL: Automatically detects and instruments OpenAI, Anthropic, and Gemini usage.
+ * Best-effort observability with zero manual wrapping.
  */
 export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
@@ -161,7 +173,7 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
       const response = await originalFetch(...args);
       const url = args[0]?.toString() || "";
 
-      // Best-effort detection of AI provider patterns
+      // Detection signatures for major providers
       try {
         if (url.includes("api.openai.com") || url.includes("api.anthropic.com") || url.includes("generativelanguage.googleapis.com")) {
           const clone = response.clone();
@@ -180,7 +192,7 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
           }
         }
       } catch (e) {
-        // Silently fail to ensure production safety
+        // Law 4: Silent fail ensures host app stability
       }
 
       return response;
