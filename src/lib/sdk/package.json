@@ -1,7 +1,7 @@
 {
   "name": "@atlasburn/sdk",
-  "version": "1.3.0",
-  "description": "Institutional Forensic SDK for AI Governance and Burn Monitoring. Implements the 4 Laws of SDK Safety with 2-Step simplified setup and Auto-Detection.",
+  "version": "1.3.1",
+  "description": "Institutional Forensic SDK for AI Governance and Burn Monitoring. Implements the 4 Laws of SDK Safety with 2-Step simplified setup, Auto-Detection, and Instant Verification.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -15,7 +15,8 @@
     "burn",
     "llm",
     "finops",
-    "autodetect"
+    "autodetect",
+    "observability"
   ],
   "author": "AtlasBurn Institutional",
   "license": "MIT",
