@@ -18,5 +18,8 @@
     "autodetect"
   ],
   "author": "AtlasBurn Institutional",
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
