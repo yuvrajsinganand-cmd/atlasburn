@@ -1,5 +1,5 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.3.1
+ * AtlasBurn Forensic SDK - Institutional v1.3.3
  *
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * THE 4 LAWS OF SDK SAFETY:
@@ -8,11 +8,10 @@
  * 3. Never leak secrets
  * 4. Always fail silently
  *
- * v1.3.1:
- * - Hardened Auto-Detection for OpenAI, Anthropic, and Gemini.
- * - Unified singleton management for coexisting manual/auto modes.
- * - Added default metadata support for auto-instrumentation.
- * - Added verifyAtlasBurn() for instant verification pulses.
+ * v1.3.3:
+ * - Hardened Metadata: Automatically includes sdkVersion and environment in all events.
+ * - Schema Parity: Synchronized verification pulse with the hardened ingestion protocol.
+ * - Reliable Wrapper + Auto-Detection coexistence.
  */
 export interface AtlasBurnSDKOptions {
     apiKey: string;
@@ -26,6 +25,8 @@ export interface AtlasBurnSDKOptions {
 export interface AtlasBurnMetadata {
     featureId?: string;
     userTier?: string;
+    environment?: string;
+    sdkVersion?: string;
 }
 declare class AtlasBurnIngestor {
     private queue;

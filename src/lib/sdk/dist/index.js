@@ -1,5 +1,5 @@
 /**
- * AtlasBurn Forensic SDK - Institutional v1.3.1
+ * AtlasBurn Forensic SDK - Institutional v1.3.3
  *
  * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
  * THE 4 LAWS OF SDK SAFETY:
@@ -8,13 +8,13 @@
  * 3. Never leak secrets
  * 4. Always fail silently
  *
- * v1.3.1:
- * - Hardened Auto-Detection for OpenAI, Anthropic, and Gemini.
- * - Unified singleton management for coexisting manual/auto modes.
- * - Added default metadata support for auto-instrumentation.
- * - Added verifyAtlasBurn() for instant verification pulses.
+ * v1.3.3:
+ * - Hardened Metadata: Automatically includes sdkVersion and environment in all events.
+ * - Schema Parity: Synchronized verification pulse with the hardened ingestion protocol.
+ * - Reliable Wrapper + Auto-Detection coexistence.
  */
 const DEFAULT_INGEST_URL = "https://app.atlasburn.com/api/ingest";
+const SDK_VERSION = "1.3.3";
 /**
  * Generates a unique forensic ID for event deduplication.
  */
@@ -36,7 +36,12 @@ class AtlasBurnIngestor {
             ingestUrl: options.ingestUrl || DEFAULT_INGEST_URL,
             batchSize: 5,
             maxQueueSize: 200,
-            ...options
+            ...options,
+            metadata: {
+                sdkVersion: SDK_VERSION,
+                environment: process.env.NODE_ENV || 'production',
+                ...options.metadata
+            }
         };
     }
     enqueue(event) {
@@ -48,6 +53,7 @@ class AtlasBurnIngestor {
             ...this.options.metadata,
             ...event,
             eventId: generateForensicId(),
+            timestamp: event.timestamp || new Date().toISOString()
         };
         this.queue.push(mergedEvent);
         if (this.options.debug) {
@@ -134,12 +140,7 @@ export async function verifyAtlasBurn(options) {
             prompt_tokens: 42,
             completion_tokens: 0,
         },
-        timestamp: new Date().toISOString(),
-        featureId: "sdk-verification",
-        metadata: {
-            environment: "verification",
-            sdkVersion: "1.3.1"
-        }
+        featureId: "sdk-verification"
     });
     // Explicitly trigger flush for verification
     await ingestor.flush();
@@ -213,8 +214,7 @@ export function initAtlasBurnAuto(options) {
                             usage: {
                                 prompt_tokens: tokens.prompt,
                                 completion_tokens: tokens.completion,
-                            },
-                            timestamp: new Date().toISOString(),
+                            }
                         });
                     }
                 }
