@@ -19,7 +19,9 @@ import {
   EyeOff,
   ShieldAlert,
   FlaskConical,
-  Server
+  Server,
+  Layers,
+  Cpu
 } from "lucide-react"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, getDocs, where, doc, writeBatch } from "firebase/firestore"
@@ -29,6 +31,7 @@ import { useState, useEffect, useMemo } from "react"
 import { getKeyMaterial } from "@/app/settings/actions"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function OnboardingPage() {
   const { user } = useUser()
@@ -137,8 +140,8 @@ export default function OnboardingPage() {
 
         <main className="p-6 space-y-12 max-w-4xl mx-auto w-full pb-24">
           <div className="space-y-3">
-            <h2 className="text-4xl font-headline font-bold">2-Step Quick Integration</h2>
-            <p className="text-muted-foreground text-lg">Connect AtlasBurn to your production AI cluster in under 2 minutes.</p>
+            <h2 className="text-4xl font-headline font-bold">Institutional Onboarding</h2>
+            <p className="text-muted-foreground text-lg">Connect your production cluster to the AtlasBurn forensic cloud in 2 steps.</p>
           </div>
 
           <div className="space-y-12">
@@ -148,8 +151,8 @@ export default function OnboardingPage() {
                 <div className="flex items-center gap-3">
                   <Badge className="bg-primary h-8 w-8 rounded-full flex items-center justify-center p-0 font-bold text-sm">1</Badge>
                   <div>
-                    <CardTitle className="text-xl font-headline">Generate AtlasBurn API Key</CardTitle>
-                    <CardDescription>Create an institutional key to authenticate telemetry ingestion.</CardDescription>
+                    <CardTitle className="text-xl font-headline">Generate Institutional Key</CardTitle>
+                    <CardDescription>Create a unique API key to authenticate your telemetry flushes.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -188,57 +191,91 @@ export default function OnboardingPage() {
               </CardContent>
             </Card>
 
-            {/* STEP 2: WRAP */}
+            {/* STEP 2: IMPLEMENTATION */}
             <Card className="border-none shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-muted/30 border-b py-6">
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className="bg-background h-8 w-8 rounded-full flex items-center justify-center p-0 font-bold border-muted-foreground/30 text-sm">2</Badge>
                   <div>
-                    <CardTitle className="text-xl font-headline">Implementation & Deployment</CardTitle>
-                    <CardDescription>Install the SDK and wrap your LLM client. No Project ID required.</CardDescription>
+                    <CardTitle className="text-xl font-headline">Implementation Authority</CardTitle>
+                    <CardDescription>Select your integration style. Choose between Reliable Wrapper or Zero-Config Auto-Detect.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Terminal</p>
+                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Installation</p>
                   <div className="bg-zinc-900 p-5 rounded-xl flex items-center justify-between group">
                     <code className="text-primary-foreground font-mono text-sm">npm install @atlasburn/sdk@latest</code>
                     <Button variant="ghost" size="icon" onClick={() => copyToClipboard("npm install @atlasburn/sdk")} className="text-zinc-500 group-hover:text-primary"><Copy size={16} /></Button>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Integration Snippet (Stable)</p>
-                  <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-primary leading-relaxed">
+                <Tabs defaultValue="wrapper" className="space-y-6">
+                  <TabsList className="bg-muted/50 p-1 w-full grid grid-cols-2 h-14 rounded-2xl border">
+                    <TabsTrigger 
+                      value="wrapper" 
+                      className="rounded-xl data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] font-bold text-xs gap-2 group transition-all"
+                    >
+                      <Layers size={14} className="group-data-[state=active]:animate-pulse" /> Reliable Wrapper (Stable)
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="auto" 
+                      className="rounded-xl data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] font-bold text-xs gap-2 group transition-all"
+                    >
+                      <FlaskConical size={14} className="group-data-[state=active]:animate-pulse" /> Auto-Detect Mode (Exp.)
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="wrapper" className="space-y-4 animate-in fade-in duration-500">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-primary tracking-widest">
+                      <ShieldCheck size={12} /> Institutional Standard
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Wrap your existing OpenAI, Anthropic, or LangChain clients. This method provides the highest fidelity for feature-level attribution.
+                    </p>
+                    <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-primary leading-relaxed shadow-xl">
 {`import { withAtlasBurn } from "@atlasburn/sdk";
 import OpenAI from "openai";
 
 const openai = withAtlasBurn(new OpenAI(), {
-  apiKey: process.env.ATLASBURN_KEY // Your secret institutional key
-});`}
-                  </pre>
-                  <div className="flex items-center gap-2 p-4 bg-primary/5 rounded-xl border border-primary/10">
-                    <Zap size={16} className="text-primary" />
-                    <p className="text-xs text-muted-foreground italic">
-                      Note: <span className="font-bold">projectId</span> and <span className="font-bold">ingestUrl</span> are now resolved automatically by our server-side authority.
-                    </p>
-                  </div>
-                </div>
+  apiKey: process.env.ATLASBURN_KEY
+});
 
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <FlaskConical size={18} className="text-primary" />
-                    <p className="text-sm font-bold uppercase tracking-widest text-primary">Experimental: Auto-Detect Mode</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Monitor OpenAI, Anthropic, and Gemini usage with zero manual wrapping.</p>
-                  <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-accent leading-relaxed">
+// Use as normal
+const chat = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello" }]
+});`}
+                    </pre>
+                  </TabsContent>
+
+                  <TabsContent value="auto" className="space-y-4 animate-in fade-in duration-500">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-accent tracking-widest">
+                      <Zap size={12} className="animate-pulse" /> Zero-Config Pulse
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Initialize once at your entry point. Automatically intercepts and monitors OpenAI, Anthropic, and Gemini SDK calls via global fetch interception.
+                    </p>
+                    <pre className="p-6 bg-zinc-950 text-zinc-300 rounded-2xl font-mono text-xs overflow-x-auto border-l-4 border-accent leading-relaxed shadow-xl">
 {`import { initAtlasBurnAuto } from "@atlasburn/sdk";
 
+// Call this once at the very top of your application
 initAtlasBurnAuto({
-  apiKey: process.env.ATLASBURN_KEY
+  apiKey: process.env.ATLASBURN_KEY,
+  metadata: {
+    userTier: "enterprise" // Optional default metadata
+  }
 });`}
-                  </pre>
+                    </pre>
+                  </TabsContent>
+                </Tabs>
+
+                <div className="flex items-center gap-2 p-4 bg-primary/5 rounded-xl border border-primary/10">
+                  <Activity size={16} className="text-primary" />
+                  <p className="text-xs text-muted-foreground italic leading-tight">
+                    <span className="font-bold">Operational Safety:</span> Ingestion is strictly non-blocking and flushes in the background to ensure zero impact on your application's latency.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -273,7 +310,7 @@ initAtlasBurnAuto({
                   <p className="text-muted-foreground leading-relaxed">
                     {lastUsage?.length 
                       ? "Telemetry is streaming flawlessly to the forensic control plane. Your dashboard is now live." 
-                      : "Send a test request through your wrapped client. AtlasBurn will automatically detect the telemetry flush."}
+                      : "Send a test request through your integrated client. AtlasBurn will automatically detect the telemetry flush."}
                   </p>
                 </div>
                 {lastUsage?.length && (
