@@ -15,12 +15,19 @@ if (!getApps().length) {
   const saKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   
   try {
-    const config = saKey ? { credential: cert(JSON.parse(saKey)) } : {};
-    initializeApp(config);
+    if (saKey) {
+      const credentials = JSON.parse(saKey);
+      initializeApp({ credential: cert(credentials) });
+    } else {
+      // In Firebase App Hosting, this uses the ambient service account
+      initializeApp();
+    }
   } catch (err) {
-    console.error("Firebase Admin Initialization Error:", err);
-    // Continue with default initialization if JSON parsing fails or env is missing
-    initializeApp();
+    console.error("[AtlasBurn] Firebase Admin Initialization Error:", err);
+    // Final fallback attempt
+    try {
+      initializeApp();
+    } catch (e) {}
   }
 }
 
