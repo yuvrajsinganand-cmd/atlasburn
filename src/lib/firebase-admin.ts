@@ -3,37 +3,42 @@ import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Firestore } from 'firebase-admin/firestore';
 
 /**
- * AtlasBurn Firebase Admin Intelligence (Institutional v2.3-DIAGNOSTIC)
+ * AtlasBurn Firebase Admin Intelligence (Institutional v2.4-STABLE)
  * 
- * DESIGN: Lazy Singleton Pattern
+ * DESIGN: Robust Singleton with Environment Sanitization
  */
 
 let adminApp: App | null = null;
 let db: Firestore | null = null;
 
 function getAdminApp(): App {
-  console.log(`[AtlasBurn-Admin] Attempting to acquire Firebase App instance...`);
-  
   if (getApps().length > 0) {
-    console.log(`[AtlasBurn-Admin] Using existing instance from getApps()`);
     return getApps()[0];
   }
   
   if (!adminApp) {
     const saKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const projectId = process.env.GCP_PROJECT || process.env.FIREBASE_PROJECT_ID;
+
     try {
       if (saKey) {
-        console.log(`[AtlasBurn-Admin] Initializing with explicit Service Account credentials.`);
+        console.log(`[AtlasBurn-Admin] Initializing with explicit Service Account.`);
         const credentials = JSON.parse(saKey);
-        adminApp = initializeApp({ credential: cert(credentials) });
+        adminApp = initializeApp({ 
+          credential: cert(credentials),
+          storageBucket: "" // Override potential broken bucket in env
+        });
       } else {
-        console.log(`[AtlasBurn-Admin] Initializing with App Hosting ambient credentials.`);
-        adminApp = initializeApp();
+        console.log(`[AtlasBurn-Admin] Initializing with ambient credentials.`);
+        // We pass a dummy storageBucket to prevent boot crashes if the project's
+        // FIREBASE_CONFIG env var references a non-existent bucket.
+        adminApp = initializeApp({
+          storageBucket: ""
+        });
       }
     } catch (err) {
       console.error("[AtlasBurn-Admin] Boot Error:", err);
-      // Last-ditch attempt to use default credentials
-      console.warn("[AtlasBurn-Admin] Falling back to default credential attempt.");
+      // Last-ditch attempt
       adminApp = initializeApp();
     }
   }
@@ -42,10 +47,10 @@ function getAdminApp(): App {
 
 export function getAdminDb(): Firestore {
   if (!db) {
-    console.log(`[AtlasBurn-Admin] Accessing Firestore Service...`);
     const app = getAdminApp();
     db = getFirestore(app);
-    console.log(`[AtlasBurn-Admin] Firestore Service acquired.`);
+    // Explicitly set settings to prevent boot warnings
+    db.settings({ ignoreUndefinedProperties: true });
   }
   return db;
 }
