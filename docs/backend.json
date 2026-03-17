@@ -44,6 +44,30 @@
       },
       "required": ["id", "name"]
     },
+    "AISubscription": {
+      "title": "AISubscription",
+      "type": "object",
+      "description": "A tracked AI service or an internal ingestion project.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "providerName": { "type": "string" },
+        "monthlyFixedCost": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "IngestKey": {
+      "title": "IngestKey",
+      "type": "object",
+      "description": "A secure HMAC-SHA-256 hashed credential for SDK telemetry.",
+      "properties": {
+        "hash": { "type": "string", "description": "The HMAC hash of the raw API key." },
+        "prefix": { "type": "string", "description": "Non-sensitive prefix for UI display (e.g. abn_abcd...)." },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastUsedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "GuardrailConfig": {
       "title": "GuardrailConfig",
       "type": "object",
@@ -100,23 +124,6 @@
         "cost": { "type": "number" },
         "eventId": { "type": "string" }
       }
-    },
-    "AuditLog": {
-      "title": "AuditLog",
-      "type": "object",
-      "description": "Institutional activity record with device forensics.",
-      "properties": {
-        "timestamp": { "type": "string", "format": "date-time" },
-        "actorEmail": { "type": "string" },
-        "action": { "type": "string" },
-        "category": { "type": "string", "enum": ["admin", "security", "billing", "access"] },
-        "details": { "type": "string" },
-        "status": { "type": "string", "enum": ["success", "failure"] },
-        "userAgent": { "type": "string" },
-        "loginMethod": { "type": "string" },
-        "deviceFingerprint": { "type": "string" }
-      },
-      "required": ["timestamp", "actorEmail", "action", "category"]
     }
   },
   "auth": {
@@ -126,6 +133,14 @@
     "/organizations/{orgId}": {
       "schema": "#/backend/entities/Organization",
       "description": "Economic root."
+    },
+    "/users/{userId}/aiSubscriptions/{subId}": {
+      "schema": "#/backend/entities/AISubscription",
+      "description": "A user's AI tool inventory."
+    },
+    "/users/{userId}/aiSubscriptions/{subId}/ingestKeys/{keyId}": {
+      "schema": "#/backend/entities/IngestKey",
+      "description": "Hashed SDK credentials."
     },
     "/organizations/{orgId}/guardrail/config": {
       "schema": "#/backend/entities/GuardrailConfig",
@@ -139,17 +154,9 @@
       "schema": "#/backend/entities/UserProfile",
       "description": "Attribution identities."
     },
-    "/organizations/{orgId}/features/{featureId}": {
-      "schema": "#/backend/entities/Feature",
-      "description": "Product catalog."
-    },
     "/organizations/{orgId}/usageRecords/{recordId}": {
       "schema": "#/backend/entities/UsageRecord",
       "description": "Forensic ledger."
-    },
-    "/organizations/{orgId}/auditLogs/{logId}": {
-      "schema": "#/backend/entities/AuditLog",
-      "description": "Institutional activity ledger."
     }
   }
 }
