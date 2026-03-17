@@ -20,12 +20,11 @@ function sanitizeInput(val: any): string {
 }
 
 /**
- * AtlasBurn Hardened Ingestion API (Institutional v2.4-STABLE)
+ * AtlasBurn Hardened Ingestion API (Institutional v2.5-STABLE)
  */
 export async function POST(request: Request) {
   let diagnosticStage = 'init';
   const requestId = Math.random().toString(36).substring(7);
-  console.log(`[AtlasBurn][${requestId}] Ingest request started. UA: ${request.headers.get('user-agent')}`);
   
   try {
     const db = getAdminDb();
@@ -36,12 +35,10 @@ export async function POST(request: Request) {
     try {
       const contentLength = parseInt(request.headers.get('content-length') || '0');
       if (contentLength > MAX_PAYLOAD_SIZE_BYTES) {
-        console.warn(`[AtlasBurn][${requestId}] REJECTED: Payload too large (${contentLength} bytes)`);
         return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
       }
       body = await request.json();
     } catch (parseError) {
-      console.error(`[AtlasBurn][${requestId}] CRITICAL: JSON parsing failed`, parseError);
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
@@ -50,12 +47,11 @@ export async function POST(request: Request) {
     // 2. Auth Validation
     diagnosticStage = 'auth_verification';
     if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 10) {
-      console.warn(`[AtlasBurn][${requestId}] REJECTED: Invalid API Key format. Length: ${apiKey?.length || 0}`);
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Invalid API Key format. UA: ${request.headers.get('user-agent')}`);
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid API Key.' }, { status: 401 });
     }
 
     const hashedKey = hashIngestKey(apiKey);
-    const keyPrefix = apiKey.substring(0, 8);
 
     // Resolve Project Context with Index Error Handling
     let keysSnap;
@@ -68,18 +64,21 @@ export async function POST(request: Request) {
     } catch (dbErr: any) {
       // CODE 9 is FAILED_PRECONDITION (Missing Index)
       if (dbErr.code === 9 || dbErr.message?.includes('FAILED_PRECONDITION')) {
-        console.error(`[AtlasBurn][${requestId}] MISSING INDEX: A composite index is required for collectionGroup("ingestKeys") on fields "hash" and "status".`);
-        // We return 412 (Precondition Failed) instead of 503 to prevent Cloud Run from killing the instance.
+        const projectId = process.env.GCP_PROJECT || process.env.FIREBASE_PROJECT_ID || 'your-project';
+        const setupUrl = `https://console.firebase.google.com/project/${projectId}/firestore/indexes/create?containerCollectionGroup=ingestKeys&queryScope=COLLECTION_GROUP&fields=hash:ASCENDING,status:ASCENDING`;
+        
+        console.error(`[AtlasBurn][${requestId}] CRITICAL: MISSING INDEX. Create it here: ${setupUrl}`);
+        
         return NextResponse.json({ 
           error: 'Database configuration incomplete (missing index).',
-          setupUrl: 'https://console.firebase.google.com/project/_/firestore/indexes'
+          actionRequired: 'A composite index is required for collectionGroup("ingestKeys").',
+          setupUrl
         }, { status: 412 });
       }
       throw dbErr;
     }
       
     if (keysSnap.empty) {
-      console.warn(`[AtlasBurn][${requestId}] FORBIDDEN: Invalid API Key prefix ${keyPrefix}...`);
       return NextResponse.json({ error: 'Forbidden: Invalid API Key.' }, { status: 403 });
     }
     
@@ -197,14 +196,13 @@ export async function POST(request: Request) {
         }
       }
     } catch (guardrailError) {
-      console.warn(`[AtlasBurn][${requestId}] Guardrail skip (likely missing index):`, guardrailError);
+      console.warn(`[AtlasBurn][${requestId}] Guardrail skip:`, guardrailError);
     }
 
     // 6. Commit
     diagnosticStage = 'database_commit';
     if (processedRecords.length > 0) {
       await batch.commit();
-      console.log(`[AtlasBurn][${requestId}] Success. Count: ${processedRecords.length}`);
     }
 
     return NextResponse.json({ status: 'success', count: processedRecords.length });

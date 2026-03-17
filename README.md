@@ -1,3 +1,4 @@
+
 # AtlasBurn | Institutional AI Capital Risk Engine
 
 This is the internal control plane for AtlasBurn.
@@ -8,7 +9,7 @@ The AtlasBurn SDK is located in `src/lib/sdk`. To release a new version to the N
 
 ### 1. Prerequisites
 - Ensure you have an active account at [npmjs.com](https://www.npmjs.com/).
-- Ensure the `version` in `src/lib/sdk/package.json` is bumped (e.g., `1.3.2`) if you've made changes since the last release.
+- Ensure the `version` in `src/lib/sdk/package.json` is bumped (e.g., `1.3.4`) if you've made changes since the last release.
 
 ### 2. Login to NPM
 Run this in your terminal and follow the browser or command-line prompts:
@@ -22,16 +23,18 @@ We have provided a convenience script in the root `package.json` to handle the d
 npm run sdk:publish
 ```
 
-### 4. Verify Installation
-Confirm your integration is active by running the verification utility:
-```typescript
-import { verifyAtlasBurn } from "@atlasburn/sdk";
+---
 
-await verifyAtlasBurn({
-  apiKey: process.env.ATLASBURN_KEY,
-  debug: true // Optional: see detailed flush logs
-});
-```
+## 🛠 Troubleshooting: HTTP 412 (Precondition Failed)
+
+If you see a `412 Precondition Failed` error in your SDK or server logs, it means your Firestore database is missing a required composite index for collection-group queries.
+
+### To Resolve:
+1. Copy the **Setup URL** from the error message in your terminal.
+2. Open it in your browser (you must be logged into the Firebase/Google Cloud console).
+3. Click **Create Index**.
+4. Wait ~2-5 minutes for the index to build.
+5. Ingestion will begin streaming automatically once the index is active.
 
 ---
 

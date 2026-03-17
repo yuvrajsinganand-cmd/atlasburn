@@ -1,6 +1,6 @@
 
 /**
- * AtlasBurn Forensic SDK - Institutional v1.3.3-DIAGNOSTIC
+ * AtlasBurn Forensic SDK - Institutional v1.3.4
  */
 
 export interface AtlasBurnSDKOptions {
@@ -21,7 +21,7 @@ export interface AtlasBurnMetadata {
 }
 
 const DEFAULT_INGEST_URL = "https://app.atlasburn.com/api/ingest";
-const SDK_VERSION = "1.3.3";
+const SDK_VERSION = "1.3.4";
 
 function generateForensicId(): string {
   try {
@@ -83,15 +83,10 @@ class AtlasBurnIngestor {
     const eventsToProcess = [...this.queue];
     this.queue = [];
 
-    if (this.options.debug) {
-      console.log(`[AtlasBurn SDK] Initiating flush of ${eventsToProcess.length} events...`);
-    }
-
     try {
       await this.sendWithRetry(eventsToProcess, 0);
-      if (this.options.debug) console.log(`[AtlasBurn SDK] Flush successful.`);
     } catch (err) {
-      if (this.options.debug) console.warn(`[AtlasBurn SDK] Flush failed after retries.`, err);
+      if (this.options.debug) console.warn(`[AtlasBurn SDK] Flush failed.`, err);
     } finally {
       this.isProcessing = false;
     }
@@ -112,12 +107,18 @@ class AtlasBurnIngestor {
       });
 
       if (!response.ok) {
+        if (response.status === 412) {
+          const data = await response.json();
+          console.error(`%c[AtlasBurn SDK] ⚠️ Configuration Error: ${data.error}`, "color: #ef4444; font-weight: bold;");
+          console.error(`%cAction Required: ${data.actionRequired}`, "color: #f59e0b;");
+          console.error(`Setup URL: ${data.setupUrl}`);
+          return; // Don't retry configuration errors
+        }
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
-        if (this.options.debug) console.log(`[AtlasBurn SDK] Retrying flush (${attempt + 1}/${this.maxRetries}) in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
       }
@@ -136,6 +137,12 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
 }
 
 export async function verifyAtlasBurn(options: AtlasBurnSDKOptions) {
+  if (!options.apiKey || options.apiKey.length < 10) {
+    console.error("%c[AtlasBurn] Invalid API Key format.", "color: #ef4444; font-weight: bold;");
+    console.log("Check that your ATLASBURN_KEY environment variable is correctly set.");
+    return;
+  }
+
   const ingestor = getIngestor(options);
   if (!ingestor) return;
 
@@ -154,8 +161,7 @@ export async function verifyAtlasBurn(options: AtlasBurnSDKOptions) {
 
   await ingestor.flush();
 
-  console.log("%cAtlasBurn verification event sent ✓", "color: #8b5cf6; font-weight: bold;");
-  console.log("Check your forensic command dashboard to confirm verification.");
+  console.log("%cAtlasBurn verification pulse initiated ✓", "color: #8b5cf6; font-weight: bold;");
 }
 
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
@@ -165,7 +171,6 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
-      if (options.debug) console.log(`[AtlasBurn SDK] Wrapping chat call for model: ${payload.model}`);
       const response = await client.chat(payload);
       
       try {
@@ -196,7 +201,6 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
   if (!ingestor) return;
 
   if (typeof globalThis !== 'undefined' && globalThis.fetch) {
-    console.log("[AtlasBurn SDK] Auto-Detection interceptor active.");
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (...args) => {
       const response = await originalFetch(...args);
@@ -224,7 +228,6 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
           }
 
           if (tokens.prompt > 0 || tokens.completion > 0) {
-            if (options.debug) console.log(`[AtlasBurn SDK] Auto-detected AI call: ${model}`);
             ingestor.enqueue({
               model,
               featureId: "auto-detect",
