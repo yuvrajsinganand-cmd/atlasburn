@@ -20,23 +20,31 @@ function sanitizeInput(val: any): string {
 }
 
 /**
- * AtlasBurn Hardened Ingestion API (Institutional v2.2)
+ * AtlasBurn Hardened Ingestion API (Institutional v2.3-DIAGNOSTIC)
  */
 export async function POST(request: Request) {
   let diagnosticStage = 'init';
+  console.log(`[AtlasBurn] Ingest request started. Timestamp: ${new Date().toISOString()}`);
+  
   try {
     const db = getAdminDb();
+    console.log(`[AtlasBurn] Firestore Admin context acquired.`);
     
     // 1. Safe Request Parsing
     diagnosticStage = 'payload_parsing';
     let body: any;
     try {
       const contentLength = parseInt(request.headers.get('content-length') || '0');
+      console.log(`[AtlasBurn] Payload size: ${contentLength} bytes`);
+      
       if (contentLength > MAX_PAYLOAD_SIZE_BYTES) {
+        console.warn(`[AtlasBurn] REJECTED: Payload too large (${contentLength} bytes)`);
         return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
       }
       body = await request.json();
+      console.log(`[AtlasBurn] JSON parsed successfully.`);
     } catch (parseError) {
+      console.error(`[AtlasBurn] CRITICAL: JSON parsing failed`, parseError);
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
@@ -45,11 +53,13 @@ export async function POST(request: Request) {
     // 2. Auth Validation
     diagnosticStage = 'auth_verification';
     if (!apiKey || typeof apiKey !== 'string') {
+      console.warn(`[AtlasBurn] REJECTED: Missing or invalid API key format.`);
       return NextResponse.json({ error: 'Unauthorized: Missing API Key.' }, { status: 401 });
     }
 
     const hashedKey = hashIngestKey(apiKey);
     const keyPrefix = apiKey.substring(0, 8);
+    console.log(`[AtlasBurn] Verifying Key Prefix: ${keyPrefix}... (Hashed: ${hashedKey.substring(0, 8)}...)`);
 
     // Resolve Project Context with Index Error Handling
     let keysSnap;
@@ -64,26 +74,36 @@ export async function POST(request: Request) {
         console.error('[AtlasBurn] MISSING INDEX: A composite index is required for collectionGroup("ingestKeys") on fields "hash" and "status". See Firebase console.');
         return NextResponse.json({ error: 'Database configuration incomplete (missing index).' }, { status: 503 });
       }
+      console.error(`[AtlasBurn] Auth DB Error:`, dbErr);
       throw dbErr;
     }
       
     if (keysSnap.empty) {
-      console.warn(`[AtlasBurn] Unauthorized ingest attempt. Key Prefix: ${keyPrefix}...`);
+      console.warn(`[AtlasBurn] FORBIDDEN: Invalid API Key. Prefix: ${keyPrefix}...`);
       return NextResponse.json({ error: 'Forbidden: Invalid API Key.' }, { status: 403 });
     }
     
     const keyPathParts = keysSnap.docs[0].ref.path.split('/');
     const resolvedProjectId = keyPathParts[1];
+    console.log(`[AtlasBurn] Auth Success. Resolved Project ID: ${resolvedProjectId}`);
 
     if (clientProjectId && clientProjectId !== resolvedProjectId) {
+      console.warn(`[AtlasBurn] REJECTED: Project context mismatch. Client: ${clientProjectId}, Server: ${resolvedProjectId}`);
       return NextResponse.json({ error: 'Forbidden: Project context mismatch.' }, { status: 403 });
     }
 
     // 3. Batch & Event Validation
     diagnosticStage = 'event_processing';
     const rawEvents = Array.isArray(events) ? events : [];
-    if (rawEvents.length === 0) return NextResponse.json({ status: 'ignored', message: 'No events found.' });
+    console.log(`[AtlasBurn] Processing ${rawEvents.length} events in batch.`);
+    
+    if (rawEvents.length === 0) {
+      console.log(`[AtlasBurn] Batch ignored: zero events found.`);
+      return NextResponse.json({ status: 'ignored', message: 'No events found.' });
+    }
+    
     if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
+      console.warn(`[AtlasBurn] REJECTED: Batch size (${rawEvents.length}) exceeds limit of ${MAX_EVENTS_PER_BATCH}`);
       return NextResponse.json({ error: 'Batch size exceeds limit.' }, { status: 400 });
     }
 
@@ -92,6 +112,7 @@ export async function POST(request: Request) {
     const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
 
     // 4. Parallelized Idempotency Check
+    console.log(`[AtlasBurn] Running parallel idempotency check...`);
     const dedupeResults = await Promise.all(
       rawEvents.map(async (evt) => {
         const eid = evt?.eventId;
@@ -105,7 +126,10 @@ export async function POST(request: Request) {
     const processedRecords = [];
 
     for (const { isDuplicate, evt } of dedupeResults) {
-      if (isDuplicate || !evt?.eventId) continue;
+      if (isDuplicate || !evt?.eventId) {
+        if (isDuplicate) console.log(`[AtlasBurn] Skipping duplicate event: ${evt?.eventId}`);
+        continue;
+      }
 
       const eventId = String(evt.eventId);
       const isVerification = evt.apiCallType === 'verification' || 
@@ -142,6 +166,8 @@ export async function POST(request: Request) {
       processedRecords.push(recordData);
     }
 
+    console.log(`[AtlasBurn] Batch prepared with ${processedRecords.length} unique records.`);
+
     // 5. Guardrail Evaluation
     diagnosticStage = 'guardrail_evaluation';
     try {
@@ -151,6 +177,7 @@ export async function POST(request: Request) {
       const realUsageEvents = processedRecords.filter(r => r.apiCallType !== 'verification');
 
       if (configSnap.exists && realUsageEvents.length > 0 && configSnap.data()?.enabled) {
+        console.log(`[AtlasBurn] Guardrail evaluate triggered for project ${orgId}`);
         const config = configSnap.data() as any;
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const lastHour = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -168,6 +195,7 @@ export async function POST(request: Request) {
         const breach = evaluateGuardrails(config, contextRecords, hourlyRecords, signals);
         
         if (breach.isBreached) {
+          console.warn(`[AtlasBurn] GUARDRAIL BREACH: ${breach.triggerType}. Action: ${config.mode}`);
           const action = config.mode === 'hard_stop' ? 'suspended' : config.mode === 'soft_stop' ? 'throttled' : 'active';
           if (action !== config.status) {
             batch.update(configRef, { status: action, updatedAt: new Date().toISOString() });
@@ -190,7 +218,9 @@ export async function POST(request: Request) {
     // 6. Commit
     diagnosticStage = 'database_commit';
     if (processedRecords.length > 0) {
+      console.log(`[AtlasBurn] Committing batch to Firestore...`);
       await batch.commit();
+      console.log(`[AtlasBurn] Batch commit successful.`);
     }
 
     return NextResponse.json({ 
@@ -200,7 +230,7 @@ export async function POST(request: Request) {
     });
 
   } catch (err: any) {
-    console.error(`[AtlasBurn] Critical Ingest Failure at stage: ${diagnosticStage}`, {
+    console.error(`[AtlasBurn] CRITICAL FAILURE at stage: ${diagnosticStage}`, {
       message: err.message,
       code: err.code,
       stack: err.stack

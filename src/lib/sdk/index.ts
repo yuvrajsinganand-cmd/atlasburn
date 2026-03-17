@@ -1,27 +1,16 @@
+
 /**
- * AtlasBurn Forensic SDK - Institutional v1.3.3
- * 
- * DESIGN PRINCIPLE: Non-blocking ingestion via background flush.
- * THE 4 LAWS OF SDK SAFETY:
- * 1. Never crash host app
- * 2. Never block host request
- * 3. Never leak secrets
- * 4. Always fail silently
- * 
- * v1.3.3: 
- * - Hardened Metadata: Automatically includes sdkVersion and environment in all events.
- * - Schema Parity: Synchronized verification pulse with the hardened ingestion protocol.
- * - Reliable Wrapper + Auto-Detection coexistence.
+ * AtlasBurn Forensic SDK - Institutional v1.3.3-DIAGNOSTIC
  */
 
 export interface AtlasBurnSDKOptions {
   apiKey: string;    
-  projectId?: string; // Optional: Resolved server-side via apiKey if omitted
-  ingestUrl?: string; // Optional: Defaults to AtlasBurn production
+  projectId?: string; 
+  ingestUrl?: string; 
   batchSize?: number;
   maxQueueSize?: number;
-  metadata?: AtlasBurnMetadata; // Optional: Default metadata for all events
-  debug?: boolean; // Optional: Verbose logging for flushes
+  metadata?: AtlasBurnMetadata; 
+  debug?: boolean; 
 }
 
 export interface AtlasBurnMetadata {
@@ -34,9 +23,6 @@ export interface AtlasBurnMetadata {
 const DEFAULT_INGEST_URL = "https://app.atlasburn.com/api/ingest";
 const SDK_VERSION = "1.3.3";
 
-/**
- * Generates a unique forensic ID for event deduplication.
- */
 function generateForensicId(): string {
   try {
     if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -60,10 +46,11 @@ class AtlasBurnIngestor {
       ...options,
       metadata: {
         sdkVersion: SDK_VERSION,
-        environment: process.env.NODE_ENV || 'production',
+        environment: typeof process !== 'undefined' ? (process.env.NODE_ENV || 'production') : 'browser',
         ...options.metadata
       }
     };
+    if (this.options.debug) console.log(`[AtlasBurn SDK] Initialized. Ingest: ${this.options.ingestUrl}`);
   }
 
   public enqueue(event: any) {
@@ -71,7 +58,6 @@ class AtlasBurnIngestor {
       this.queue.shift(); 
     }
     
-    // Merge global metadata if available
     const mergedEvent = {
       ...this.options.metadata,
       ...event,
@@ -82,7 +68,7 @@ class AtlasBurnIngestor {
     this.queue.push(mergedEvent);
 
     if (this.options.debug) {
-      console.log(`[AtlasBurn] Event enqueued: ${mergedEvent.model} (${mergedEvent.eventId})`);
+      console.log(`[AtlasBurn SDK] Event enqueued: ${mergedEvent.model}. Queue size: ${this.queue.length}`);
     }
 
     if (this.queue.length >= (this.options.batchSize || 5)) {
@@ -98,18 +84,14 @@ class AtlasBurnIngestor {
     this.queue = [];
 
     if (this.options.debug) {
-      console.log(`[AtlasBurn] Flushing ${eventsToProcess.length} events to ${this.options.ingestUrl}...`);
+      console.log(`[AtlasBurn SDK] Initiating flush of ${eventsToProcess.length} events...`);
     }
 
     try {
       await this.sendWithRetry(eventsToProcess, 0);
-      if (this.options.debug) {
-        console.log(`[AtlasBurn] Flush successful.`);
-      }
+      if (this.options.debug) console.log(`[AtlasBurn SDK] Flush successful.`);
     } catch (err) {
-      if (this.options.debug) {
-        console.warn(`[AtlasBurn] Flush failed after retries.`, err);
-      }
+      if (this.options.debug) console.warn(`[AtlasBurn SDK] Flush failed after retries.`, err);
     } finally {
       this.isProcessing = false;
     }
@@ -130,11 +112,12 @@ class AtlasBurnIngestor {
       });
 
       if (!response.ok) {
-        throw new Error(`Status ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
       if (attempt < this.maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
+        if (this.options.debug) console.log(`[AtlasBurn SDK] Retrying flush (${attempt + 1}/${this.maxRetries}) in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         return this.sendWithRetry(events, attempt + 1);
       }
@@ -152,17 +135,11 @@ export function getIngestor(options?: AtlasBurnSDKOptions) {
   return globalIngestor;
 }
 
-/**
- * verifyAtlasBurn - Institutional Verification Utility
- * Sends a safe synthetic event to confirm ingestion authority.
- */
 export async function verifyAtlasBurn(options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
   if (!ingestor) return;
 
-  if (options.debug) {
-    console.log("[AtlasBurn] Initializing verification pulse...");
-  }
+  console.log("[AtlasBurn] Initializing verification pulse...");
 
   ingestor.enqueue({
     model: "atlasburn-verification-pulse",
@@ -175,16 +152,12 @@ export async function verifyAtlasBurn(options: AtlasBurnSDKOptions) {
     featureId: "sdk-verification"
   });
 
-  // Explicitly trigger flush for verification
   await ingestor.flush();
 
   console.log("%cAtlasBurn verification event sent ✓", "color: #8b5cf6; font-weight: bold;");
   console.log("Check your forensic command dashboard to confirm verification.");
 }
 
-/**
- * withAtlasBurn - The Official Stable Wrapper
- */
 export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
 
@@ -192,6 +165,7 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
     async chat(
       payload: { model: string; messages: any[] } & AtlasBurnMetadata
     ): Promise<any> {
+      if (options.debug) console.log(`[AtlasBurn SDK] Wrapping chat call for model: ${payload.model}`);
       const response = await client.chat(payload);
       
       try {
@@ -217,14 +191,12 @@ export function withAtlasBurn(client: any, options: AtlasBurnSDKOptions) {
   };
 }
 
-/**
- * initAtlasBurnAuto - Experimental Auto-Detection
- */
 export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
   const ingestor = getIngestor(options);
   if (!ingestor) return;
 
   if (typeof globalThis !== 'undefined' && globalThis.fetch) {
+    console.log("[AtlasBurn SDK] Auto-Detection interceptor active.");
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (...args) => {
       const response = await originalFetch(...args);
@@ -242,18 +214,17 @@ export function initAtlasBurnAuto(options: AtlasBurnSDKOptions) {
           let tokens = { prompt: 0, completion: 0 };
           let model = data.model || "detected-model";
 
-          // 1. OpenAI / Generic
           if (data.usage) {
             tokens.prompt = data.usage.prompt_tokens || data.usage.input_tokens || 0;
             tokens.completion = data.usage.completion_tokens || data.usage.output_tokens || 0;
           } 
-          // 2. Google Gemini
           else if (data.usageMetadata) {
             tokens.prompt = data.usageMetadata.promptTokenCount || 0;
             tokens.completion = data.usageMetadata.candidatesTokenCount || 0;
           }
 
           if (tokens.prompt > 0 || tokens.completion > 0) {
+            if (options.debug) console.log(`[AtlasBurn SDK] Auto-detected AI call: ${model}`);
             ingestor.enqueue({
               model,
               featureId: "auto-detect",
