@@ -1,35 +1,46 @@
 
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
+import { getFirestore, FieldValue, Firestore } from 'firebase-admin/firestore';
 
 /**
- * AtlasBurn Firebase Admin Intelligence
+ * AtlasBurn Firebase Admin Intelligence (Institutional v2.2)
  * 
- * Centralizes privileged Firestore access for server-side routes.
- * Bypasses Security Rules to ensure ingestion integrity and operational safety.
+ * DESIGN: Lazy Singleton Pattern
+ * Ensures that the SDK is only initialized when first accessed,
+ * preventing boot-time crashes in serverless environments.
  */
 
-if (!getApps().length) {
-  // If FIREBASE_SERVICE_ACCOUNT_KEY is present, use it. 
-  // Otherwise, fallback to Application Default Credentials (ADC) for production.
-  const saKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+let adminApp: App | null = null;
+let db: Firestore | null = null;
+
+function getAdminApp(): App {
+  if (getApps().length > 0) return getApps()[0];
   
-  try {
-    if (saKey) {
-      const credentials = JSON.parse(saKey);
-      initializeApp({ credential: cert(credentials) });
-    } else {
-      // In Firebase App Hosting, this uses the ambient service account
-      initializeApp();
-    }
-  } catch (err) {
-    console.error("[AtlasBurn] Firebase Admin Initialization Error:", err);
-    // Final fallback attempt
+  if (!adminApp) {
+    const saKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     try {
-      initializeApp();
-    } catch (e) {}
+      if (saKey) {
+        const credentials = JSON.parse(saKey);
+        adminApp = initializeApp({ credential: cert(credentials) });
+      } else {
+        // App Hosting ambient credentials
+        adminApp = initializeApp();
+      }
+    } catch (err) {
+      console.error("[AtlasBurn] Firebase Admin Boot Error:", err);
+      // Last-ditch attempt to use default credentials
+      adminApp = initializeApp();
+    }
   }
+  return adminApp;
 }
 
-export const adminDb = getFirestore();
+export function getAdminDb(): Firestore {
+  if (!db) {
+    const app = getAdminApp();
+    db = getFirestore(app);
+  }
+  return db;
+}
+
 export { FieldValue };
