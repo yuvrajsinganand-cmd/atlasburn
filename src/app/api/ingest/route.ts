@@ -20,7 +20,7 @@ function sanitizeInput(val: any): string {
 }
 
 /**
- * AtlasBurn Hardened Ingestion API (Institutional v2.5-STABLE)
+ * AtlasBurn Hardened Ingestion API (Institutional v2.6-STABLE)
  */
 export async function POST(request: Request) {
   let diagnosticStage = 'init';
@@ -35,10 +35,12 @@ export async function POST(request: Request) {
     try {
       const contentLength = parseInt(request.headers.get('content-length') || '0');
       if (contentLength > MAX_PAYLOAD_SIZE_BYTES) {
+        console.warn(`[AtlasBurn][${requestId}] REJECTED: Payload too large (${contentLength} bytes)`);
         return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
       }
       body = await request.json();
     } catch (parseError) {
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Invalid JSON payload`);
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     // 2. Auth Validation
     diagnosticStage = 'auth_verification';
     if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 10) {
-      console.warn(`[AtlasBurn][${requestId}] REJECTED: Invalid API Key format. UA: ${request.headers.get('user-agent')}`);
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Missing or invalid API Key format.`);
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid API Key.' }, { status: 401 });
     }
 
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
     // Resolve Project Context with Index Error Handling
     let keysSnap;
     try {
+      console.log(`[AtlasBurn][${requestId}] Resolving context for key hash: ${hashedKey.substring(0, 8)}...`);
       keysSnap = await db.collectionGroup('ingestKeys')
         .where('hash', '==', hashedKey)
         .where('status', '==', 'active')
@@ -79,31 +82,39 @@ export async function POST(request: Request) {
     }
       
     if (keysSnap.empty) {
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Key not found or inactive. Hash: ${hashedKey.substring(0, 8)}...`);
       return NextResponse.json({ error: 'Forbidden: Invalid API Key.' }, { status: 403 });
     }
     
+    // Resolve identity from the document path: users/{userId}/aiSubscriptions/{subId}/ingestKeys/{keyId}
     const keyPathParts = keysSnap.docs[0].ref.path.split('/');
-    const resolvedProjectId = keyPathParts[1]; // users/{userId}/...
+    const resolvedUserId = keyPathParts[1]; 
 
-    if (clientProjectId && clientProjectId !== resolvedProjectId) {
+    // SECURITY: We prioritize server-side userId. 
+    // We only block if clientProjectId was provided AND it looks like a userId but doesn't match.
+    // This allows developers to use custom labels for projectId in the SDK without getting 403s.
+    if (clientProjectId && clientProjectId.length > 15 && clientProjectId !== resolvedUserId) {
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Context mismatch. Client: ${clientProjectId}, Server: ${resolvedUserId}`);
       return NextResponse.json({ error: 'Forbidden: Project context mismatch.' }, { status: 403 });
     }
+
+    const orgId = `org_${resolvedUserId}`;
+    const usagePath = `organizations/${orgId}/usageRecords`;
+    const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
 
     // 3. Batch & Event Validation
     diagnosticStage = 'event_processing';
     const rawEvents = Array.isArray(events) ? events : [];
     
     if (rawEvents.length === 0) {
+      console.log(`[AtlasBurn][${requestId}] IGNORED: Empty events array.`);
       return NextResponse.json({ status: 'ignored', message: 'No events found.' });
     }
     
     if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
+      console.warn(`[AtlasBurn][${requestId}] REJECTED: Batch size ${rawEvents.length} exceeds limit.`);
       return NextResponse.json({ error: 'Batch size exceeds limit.' }, { status: 400 });
     }
-
-    const orgId = `org_${resolvedProjectId}`;
-    const usagePath = `organizations/${orgId}/usageRecords`;
-    const dedupePath = `organizations/${orgId}/deduplicatedEvents`;
 
     // 4. Parallelized Idempotency Check
     const dedupeResults = await Promise.all(
@@ -203,12 +214,13 @@ export async function POST(request: Request) {
     diagnosticStage = 'database_commit';
     if (processedRecords.length > 0) {
       await batch.commit();
+      console.log(`[AtlasBurn][${requestId}] SUCCESS: Processed ${processedRecords.length} events for Org: ${orgId}`);
     }
 
     return NextResponse.json({ status: 'success', count: processedRecords.length });
 
   } catch (err: any) {
-    console.error(`[AtlasBurn][${requestId}] CRITICAL FAILURE at ${diagnosticStage}`, err);
+    console.error(`[AtlasBurn][${requestId}] CRITICAL FAILURE at ${diagnosticStage}:`, err);
     return NextResponse.json({ 
       error: 'Internal Server Error',
       stage: diagnosticStage 

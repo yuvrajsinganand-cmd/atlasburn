@@ -101,7 +101,8 @@ class AtlasBurnIngestor {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: this.options.apiKey,
-          projectId: this.options.projectId,
+          // Only send projectId if explicitly provided to avoid accidental context mismatches
+          ...(this.options.projectId ? { projectId: this.options.projectId } : {}),
           events: events
         }),
       });
