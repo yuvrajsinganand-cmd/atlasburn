@@ -37,7 +37,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Line } from "recharts"
+import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Line } from "recharts"
 import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
@@ -473,7 +473,7 @@ export default function Dashboard() {
                     </CardHeader>
                     <div className="h-[350px] w-full mt-6">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={activeSnapshot.usage.daily}>
+                        <ComposedChart data={activeSnapshot.usage.daily}>
                           <defs>
                             <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
@@ -482,8 +482,11 @@ export default function Dashboard() {
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} />
-                          <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => `$${val}`} />
-                          <ReferenceLine y={budgetThreshold} stroke="hsl(var(--destructive))" strokeDasharray="3 3" label={{ value: `GUARDRAIL: $${budgetThreshold}/DAY`, position: 'insideBottomRight', fill: 'hsl(var(--destructive))', fontSize: 9, fontWeight: 'bold', dy: -10 }} />
+                          <YAxis yAxisId="left" axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => `$${val}`} />
+                          <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} fontSize={10} tickFormatter={(val) => `$${val.toFixed(2)}`} />
+                          
+                          <ReferenceLine yAxisId="left" y={budgetThreshold} stroke="hsl(var(--destructive))" strokeDasharray="3 3" label={{ value: `GUARDRAIL: $${budgetThreshold}/DAY`, position: 'insideBottomRight', fill: 'hsl(var(--destructive))', fontSize: 9, fontWeight: 'bold', dy: -10 }} />
+                          
                           <Tooltip content={({ active, payload, label }) => {
                             if (active && payload && payload.length) {
                               const data = payload[0].payload;
@@ -507,16 +510,18 @@ export default function Dashboard() {
                             }
                             return null;
                           }} />
-                          <Area type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fill="url(#colorMetric)" strokeWidth={3} animationDuration={1000} dot={(props) => {
+                          
+                          <Area yAxisId="left" type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fill="url(#colorMetric)" strokeWidth={3} animationDuration={1000} dot={(props) => {
                             const { payload, cx, cy } = props;
                             if (payload.isAnomaly) return <circle key={`anomaly-${payload.date}`} cx={cx} cy={cy} r={5} fill="hsl(var(--destructive))" stroke="white" strokeWidth={2} className="animate-pulse" />;
                             return null as any;
                           }} />
-                          {showP50 && <Line type="monotone" dataKey="p50" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
-                          {showP75 && <Line type="monotone" dataKey="p75" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
-                          {showP90 && <Line type="monotone" dataKey="p90" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
-                          {showP99 && <Line type="monotone" dataKey="p99" stroke="#ef4444" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
-                        </AreaChart>
+                          
+                          {showP50 && <Line yAxisId="right" type="monotone" dataKey="p50" stroke="#10b981" strokeWidth={3} dot={false} strokeDasharray={undefined} />}
+                          {showP75 && <Line yAxisId="right" type="monotone" dataKey="p75" stroke="#3b82f6" strokeWidth={3} dot={false} strokeDasharray={undefined} />}
+                          {showP90 && <Line yAxisId="right" type="monotone" dataKey="p90" stroke="#f59e0b" strokeWidth={3} dot={false} strokeDasharray={undefined} />}
+                          {showP99 && <Line yAxisId="right" type="monotone" dataKey="p99" stroke="#ef4444" strokeWidth={3} dot={false} strokeDasharray={undefined} />}
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   </Card>
