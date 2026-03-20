@@ -37,7 +37,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { runInstitutionalSimulation } from "@/lib/probabilistic-engine"
 import { type SdkProjectSnapshot } from "@/types/sdk"
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts"
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Line } from "recharts"
 import Link from "next/link"
 import { SystemPulse } from "@/components/system-pulse"
 import { useDemoMode } from "@/components/demo-provider"
@@ -53,6 +53,8 @@ import {
 } from "@/components/ui/tooltip"
 import { aggregateSnapshot } from "@/lib/forensic-engine"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 
 const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
   const signals = generateMockSignals();
@@ -92,7 +94,11 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
           delta: baseCost * (0.1 + Math.random() * 0.2),
           volatility: 0.1 + Math.random() * 0.1,
           isAnomaly,
-          anomalyDetails: isAnomaly ? "Support-bot-alpha retry cascade: +420% token burst" : null
+          anomalyDetails: isAnomaly ? "Support-bot-alpha retry cascade: +420% token burst" : null,
+          p50: 0.008 + Math.random() * 0.002,
+          p75: 0.015 + Math.random() * 0.005,
+          p90: 0.045 + Math.random() * 0.015,
+          p99: 0.150 + Math.random() * 0.100,
         };
       })
     },
@@ -119,7 +125,6 @@ const getMockSnapshot = (windowDays: number): SdkProjectSnapshot => {
 
 /**
  * Renders a semantic trend indicator.
- * Logic: Green if improvement (metrics going down for bad things, up for good things).
  */
 function TrendIndicator({ 
   value, 
@@ -161,6 +166,12 @@ export default function Dashboard() {
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<"1" | "7" | "14" | "30">("7");
+
+  // Percentile toggles
+  const [showP50, setShowP50] = useState(false);
+  const [showP75, setShowP75] = useState(false);
+  const [showP90, setShowP90] = useState(false);
+  const [showP99, setShowP99] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -257,7 +268,7 @@ export default function Dashboard() {
   }
 
   const formatCostPerRequest = (val: number | undefined) => {
-    if (!val || val === 0) return 'N/A';
+    if (val === undefined || val === 0) return 'N/A';
     if (val < 1) return `$${val.toFixed(4)}`;
     return `$${val.toFixed(2)}`;
   }
@@ -426,19 +437,39 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <Card className="lg:col-span-2 border-none shadow-sm bg-white p-6">
-                    <CardHeader className="px-0 pt-0 flex flex-row items-center justify-between">
+                    <CardHeader className="px-0 pt-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <CardTitle className="text-lg font-headline flex items-center gap-2">Observed Spend Trends</CardTitle>
                         <CardDescription>Visualizing deterministic capital outflow from telemetry pulses.</CardDescription>
                       </div>
-                      <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
-                        <TabsList className="bg-transparent h-8 gap-1">
-                          <TabsTrigger value="1" className="text-[10px] font-bold uppercase px-3 h-6">Real-time</TabsTrigger>
-                          <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6">7 Days</TabsTrigger>
-                          <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6">14 Days</TabsTrigger>
-                          <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6">30 Days</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-4 bg-muted/20 p-2 px-4 rounded-xl border border-muted">
+                          <div className="flex items-center gap-2">
+                            <Checkbox id="p50" checked={showP50} onCheckedChange={(v) => setShowP50(!!v)} className="border-[#10b981] data-[state=checked]:bg-[#10b981]" />
+                            <Label htmlFor="p50" className="text-[10px] font-bold uppercase cursor-pointer text-[#10b981]">P50</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox id="p75" checked={showP75} onCheckedChange={(v) => setShowP75(!!v)} className="border-[#3b82f6] data-[state=checked]:bg-[#3b82f6]" />
+                            <Label htmlFor="p75" className="text-[10px] font-bold uppercase cursor-pointer text-[#3b82f6]">P75</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox id="p90" checked={showP90} onCheckedChange={(v) => setShowP90(!!v)} className="border-[#f59e0b] data-[state=checked]:bg-[#f59e0b]" />
+                            <Label htmlFor="p90" className="text-[10px] font-bold uppercase cursor-pointer text-[#f59e0b]">P90</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox id="p99" checked={showP99} onCheckedChange={(v) => setShowP99(!!v)} className="border-[#ef4444] data-[state=checked]:bg-[#ef4444]" />
+                            <Label htmlFor="p99" className="text-[10px] font-bold uppercase cursor-pointer text-[#ef4444]">P99</Label>
+                          </div>
+                        </div>
+                        <Tabs value={period} onValueChange={(v: any) => setPeriod(v)} className="bg-muted/50 p-1 rounded-lg">
+                          <TabsList className="bg-transparent h-8 gap-1">
+                            <TabsTrigger value="1" className="text-[10px] font-bold uppercase px-3 h-6">Real-time</TabsTrigger>
+                            <TabsTrigger value="7" className="text-[10px] font-bold uppercase px-3 h-6">7 Days</TabsTrigger>
+                            <TabsTrigger value="14" className="text-[10px] font-bold uppercase px-3 h-6">14 Days</TabsTrigger>
+                            <TabsTrigger value="30" className="text-[10px] font-bold uppercase px-3 h-6">30 Days</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </div>
                     </CardHeader>
                     <div className="h-[350px] w-full mt-6">
                       <ResponsiveContainer width="100%" height="100%">
@@ -459,8 +490,12 @@ export default function Dashboard() {
                               return (
                                 <div className="bg-background border p-3 rounded-xl shadow-2xl text-[10px] font-mono space-y-2 min-w-[180px]">
                                   <p className="font-bold border-b pb-1 mb-1 uppercase tracking-widest opacity-70">{new Date(label).toLocaleDateString()}</p>
-                                  <div className="flex justify-between gap-4"><span className="font-bold uppercase text-primary">OBSERVED:</span><span className="font-bold">${payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                                  <div className="flex justify-between gap-4"><span className="text-muted-foreground uppercase">LOAD:</span><span className="font-bold">{data.requests?.toLocaleString()} REQS</span></div>
+                                  <div className="flex justify-between gap-4"><span className="font-bold uppercase text-primary">DAILY TOTAL:</span><span className="font-bold">${data.cost?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                                  <div className="flex justify-between gap-4 border-t pt-1 mt-1 opacity-70"><span className="uppercase">LOAD:</span><span>{data.requests?.toLocaleString()} REQS</span></div>
+                                  {showP50 && <div className="flex justify-between gap-4 text-[#10b981]"><span className="uppercase">P50 (MEDIAN):</span><span>${data.p50?.toFixed(4)}</span></div>}
+                                  {showP75 && <div className="flex justify-between gap-4 text-[#3b82f6]"><span className="uppercase">P75:</span><span>${data.p75?.toFixed(4)}</span></div>}
+                                  {showP90 && <div className="flex justify-between gap-4 text-[#f59e0b]"><span className="uppercase">P90:</span><span>${data.p90?.toFixed(4)}</span></div>}
+                                  {showP99 && <div className="flex justify-between gap-4 text-[#ef4444]"><span className="uppercase">P99 (EXTREME):</span><span>${data.p99?.toFixed(4)}</span></div>}
                                   {data.isAnomaly && (
                                     <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
                                       <div className="flex items-center gap-1 text-destructive font-bold uppercase text-[8px]"><AlertCircle size={10} /> Diagnostic Spike Detected</div>
@@ -477,6 +512,10 @@ export default function Dashboard() {
                             if (payload.isAnomaly) return <circle key={`anomaly-${payload.date}`} cx={cx} cy={cy} r={5} fill="hsl(var(--destructive))" stroke="white" strokeWidth={2} className="animate-pulse" />;
                             return null as any;
                           }} />
+                          {showP50 && <Line type="monotone" dataKey="p50" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
+                          {showP75 && <Line type="monotone" dataKey="p75" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
+                          {showP90 && <Line type="monotone" dataKey="p90" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
+                          {showP99 && <Line type="monotone" dataKey="p99" stroke="#ef4444" strokeWidth={2} dot={false} strokeDasharray="5 5" />}
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>

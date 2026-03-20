@@ -8,6 +8,22 @@ import { type SdkProjectSnapshot } from '@/types/sdk';
 import { deriveSignalsFromRecords, translateSignalsToEconomicFactors } from '@/lib/runtime-signals';
 import { calculateUsageVariance } from '@/lib/variance-engine';
 
+/**
+ * Calculates a specific percentile from an array of numbers.
+ */
+function getPercentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const pos = (sorted.length - 1) * p;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
+}
+
 export function aggregateSnapshot(
   projectId: string,
   records: any[],
@@ -59,7 +75,16 @@ export function aggregateSnapshot(
       }
     } catch (e) {}
 
-    if (!dailyMap[date]) dailyMap[date] = { date, cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
+    if (!dailyMap[date]) {
+      dailyMap[date] = { 
+        date, 
+        cost: 0, 
+        promptTokens: 0, 
+        completionTokens: 0, 
+        requests: 0,
+        allCosts: [] // Store individual event costs for percentile calculation
+      };
+    }
     
     const model = r.model || 'unknown';
     if (! modelMap[model]) modelMap[model] = { cost: 0, promptTokens: 0, completionTokens: 0, requests: 0 };
@@ -67,19 +92,21 @@ export function aggregateSnapshot(
     const featureId = r.featureId || 'default';
     if (!featureMap[featureId]) featureMap[featureId] = { cost: 0, requests: 0, riskContribution: 0, status: 'PROTECTED', trend: 0, history: [] };
 
-    dailyMap[date].cost += r.cost || 0;
+    const eventCost = r.cost || 0;
+    dailyMap[date].cost += eventCost;
     dailyMap[date].requests += 1;
     dailyMap[date].promptTokens += r.inputTokens || 0;
     dailyMap[date].completionTokens += r.outputTokens || 0;
+    dailyMap[date].allCosts.push(eventCost);
     
-    modelMap[model].cost += r.cost || 0;
+    modelMap[model].cost += eventCost;
     modelMap[model].requests += 1;
 
-    featureMap[featureId].cost += r.cost || 0;
+    featureMap[featureId].cost += eventCost;
     featureMap[featureId].requests += 1;
-    featureMap[featureId].history.push(r.cost || 0);
+    featureMap[featureId].history.push(eventCost);
     
-    totalCost += r.cost || 0;
+    totalCost += eventCost;
     totalPrompt += r.inputTokens || 0;
     totalCompletion += r.outputTokens || 0;
   });
@@ -111,6 +138,21 @@ export function aggregateSnapshot(
   });
 
   let dailyArray = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+  
+  // Calculate percentiles for each day
+  dailyArray = dailyArray.map(d => {
+    const costs = d.allCosts;
+    const result = {
+      ...d,
+      p50: getPercentile(costs, 0.50),
+      p75: getPercentile(costs, 0.75),
+      p90: getPercentile(costs, 0.90),
+      p99: getPercentile(costs, 0.99),
+    };
+    delete result.allCosts; // Cleanup memory
+    return result;
+  });
+
   const varianceResult = calculateUsageVariance(dailyArray);
 
   // Mark Daily Anomalies based on statistical variance
