@@ -2,10 +2,12 @@
 
 ***
 ## Problem:
-AI agents silently burn money due to retries, loops, and scaling unpredictability.
+AI agents fail financially before teams notice operationally.
+
+Retry loops, agent cascades, and scaling errors can turn normal usage into runaway API spend.
 
 ## Solution:
-AtlasBurn doesn’t just monitor AI usage — it actively controls it.
+AtlasBurn is a runtime cost protection layer for AI systems.
 
 It detects abnormal behavior in real-time and enforces guardrails:
 - Kill runaway agents  
