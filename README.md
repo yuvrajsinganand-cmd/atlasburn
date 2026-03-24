@@ -44,24 +44,24 @@ AtlasBurn:
 
 It’s not reporting. It’s protection.
 
-# 🛠️Tech Stack
+## 🛠️Tech Stack
 - Next.js
 - Firebase
 - TypeScript
 - Custom SDK (NPM)
   
-# 📦 SDK
+## 📦 SDK
 Located in: /src/lib/sdk
 
-# Tracks:
+## Tracks:
 - token usage
 - request flows
 - cost attribution
   
-# ⚠️ Status
+## ⚠️ Status
 Early-stage system being tested with real-world AI workflows.
 
-# 📊 Early Signal
+## 📊 Early Signal
 
 - SDK published and tested  
 - Live demo deployed  
