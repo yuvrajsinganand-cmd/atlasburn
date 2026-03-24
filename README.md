@@ -15,11 +15,11 @@ It detects abnormal behavior in real-time and enforces guardrails:
 Before costs spiral. Not after.
 ***
 # ⚡ Key Features
-• Real-time AI spend tracking
-• Retry cascade detection
-• Budget guardrails (auto-kill / throttle)
-• Cost per request analytics
-• Risk forecasting (VaR / stochastic modeling)
+- Real-time AI spend tracking
+- Retry cascade detection
+- Budget guardrails (auto-kill / throttle)
+- Cost per request analytics
+- Risk forecasting (VaR / stochastic modeling)
 ***
 # 🧠 Why it matters
 Most tools monitor AI.
@@ -31,7 +31,7 @@ https://app.atlasburn.com
 # 🎯 Who is this for
 - AI startups running agents/workflows  
 - Teams spending $1k–$50k/month on LLM APIs  
-- Builders scaling automation who can’t afford silent cost spikes# 🛠 Tech Stack
+- Builders scaling automation who can’t afford silent cost spikes
 ***
 # ❓ Why not just use provider dashboards?
 
@@ -45,18 +45,18 @@ AtlasBurn:
 It’s not reporting. It’s protection.
 ***
 # 🛠️Tech Stack
-• Next.js
-• Firebase
-• TypeScript
-• Custom SDK (NPM)
+- Next.js
+- Firebase
+- TypeScript
+- Custom SDK (NPM)
 ***
 # 📦 SDK
 Located in: /src/lib/sdk
 ***
 # Tracks:
-• token usage
-• request flows
-• cost attribution
+- token usage
+- request flows
+- cost attribution
 ***
 # ⚠️ Status
 Early-stage system being tested with real-world AI workflows.
