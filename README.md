@@ -1,5 +1,4 @@
-
-# AtlasBurn | Institutional AI Capital Risk Engine
+# AtlasBurn | AI Cost Guardrails for Autonomous Systems
 ***
 # Problem:
 AI agents silently burn money due to retries, loops, and scaling unpredictability.
