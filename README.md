@@ -1,5 +1,4 @@
 # AtlasBurn | AI Cost Guardrails for Autonomous Systems
-
 ***
 ## Problem:
 AI agents fail financially before teams notice operationally.
@@ -26,10 +25,10 @@ Before costs spiral. Not after.
 ## 🧠 Why it matters
 Most tools monitor AI.
 AtlasBurn controls it in real-time.
-***
+
 ## 🔗 Live Demo
 https://app.atlasburn.com
-***
+
 ## 🎯 Who is this for
 - AI startups running agents/workflows  
 - Teams spending $1k–$50k/month on LLM APIs  
